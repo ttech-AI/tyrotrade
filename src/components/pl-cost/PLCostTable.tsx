@@ -8,7 +8,7 @@ import {
   ReceiptDollarIcon,
 } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
-import { formatCompactCurrency, formatNumber } from "@/lib/format";
+import { formatCurrency, formatNumber } from "@/lib/format";
 import { useThemeAccent } from "@/components/layout/theme-accent";
 import type { PLCostNode } from "@/lib/selectors/plCost";
 
@@ -286,10 +286,14 @@ function NumCell({
   bold?: boolean;
 }) {
   const empty = !value;
+  // USD cells render the FULL formatted amount ($2.235.540 instead
+  // of compact "$2,2 Mn"). Compact loses precision the user
+  // explicitly wants to see in the comparison table — KPI tiles
+  // can still use compact since their footprint is fixed.
   const text = empty
     ? "—"
     : kind === "usd"
-      ? formatCompactCurrency(value, "USD")
+      ? formatCurrency(value, "USD")
       : kind === "price"
         ? `${formatNumber(value, 2)}`
         : `${formatNumber(value, 0)} t`;
@@ -374,7 +378,7 @@ function DeltaCell({ value }: { value: number }) {
       )}
     >
       {sign}
-      {formatCompactCurrency(Math.abs(value), "USD")}
+      {formatCurrency(Math.abs(value), "USD")}
     </td>
   );
 }
