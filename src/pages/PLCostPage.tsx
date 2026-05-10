@@ -2,7 +2,7 @@ import * as React from "react";
 import { Link } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  ChartLineData01Icon,
+  DashboardSpeed01Icon,
   Database01Icon,
   RefreshIcon,
   ShipmentTrackingIcon,
@@ -23,6 +23,7 @@ import {
 } from "@/lib/selectors/plCost";
 import { PLCostTable } from "@/components/pl-cost/PLCostTable";
 import { PLCostKpiTiles } from "@/components/pl-cost/PLCostKpiTiles";
+import { PLCostProgress } from "@/components/pl-cost/PLCostProgress";
 
 /**
  * P&L Cost — Tahmini × Gerçekleşen maliyet karşılaştırma raporu.
@@ -100,7 +101,7 @@ export function PLCostPage() {
             }}
           >
             <HugeiconsIcon
-              icon={ChartLineData01Icon}
+              icon={DashboardSpeed01Icon}
               size={20}
               strokeWidth={2}
             />
@@ -146,7 +147,12 @@ export function PLCostPage() {
       {rollup.error ? (
         <ErrorState error={rollup.error} onRetry={rollup.refresh} />
       ) : rollup.isFetching && rollup.isEmpty ? (
-        <FullPageLoading accentColor={accent.solid} />
+        <GlassPanel tone="default" className="flex-1 min-h-0 rounded-2xl">
+          <PLCostProgress
+            stages={rollup.stages}
+            totalProjects={totalProjects}
+          />
+        </GlassPanel>
       ) : rollup.isEmpty ? (
         <EmptyState accentColor={accent.solid} accentRing={accent.ring} accentGradient={accent.gradient} />
       ) : (
@@ -247,29 +253,6 @@ function ErrorState({
   );
 }
 
-function FullPageLoading({ accentColor }: { accentColor: string }) {
-  return (
-    <GlassPanel tone="default" className="flex-1 min-h-0 rounded-2xl">
-      <div className="h-full flex items-center justify-center p-8">
-        <div className="max-w-md text-center space-y-4">
-          <Loader2
-            className="size-10 mx-auto animate-spin"
-            style={{ color: accentColor }}
-          />
-          <div>
-            <div className="text-base font-semibold">Veriler hazırlanıyor</div>
-            <p className="text-sm text-muted-foreground mt-1">
-              Gerçekleşen gider rollup'ı 4-aşamalı sorgu zinciri ile çekiliyor
-              (inventdimb → dist → expense-line + refmap). Bu işlem 1-2
-              dakika sürebilir.
-            </p>
-          </div>
-        </div>
-      </div>
-    </GlassPanel>
-  );
-}
-
 function EmptyState({
   accentColor,
   accentRing,
@@ -291,7 +274,7 @@ function EmptyState({
             }}
           >
             <HugeiconsIcon
-              icon={ChartLineData01Icon}
+              icon={DashboardSpeed01Icon}
               size={26}
               strokeWidth={2}
             />

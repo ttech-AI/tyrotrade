@@ -9,8 +9,21 @@ import {
 import { ACTUAL_EXPENSE_ROLLUP_CACHE } from "@/lib/dataverse/refreshAll";
 import {
   fetchActualExpenseRollupForAllProjects,
+  ROLLUP_STAGES,
   type ActualExpenseRollupRow,
+  type RollupProgress,
+  type RollupStage,
 } from "@/lib/dataverse/actualExpenseRollup";
+
+/** Per-stage status surfaced to the UI step list. */
+export type StageStatus = "pending" | "running" | "done";
+
+export interface StageProgress {
+  stage: RollupStage;
+  status: StageStatus;
+  /** Last reported count (records / IDs / rows). null while pending. */
+  count: number | null;
+}
 
 /** Cache freshness threshold — anything older than this and the
  *  hook auto-refreshes on next mount. Manual `refresh()` always
@@ -30,10 +43,20 @@ export interface UseActualExpenseRollupReturn {
   isFetching: boolean;
   /** Last fetch error, if any. */
   error: string | null;
+  /** Per-stage progress entries — drives the step-by-step progress
+   *  UI. Reset to all-pending when a fresh fetch starts; updates as
+   *  each stage transitions through `running` → `done`. */
+  stages: StageProgress[];
   /** Manually trigger a fetch (page's test "Yenile" button) —
    *  bypasses the staleness check. */
   refresh: () => void;
 }
+
+const INITIAL_STAGES: StageProgress[] = ROLLUP_STAGES.map((stage) => ({
+  stage,
+  status: "pending",
+  count: null,
+}));
 
 /**
  * 🔒 Read-only hook — exposes the tenant-wide realised-expense rollup
@@ -58,6 +81,7 @@ export function useActualExpenseRollup(): UseActualExpenseRollupReturn {
   const fingerprint = useCacheFingerprint(ACTUAL_EXPENSE_ROLLUP_CACHE);
   const [isFetching, setIsFetching] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [stages, setStages] = React.useState<StageProgress[]>(INITIAL_STAGES);
 
   // Read snapshot from localStorage on every fingerprint bump.
   const snapshot = React.useMemo(() => {
@@ -71,11 +95,31 @@ export function useActualExpenseRollup(): UseActualExpenseRollupReturn {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fingerprint]);
 
+  /** Apply a single progress event into the stages array (immutable
+   *  update — replaces the entry for the matching stage). */
+  const applyProgress = React.useCallback(
+    (p: RollupProgress) => {
+      setStages((prev) =>
+        prev.map((s) =>
+          s.stage === p.stage
+            ? {
+                stage: p.stage,
+                status: p.status,
+                count: p.count ?? s.count,
+              }
+            : s
+        )
+      );
+    },
+    []
+  );
+
   /** Run the 4-stage pipeline + write the result to cache. Surface
-   *  isFetching/error to the caller. */
+   *  isFetching/error/stages to the caller. */
   const runFetch = React.useCallback(async () => {
     setIsFetching(true);
     setError(null);
+    setStages(INITIAL_STAGES);
     try {
       const client = getDataverseClient();
       // Re-read the active project IDs at fetch time (the projects
@@ -90,7 +134,8 @@ export function useActualExpenseRollup(): UseActualExpenseRollupReturn {
 
       const rollup = await fetchActualExpenseRollupForAllProjects(
         client,
-        projids
+        projids,
+        applyProgress
       );
       writeCache(ACTUAL_EXPENSE_ROLLUP_CACHE, {
         fetchedAt: new Date().toISOString(),
@@ -103,7 +148,7 @@ export function useActualExpenseRollup(): UseActualExpenseRollupReturn {
     } finally {
       setIsFetching(false);
     }
-  }, []);
+  }, [applyProgress]);
 
   // Auto-fetch on mount when cache is missing / stale. Ref guards
   // against double-firing in StrictMode. Only triggers ONCE per
@@ -125,6 +170,7 @@ export function useActualExpenseRollup(): UseActualExpenseRollupReturn {
     isEmpty: snapshot.rows.length === 0,
     isFetching,
     error,
+    stages,
     refresh: () => {
       void runFetch();
     },

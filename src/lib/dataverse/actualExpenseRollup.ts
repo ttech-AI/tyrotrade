@@ -50,6 +50,46 @@ const DIST_ENTITY = "mserp_tryaifrtexpenselinedistlineentities";
 const EXPENSE_ENTITY = "mserp_tryaiexpenselineentities";
 const REFMAP_ENTITY = "mserp_tryaiotherexpenseprojectlineentities";
 
+/* ─────────── Progress reporting ─────────── */
+
+/** Logical stage names for the rollup pipeline. UI surfaces these as
+ *  step rows — tick / spinner / pending. The order is the actual
+ *  execution order (steps 1+R run in parallel). */
+export type RollupStage =
+  | "inventdimb"
+  | "refmap"
+  | "dist"
+  | "expense-line"
+  | "aggregate";
+
+export const ROLLUP_STAGES: RollupStage[] = [
+  "inventdimb",
+  "refmap",
+  "dist",
+  "expense-line",
+  "aggregate",
+];
+
+/** One per stage transition. Caller can use this to drive a
+ *  step-by-step progress UI (tyrowms-style). `count` is the natural
+ *  unit for each step:
+ *   - inventdimb     → distinct inventdimid count
+ *   - refmap         → refmap row count (per-project mapping count)
+ *   - dist           → distinct expensenum count
+ *   - expense-line   → ham realised row count
+ *   - aggregate      → final rollup row count
+ */
+export interface RollupProgress {
+  /** The stage that just completed (or just started, when `running`). */
+  stage: RollupStage;
+  /** Was this a "stage starting" report or a "stage just completed"? */
+  status: "running" | "done";
+  /** Number of records associated with the just-completed stage. */
+  count?: number;
+}
+
+export type ProgressCallback = (p: RollupProgress) => void;
+
 /**
  * Tenant-wide pipeline (4 chunked fetches; refmap is parallel with
  * the inventdimb step so the whole thing runs in roughly the time of
@@ -78,9 +118,14 @@ const REFMAP_ENTITY = "mserp_tryaiotherexpenseprojectlineentities";
  */
 export async function fetchActualExpenseRollupForAllProjects(
   client: DataverseClient,
-  projids: string[]
+  projids: string[],
+  onProgress?: ProgressCallback
 ): Promise<ActualExpenseRollupRow[]> {
   if (projids.length === 0) return [];
+
+  // Mark steps 1 & R as running. They fire in parallel.
+  onProgress?.({ stage: "inventdimb", status: "running" });
+  onProgress?.({ stage: "refmap", status: "running" });
 
   // Step 1 + R in parallel.
   const [dimSettled, refMapSettled] = await Promise.allSettled([
@@ -133,7 +178,6 @@ export async function fetchActualExpenseRollupForAllProjects(
     if (!projToInventDimIds.has(pid)) projToInventDimIds.set(pid, new Set());
     projToInventDimIds.get(pid)!.add(did);
   }
-  if (projToInventDimIds.size === 0) return [];
 
   // Flat distinct inventdimids for the dist fetch.
   const allInventDimIds = Array.from(
@@ -142,7 +186,26 @@ export async function fetchActualExpenseRollupForAllProjects(
     )
   );
 
+  // Report Step 1 done (even on early return so the UI ticks).
+  onProgress?.({
+    stage: "inventdimb",
+    status: "done",
+    count: allInventDimIds.length,
+  });
+  // Refmap also "done" by now (Promise.allSettled awaited above).
+  onProgress?.({
+    stage: "refmap",
+    status: "done",
+    count:
+      refMapSettled.status === "fulfilled"
+        ? refMapSettled.value.value.length
+        : 0,
+  });
+
+  if (projToInventDimIds.size === 0) return [];
+
   // Step 2: dist rows → expensenums, keyed by inventdimid.
+  onProgress?.({ stage: "dist", status: "running" });
   const distResult = await listAllByInChunked<Record<string, unknown>>(
     client,
     DIST_ENTITY,
@@ -158,7 +221,6 @@ export async function fetchActualExpenseRollupForAllProjects(
     if (!dimToExpenseNums.has(did)) dimToExpenseNums.set(did, new Set());
     dimToExpenseNums.get(did)!.add(en);
   }
-  if (dimToExpenseNums.size === 0) return [];
 
   // Flat distinct expensenums.
   const allExpenseNums = Array.from(
@@ -167,7 +229,16 @@ export async function fetchActualExpenseRollupForAllProjects(
     )
   );
 
+  onProgress?.({
+    stage: "dist",
+    status: "done",
+    count: allExpenseNums.length,
+  });
+
+  if (dimToExpenseNums.size === 0) return [];
+
   // Step 3: authoritative expense-line rows.
+  onProgress?.({ stage: "expense-line", status: "running" });
   const expResult = await listAllByInChunked<Record<string, unknown>>(
     client,
     EXPENSE_ENTITY,
@@ -175,6 +246,12 @@ export async function fetchActualExpenseRollupForAllProjects(
     allExpenseNums,
     { $select: EXPENSE_LINE_COLUMNS.join(",") }
   );
+  onProgress?.({
+    stage: "expense-line",
+    status: "done",
+    count: expResult.value.length,
+  });
+  onProgress?.({ stage: "aggregate", status: "running" });
 
   // Index expense-rows by expensenum for the per-project pass.
   const rowsByExpenseNum = new Map<string, Record<string, unknown>[]>();
@@ -250,5 +327,10 @@ export async function fetchActualExpenseRollupForAllProjects(
       });
     }
   }
+  onProgress?.({
+    stage: "aggregate",
+    status: "done",
+    count: result.length,
+  });
   return result;
 }
