@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   PinLocation03Icon,
@@ -31,6 +31,58 @@ interface PLCostTableProps {
   onSelectNode?: (node: PLCostNode) => void;
 }
 
+/** Sortable column keys. `label` sorts alphabetically on the tree
+ *  column; the rest pull numeric values off `node.metrics`. */
+type SortKey =
+  | "label"
+  | "expectedUsd"
+  | "realizedUsd"
+  | "realizedExpectedPct"
+  | "expectedPriceUsdPerMt"
+  | "realizedPriceUsdPerMt"
+  | "realizedExpectedTonPct"
+  | "quantityVesselMt"
+  | "expectedQuantityMt"
+  | "deltaUsd";
+
+type SortDir = "asc" | "desc";
+
+/**
+ * Recursively sort the tree at every level so each parent's children
+ * are reordered without flattening. Numeric nulls (e.g. R/E % when
+ * expected is 0) bubble to the end regardless of direction so a
+ * desc sort doesn't pin them at the top by accident.
+ */
+function sortTree(
+  nodes: PLCostNode[],
+  key: SortKey,
+  dir: SortDir
+): PLCostNode[] {
+  if (nodes.length === 0) return nodes;
+  const mult = dir === "asc" ? 1 : -1;
+  const valueOf = (n: PLCostNode): number | string | null => {
+    if (key === "label") return n.label;
+    return n.metrics[key as keyof typeof n.metrics] as number | null;
+  };
+  const sorted = [...nodes].sort((a, b) => {
+    const av = valueOf(a);
+    const bv = valueOf(b);
+    // Nulls always last (regardless of dir).
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (typeof av === "string" && typeof bv === "string") {
+      return mult * av.localeCompare(bv, "tr");
+    }
+    return mult * ((av as number) - (bv as number));
+  });
+  return sorted.map((n) =>
+    n.children && n.children.length > 0
+      ? { ...n, children: sortTree(n.children, key, dir) }
+      : n
+  );
+}
+
 /**
  * Hierarchical P&L Cost table — segment → voyage → vessel/project →
  * expense line. Sticky header + sticky tree column. Each metric cell
@@ -56,6 +108,13 @@ export function PLCostTable({
     () => new Set()
   );
 
+  // Column sort state. `null` = follow the tree's built-in order
+  // (segments by realizedUsd desc, recursively). Clicking a header
+  // takes over: same column toggles asc ↔ desc, different column
+  // resets to its natural default (alpha cols → asc, numeric → desc).
+  const [sortKey, setSortKey] = React.useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = React.useState<SortDir>("desc");
+
   const toggle = React.useCallback((id: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -64,6 +123,27 @@ export function PLCostTable({
       return next;
     });
   }, []);
+
+  const handleSort = React.useCallback(
+    (key: SortKey) => {
+      if (sortKey === key) {
+        setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+      } else {
+        setSortKey(key);
+        // Alphabetic columns default ascending (A-Z); numeric ones
+        // default descending so the biggest contributor leads.
+        setSortDir(key === "label" ? "asc" : "desc");
+      }
+    },
+    [sortKey]
+  );
+
+  // Sort the tree recursively when a sort key is active; otherwise
+  // pass through the pre-sorted input.
+  const orderedTree = React.useMemo(() => {
+    if (!sortKey) return tree;
+    return sortTree(tree, sortKey, sortDir);
+  }, [tree, sortKey, sortDir]);
 
   // Flatten the tree into the visible row order, respecting the
   // expanded set. Each visible row carries its own indentation and
@@ -78,34 +158,104 @@ export function PLCostTable({
         }
       }
     };
-    walk(tree);
+    walk(orderedTree);
     return out;
-  }, [tree, expanded]);
+  }, [orderedTree, expanded]);
 
   return (
-    <div className="rounded-2xl border border-border/40 overflow-hidden bg-background/40">
-      {/* Outer scroll container — vertical for table, horizontal for
-          metric columns when cramped. Sticky header + sticky tree
-          column rely on this single scroll context. */}
-      <div className="overflow-auto max-h-[calc(100vh-260px)]">
+    // Outer card fills its flex parent. The single overflow boundary
+    // sits on the inner `tableScroll` div — that's where the sticky
+    // header + sticky tree column anchor.
+    <div className="rounded-2xl border border-border/40 overflow-hidden bg-background h-full flex flex-col">
+      <div className="flex-1 min-h-0 overflow-auto">
         <table className="w-full text-[12px] border-collapse">
           <thead className="sticky top-0 z-20 bg-foreground/[0.04] backdrop-blur-md">
             <tr>
               <th
-                className="sticky left-0 z-30 bg-foreground/[0.06] backdrop-blur-md px-3 py-2.5 text-left font-semibold text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border/40 min-w-[280px]"
+                className="sticky left-0 z-30 bg-foreground/[0.06] backdrop-blur-md px-3 py-2.5 text-left border-b border-border/40 min-w-[280px]"
                 style={{ minWidth: 280 }}
               >
-                Segment Kırılımı
+                <SortHeaderButton
+                  align="left"
+                  active={sortKey === "label"}
+                  dir={sortKey === "label" ? sortDir : null}
+                  onClick={() => handleSort("label")}
+                >
+                  Segment Kırılımı
+                </SortHeaderButton>
               </th>
-              <Th>Tahmini USD</Th>
-              <Th>Gerçekleşen USD</Th>
-              <Th>R/E %</Th>
-              <Th>Tahmini Birim</Th>
-              <Th>Gerçek. Birim</Th>
-              <Th>R/E Ton %</Th>
-              <Th>Vessel MT</Th>
-              <Th>Tahmini MT</Th>
-              <Th>Δ USD</Th>
+              <SortableTh
+                sortKey="expectedUsd"
+                active={sortKey === "expectedUsd"}
+                dir={sortKey === "expectedUsd" ? sortDir : null}
+                onSort={handleSort}
+              >
+                Tahmini USD
+              </SortableTh>
+              <SortableTh
+                sortKey="realizedUsd"
+                active={sortKey === "realizedUsd"}
+                dir={sortKey === "realizedUsd" ? sortDir : null}
+                onSort={handleSort}
+              >
+                Gerçekleşen USD
+              </SortableTh>
+              <SortableTh
+                sortKey="realizedExpectedPct"
+                active={sortKey === "realizedExpectedPct"}
+                dir={sortKey === "realizedExpectedPct" ? sortDir : null}
+                onSort={handleSort}
+              >
+                R/E %
+              </SortableTh>
+              <SortableTh
+                sortKey="expectedPriceUsdPerMt"
+                active={sortKey === "expectedPriceUsdPerMt"}
+                dir={sortKey === "expectedPriceUsdPerMt" ? sortDir : null}
+                onSort={handleSort}
+              >
+                Tahmini Birim
+              </SortableTh>
+              <SortableTh
+                sortKey="realizedPriceUsdPerMt"
+                active={sortKey === "realizedPriceUsdPerMt"}
+                dir={sortKey === "realizedPriceUsdPerMt" ? sortDir : null}
+                onSort={handleSort}
+              >
+                Gerçek. Birim
+              </SortableTh>
+              <SortableTh
+                sortKey="realizedExpectedTonPct"
+                active={sortKey === "realizedExpectedTonPct"}
+                dir={sortKey === "realizedExpectedTonPct" ? sortDir : null}
+                onSort={handleSort}
+              >
+                R/E Ton %
+              </SortableTh>
+              <SortableTh
+                sortKey="quantityVesselMt"
+                active={sortKey === "quantityVesselMt"}
+                dir={sortKey === "quantityVesselMt" ? sortDir : null}
+                onSort={handleSort}
+              >
+                Vessel MT
+              </SortableTh>
+              <SortableTh
+                sortKey="expectedQuantityMt"
+                active={sortKey === "expectedQuantityMt"}
+                dir={sortKey === "expectedQuantityMt" ? sortDir : null}
+                onSort={handleSort}
+              >
+                Tahmini MT
+              </SortableTh>
+              <SortableTh
+                sortKey="deltaUsd"
+                active={sortKey === "deltaUsd"}
+                dir={sortKey === "deltaUsd" ? sortDir : null}
+                onSort={handleSort}
+              >
+                Δ USD
+              </SortableTh>
             </tr>
           </thead>
           <tbody>
@@ -137,11 +287,102 @@ export function PLCostTable({
   );
 }
 
-function Th({ children }: { children: React.ReactNode }) {
+/** Right-aligned numeric sortable header. */
+function SortableTh({
+  children,
+  sortKey,
+  active,
+  dir,
+  onSort,
+}: {
+  children: React.ReactNode;
+  sortKey: SortKey;
+  active: boolean;
+  dir: SortDir | null;
+  onSort: (k: SortKey) => void;
+}) {
   return (
-    <th className="px-3 py-2.5 text-right font-semibold text-[11px] uppercase tracking-wider text-muted-foreground border-b border-border/40 whitespace-nowrap">
-      {children}
+    <th className="px-3 py-2.5 border-b border-border/40 whitespace-nowrap">
+      <SortHeaderButton
+        align="right"
+        active={active}
+        dir={dir}
+        onClick={() => onSort(sortKey)}
+      >
+        {children}
+      </SortHeaderButton>
     </th>
+  );
+}
+
+/** The actual clickable header cell. Renders the label + a sort
+ *  indicator arrow (faded when inactive so the column is discoverable
+ *  as sortable without being visually noisy). */
+function SortHeaderButton({
+  children,
+  align,
+  active,
+  dir,
+  onClick,
+}: {
+  children: React.ReactNode;
+  align: "left" | "right";
+  active: boolean;
+  dir: SortDir | null;
+  onClick: () => void;
+}) {
+  const ariaSort: React.AriaAttributes["aria-sort"] = active
+    ? dir === "asc"
+      ? "ascending"
+      : "descending"
+    : "none";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-sort={ariaSort}
+      className={cn(
+        "inline-flex items-center gap-1.5 font-semibold text-[11px] uppercase tracking-wider transition-colors rounded-sm",
+        "hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30 focus-visible:ring-offset-1",
+        active ? "text-foreground" : "text-muted-foreground",
+        align === "right" && "ml-auto"
+      )}
+    >
+      {align === "right" ? (
+        <>
+          <span>{children}</span>
+          <SortIndicator active={active} dir={dir} />
+        </>
+      ) : (
+        <>
+          <span>{children}</span>
+          <SortIndicator active={active} dir={dir} />
+        </>
+      )}
+    </button>
+  );
+}
+
+function SortIndicator({
+  active,
+  dir,
+}: {
+  active: boolean;
+  dir: SortDir | null;
+}) {
+  if (!active) {
+    return (
+      <ArrowUpDown
+        aria-hidden
+        className="size-3 opacity-40"
+        strokeWidth={2.25}
+      />
+    );
+  }
+  return dir === "asc" ? (
+    <ArrowUp aria-hidden className="size-3" strokeWidth={2.5} />
+  ) : (
+    <ArrowDown aria-hidden className="size-3" strokeWidth={2.5} />
   );
 }
 
@@ -229,12 +470,15 @@ function Row({
   // also has its own glyph rendered next to the label so the user
   // can tell "I'm looking at a segment vs. a status vs. a project"
   // at a glance even without inspecting the indent.
+  // Hierarchy is communicated through indent + icon + font weight,
+  // NOT through background shade — the body cells stay light/white
+  // so the table reads as a clean light-mode grid.
   const levelClass = (() => {
     switch (node.level) {
       case 1:
-        return "font-semibold text-[13.5px] bg-foreground/[0.05]";
+        return "font-semibold text-[13.5px]";
       case 2:
-        return "font-semibold text-[13px] bg-foreground/[0.025]";
+        return "font-semibold text-[13px]";
       case 3:
         return "font-medium text-[12.5px]";
       case 4:
@@ -275,25 +519,36 @@ function Row({
     if (onSelect) onSelect(node);
   };
 
+  // Selected row uses the theme accent's `tint` (already a 6-8% wash
+  // of the accent colour) instead of a generic foreground shade —
+  // ties the highlight to the rest of the UI without darkening the
+  // surface.
+  const selectedTint = accent.tint;
+  const hoverTint = "rgba(15, 23, 42, 0.03)";
+
   return (
     <tr
       onClick={handleRowClick}
       className={cn(
-        "group hover:bg-foreground/[0.04]",
+        "group",
         levelClass,
-        onSelect && "cursor-pointer",
-        selected && "bg-foreground/[0.06]"
+        onSelect && "cursor-pointer"
       )}
+      style={selected ? { backgroundColor: selectedTint } : undefined}
+      onMouseEnter={(e) => {
+        if (!selected) e.currentTarget.style.backgroundColor = hoverTint;
+      }}
+      onMouseLeave={(e) => {
+        if (!selected) e.currentTarget.style.backgroundColor = "";
+      }}
     >
-      {/* Tree cell — sticky left, handles chevron + indentation */}
+      {/* Tree cell — sticky left, handles chevron + indentation. Bg
+          matches the row state so the sticky cell doesn't visually
+          tear away from the rest when the user scrolls horizontally. */}
       <td
-        className={cn(
-          "sticky left-0 z-10 backdrop-blur-sm border-b border-border/30 group-hover:bg-foreground/[0.04]",
-          selected ? "bg-foreground/[0.07]" : "bg-background/95"
-        )}
+        className="sticky left-0 z-10 border-b border-border/30"
         style={{
-          // Selected row gets the accent bar; otherwise L1 gets it
-          // for segment separation.
+          backgroundColor: selected ? selectedTint : "white",
           borderLeft: selected
             ? `3px solid ${accent.solid}`
             : node.level === 1
