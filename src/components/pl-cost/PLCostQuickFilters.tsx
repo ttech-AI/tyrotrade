@@ -151,9 +151,15 @@ function Combo({
   accent: { solid: string; ring: string; tint: string };
   searchPlaceholder: string;
 }) {
+  const hasSelection = selected.size > 0;
   return (
-    <div className="flex flex-col gap-0.5 min-w-[140px] max-w-[200px]">
-      <span className="text-[9.5px] font-bold uppercase tracking-wider text-muted-foreground/80 px-0.5">
+    <div className="flex flex-col gap-1 min-w-[140px] max-w-[200px]">
+      <span
+        className="text-[10.5px] font-bold uppercase tracking-wider px-0.5 transition-colors"
+        style={{
+          color: hasSelection ? accent.solid : "rgba(15, 23, 42, 0.72)",
+        }}
+      >
         {label}
       </span>
       <MultiSelectCombobox
@@ -163,7 +169,7 @@ function Combo({
         accent={accent}
         placeholder="Hepsi"
         searchPlaceholder={searchPlaceholder}
-        triggerClassName="h-8 text-[12px]"
+        triggerClassName="h-9 text-[12.5px]"
       />
     </div>
   );

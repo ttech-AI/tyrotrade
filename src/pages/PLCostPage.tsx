@@ -1,17 +1,24 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   DashboardSpeed01Icon,
   Database01Icon,
   RefreshIcon,
-  ShipmentTrackingIcon,
-  ProjectorIcon,
+  BoatIcon,
+  Briefcase01Icon,
 } from "@hugeicons/core-free-icons";
 import { Loader2 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { GlassPanel } from "@/components/glass/GlassPanel";
 import { Button } from "@/components/ui/button";
-import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useThemeAccent, type ThemeAccent } from "@/components/layout/theme-accent";
 import { useProjects } from "@/hooks/useProjects";
 import { useActualExpenseRollup } from "@/hooks/useActualExpenseRollup";
 import {
@@ -114,6 +121,50 @@ export function PLCostPage() {
 
   const insights = React.useMemo(() => generateSmartInsights(tree), [tree]);
 
+  // Refresh button: fire a sticky toast on click, swap to success on
+  // completion, error on failure. Watches `isFetching` and `error` so
+  // the user always sees a clear "started → finished" handshake even
+  // though the refresh chain takes ~30-60s.
+  const refreshToastIdRef = React.useRef<string | number | null>(null);
+  const wasFetchingRef = React.useRef(false);
+  React.useEffect(() => {
+    if (rollup.isFetching && !wasFetchingRef.current) {
+      // Just started — open a sticky loading toast.
+      refreshToastIdRef.current = toast.loading(
+        "P&L hesaplama motoru çalıştırılıyor",
+        {
+          description:
+            "5 aşamalı zincirleme analiz çalışıyor — birkaç dakika sürebilir.",
+          duration: Infinity,
+        }
+      );
+    }
+    if (!rollup.isFetching && wasFetchingRef.current) {
+      // Just finished — replace with success / error.
+      const id = refreshToastIdRef.current;
+      if (rollup.error) {
+        toast.error("Yenileme başarısız oldu", {
+          id: id ?? undefined,
+          description: rollup.error,
+          duration: 8000,
+        });
+      } else {
+        toast.success("P&L verileri güncellendi", {
+          id: id ?? undefined,
+          description: `${rollup.rows.length.toLocaleString("tr-TR")} özet satırı hazırlandı.`,
+          duration: 4000,
+        });
+      }
+      refreshToastIdRef.current = null;
+    }
+    wasFetchingRef.current = rollup.isFetching;
+  }, [rollup.isFetching, rollup.error, rollup.rows.length]);
+
+  const handleRefresh = React.useCallback(() => {
+    if (rollup.isFetching) return;
+    rollup.refresh();
+  }, [rollup]);
+
   // Detail panel: selected node id (path) + lookup helper.
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(
     null
@@ -153,25 +204,16 @@ export function PLCostPage() {
               filters={filters}
               onChange={setFilters}
             />
-            <ViewModeToggle value={viewMode} onChange={setViewMode} />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={rollup.refresh}
-              disabled={rollup.isFetching}
-              className="gap-1.5 h-8"
-            >
-              {rollup.isFetching ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <HugeiconsIcon
-                  icon={RefreshIcon}
-                  size={14}
-                  strokeWidth={2}
-                />
-              )}
-              {rollup.isFetching ? "Hesaplanıyor..." : "Yenile"}
-            </Button>
+            <ViewModeToggle
+              value={viewMode}
+              onChange={setViewMode}
+              accent={accent}
+            />
+            <RefreshButton
+              onClick={handleRefresh}
+              isFetching={rollup.isFetching}
+              accent={accent}
+            />
           </div>
         </div>
       </GlassPanel>
@@ -206,6 +248,7 @@ export function PLCostPage() {
           <div className="flex-1 min-h-0 overflow-hidden">
             <PLCostTable
               tree={tree}
+              viewMode={viewMode}
               selectedNodeId={selectedNodeId}
               onSelectNode={(node) => setSelectedNodeId(node.id)}
             />
@@ -229,29 +272,41 @@ export function PLCostPage() {
   );
 }
 
-/** Görünüm Modu (Gemi/Proje) — segmented pill toggle. */
+/**
+ * Görünüm Modu (Proje | Gemi) — segmented round pill, same height as
+ * the filter trigger + refresh button. Active half gets the accent
+ * gradient + white icon; inactive half stays subtle but legible.
+ */
 function ViewModeToggle({
   value,
   onChange,
+  accent,
 }: {
   value: ViewMode;
   onChange: (v: ViewMode) => void;
+  accent: ThemeAccent;
 }) {
   return (
-    <div className="inline-flex items-center rounded-full bg-foreground/[0.06] p-0.5">
-      <ToggleButton
-        active={value === "project"}
-        onClick={() => onChange("project")}
-        icon={ProjectorIcon}
-        label="Proje"
-      />
-      <ToggleButton
-        active={value === "vessel"}
-        onClick={() => onChange("vessel")}
-        icon={ShipmentTrackingIcon}
-        label="Gemi"
-      />
-    </div>
+    <TooltipProvider delayDuration={250}>
+      <div className="inline-flex items-center h-9 rounded-full bg-foreground/[0.06] ring-1 ring-foreground/10 p-1 gap-1">
+        <ToggleButton
+          active={value === "project"}
+          onClick={() => onChange("project")}
+          icon={Briefcase01Icon}
+          label="Proje"
+          tooltip="3. seviyede projeleri grupla"
+          accent={accent}
+        />
+        <ToggleButton
+          active={value === "vessel"}
+          onClick={() => onChange("vessel")}
+          icon={BoatIcon}
+          label="Gemi"
+          tooltip="3. seviyede gemileri grupla"
+          accent={accent}
+        />
+      </div>
+    </TooltipProvider>
   );
 }
 
@@ -260,26 +315,101 @@ function ToggleButton({
   onClick,
   icon,
   label,
+  tooltip,
+  accent,
 }: {
   active: boolean;
   onClick: () => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   icon: any;
   label: string;
+  tooltip: string;
+  accent: ThemeAccent;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`px-2.5 py-1 rounded-full text-[12px] font-medium flex items-center gap-1.5 transition-colors ${
-        active
-          ? "bg-background shadow-sm text-foreground"
-          : "text-muted-foreground hover:text-foreground"
-      }`}
-    >
-      <HugeiconsIcon icon={icon} size={13} strokeWidth={2} />
-      {label}
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={onClick}
+          aria-pressed={active}
+          aria-label={label}
+          className="h-7 px-3 rounded-full text-[12.5px] font-semibold inline-flex items-center gap-1.5 transition-all"
+          style={{
+            background: active ? accent.gradient : "transparent",
+            color: active ? "white" : "rgba(15,23,42,0.7)",
+            boxShadow: active
+              ? `0 3px 10px -3px ${accent.ring}, inset 0 1px 0 0 rgba(255,255,255,0.25)`
+              : undefined,
+          }}
+        >
+          <HugeiconsIcon icon={icon} size={15} strokeWidth={2} />
+          {label}
+        </button>
+      </TooltipTrigger>
+      <TooltipContent
+        side="bottom"
+        className="bg-white text-foreground shadow-[0_12px_28px_-8px_rgba(15,23,42,0.24)] ring-1 ring-foreground/10 backdrop-blur-none"
+      >
+        {tooltip}
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+/**
+ * Refresh control — round, accent-tinted, same dimensions as the
+ * filter trigger pill (size-9). Rotating refresh glyph while
+ * `isFetching=true` makes it crystal-clear the engine is working;
+ * the page-level toast surfaced via `useActualExpenseRollup` is the
+ * loud parallel signal so users browsing other tiles still see
+ * progress.
+ */
+function RefreshButton({
+  onClick,
+  isFetching,
+  accent,
+}: {
+  onClick: () => void;
+  isFetching: boolean;
+  accent: ThemeAccent;
+}) {
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={onClick}
+            disabled={isFetching}
+            aria-label={isFetching ? "Hesaplama sürüyor" : "Verileri yenile"}
+            className="size-9 rounded-full grid place-items-center shrink-0 shadow-sm transition-all hover:scale-[1.04] active:scale-95 disabled:cursor-not-allowed"
+            style={{
+              background: isFetching ? accent.gradient : "white",
+              color: isFetching ? "white" : "rgba(15,23,42,0.78)",
+              boxShadow: isFetching
+                ? `0 4px 12px -4px ${accent.ring}, inset 0 1px 0 0 rgba(255,255,255,0.25)`
+                : "0 1px 2px 0 rgba(15,23,42,0.08), 0 4px 12px -4px rgba(15,23,42,0.18), inset 0 0 0 1px rgba(15,23,42,0.10)",
+            }}
+          >
+            <HugeiconsIcon
+              icon={RefreshIcon}
+              size={16}
+              strokeWidth={2}
+              className={isFetching ? "animate-spin" : undefined}
+            />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent
+          side="bottom"
+          className="bg-white text-foreground shadow-[0_12px_28px_-8px_rgba(15,23,42,0.24)] ring-1 ring-foreground/10 backdrop-blur-none"
+        >
+          {isFetching
+            ? "Hesaplama sürüyor…"
+            : "P&L motorunu yeniden çalıştır"}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 

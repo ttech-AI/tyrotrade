@@ -2,18 +2,22 @@ import * as React from "react";
 import { ChevronRight } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  Globe02Icon,
-  WorkflowSquare05Icon,
-  ShipmentTrackingIcon,
+  EarthIcon,
+  Flag03Icon,
+  BoatIcon,
+  Briefcase01Icon,
   ReceiptDollarIcon,
 } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { useThemeAccent } from "@/components/layout/theme-accent";
-import type { PLCostNode } from "@/lib/selectors/plCost";
+import type { PLCostNode, ViewMode } from "@/lib/selectors/plCost";
 
 interface PLCostTableProps {
   tree: PLCostNode[];
+  /** L3 grouping mode — drives whether the L3 row icon is a boat
+   *  (vessel grouping) or a briefcase (project grouping). */
+  viewMode?: ViewMode;
   /** Currently-selected node id — drives the highlighted row. */
   selectedNodeId?: string | null;
   /** Click any row to open the detail panel. */
@@ -33,6 +37,7 @@ interface PLCostTableProps {
  */
 export function PLCostTable({
   tree,
+  viewMode = "project",
   selectedNodeId,
   onSelectNode,
 }: PLCostTableProps) {
@@ -101,6 +106,7 @@ export function PLCostTable({
               <Row
                 key={node.id}
                 node={node}
+                viewMode={viewMode}
                 expanded={expanded.has(node.id)}
                 onToggle={toggle}
                 selected={selectedNodeId === node.id}
@@ -134,12 +140,14 @@ function Th({ children }: { children: React.ReactNode }) {
 
 function Row({
   node,
+  viewMode,
   expanded,
   onToggle,
   selected,
   onSelect,
 }: {
   node: PLCostNode;
+  viewMode: ViewMode;
   expanded: boolean;
   onToggle: (id: string) => void;
   selected: boolean;
@@ -168,21 +176,26 @@ function Row({
   })();
 
   // Level glyph + tone — a small but explicit visual cue per level.
+  // L3 switches between boat (vessel grouping) and briefcase (project
+  // grouping) so the user sees the active view-mode in every row.
   const levelIcon = (() => {
     switch (node.level) {
       case 1:
-        return { icon: Globe02Icon, color: accent.solid };
+        // Segment → simple earth outline (geographical grouping)
+        return { icon: EarthIcon, color: accent.solid };
       case 2:
-        return { icon: WorkflowSquare05Icon, color: "rgb(2 132 199)" };
+        // Statü → flag (workflow state marker)
+        return { icon: Flag03Icon, color: "rgb(124 58 237)" };
       case 3:
         return {
-          icon: ShipmentTrackingIcon,
-          color: "rgb(71 85 105)",
+          icon: viewMode === "vessel" ? BoatIcon : Briefcase01Icon,
+          color: "rgb(15 118 110)",
         };
       case 4:
+        // Kalem → receipt-dollar (expense voucher)
         return {
           icon: ReceiptDollarIcon,
-          color: "rgb(148 163 184)",
+          color: "rgb(180 83 9)",
         };
     }
   })();

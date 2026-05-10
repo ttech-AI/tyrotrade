@@ -238,17 +238,23 @@ function Tile({
         side="bottom"
         align="start"
         sideOffset={8}
-        className="max-w-[320px] p-0 overflow-hidden"
+        className="max-w-[320px] p-0 overflow-hidden bg-white shadow-[0_18px_40px_-12px_rgba(15,23,42,0.28)] ring-1 ring-foreground/10 backdrop-blur-none"
       >
-        <div className="px-3 py-2.5">
+        {/* Coloured top strip mirrors the tile's gradient pill — KPI
+            identity stays consistent between tile + tooltip. */}
+        <div className="h-1" style={{ background: palette.gradient }} />
+        <div className="px-3.5 py-2.5 bg-white">
           <div className="flex items-center gap-2 mb-1.5">
             <span
-              className="size-5 rounded-md grid place-items-center shrink-0 text-white"
-              style={{ background: palette.gradient }}
+              className="size-6 rounded-lg grid place-items-center shrink-0 text-white shadow-sm"
+              style={{
+                background: palette.gradient,
+                boxShadow: `0 2px 6px -2px ${palette.ring}`,
+              }}
             >
-              <HugeiconsIcon icon={icon} size={11} strokeWidth={2.25} />
+              <HugeiconsIcon icon={icon} size={13} strokeWidth={2.25} />
             </span>
-            <span className="text-[11.5px] font-bold uppercase tracking-wider text-foreground">
+            <span className="text-[12px] font-bold uppercase tracking-wider text-foreground">
               {tooltip.title}
             </span>
           </div>

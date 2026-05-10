@@ -163,16 +163,12 @@ function Chip({
         side="bottom"
         align="start"
         sideOffset={8}
-        className="max-w-[320px] p-0 overflow-hidden"
+        className="max-w-[320px] p-0 overflow-hidden bg-white shadow-[0_18px_40px_-12px_rgba(15,23,42,0.28)] ring-1 ring-foreground/10 backdrop-blur-none"
       >
-        <div
-          className="px-3 py-2.5"
-          style={{
-            background: palette.bg,
-            color: palette.text,
-            boxShadow: `inset 0 0 0 1px ${palette.ring}`,
-          }}
-        >
+        {/* Coloured top strip — keeps the chip's tone identity
+            without bleeding translucency into the body text. */}
+        <div className="h-1" style={{ background: palette.iconColor }} />
+        <div className="px-3.5 py-2.5 bg-white">
           <div className="flex items-center gap-2 mb-1.5">
             <span
               className="size-5 rounded-full grid place-items-center shrink-0"
@@ -184,7 +180,10 @@ function Chip({
                 strokeWidth={2.25}
               />
             </span>
-            <span className="text-[11.5px] font-bold uppercase tracking-wider">
+            <span
+              className="text-[11.5px] font-bold uppercase tracking-wider"
+              style={{ color: palette.text }}
+            >
               {insight.text}
             </span>
           </div>
@@ -192,7 +191,10 @@ function Chip({
             {insight.tooltip}
           </p>
           {interactive && (
-            <div className="text-[10.5px] font-semibold uppercase tracking-wider mt-1.5 opacity-70">
+            <div
+              className="text-[10.5px] font-semibold uppercase tracking-wider mt-2 pt-1.5 border-t border-foreground/10"
+              style={{ color: palette.text }}
+            >
               ▸ Tıklayın · Detay panel açılır
             </div>
           )}
