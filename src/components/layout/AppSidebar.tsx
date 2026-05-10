@@ -9,7 +9,10 @@ import {
   PinOff,
 } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Home01Icon } from "@hugeicons/core-free-icons";
+import {
+  ChartLineData01Icon,
+  Home01Icon,
+} from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +34,16 @@ function HomeLineIcon({ className }: { className?: string }) {
   );
 }
 
+function PLCostIcon({ className }: { className?: string }) {
+  return (
+    <HugeiconsIcon
+      icon={ChartLineData01Icon}
+      className={className}
+      strokeWidth={2}
+    />
+  );
+}
+
 interface NavItem {
   to: string;
   label: string;
@@ -48,6 +61,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/", label: "Dashboard", icon: HomeLineIcon },
       { to: "/projects", label: "Vessel Projects", icon: Ship },
+      { to: "/pl-cost", label: "P&L Cost", icon: PLCostIcon },
       { to: "/data", label: "Data Management", icon: Database },
     ],
   },

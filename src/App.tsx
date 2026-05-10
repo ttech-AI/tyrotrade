@@ -4,6 +4,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { LoginPage } from "@/pages/LoginPage";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { ProjectsPage } from "@/pages/ProjectsPage";
+import { PLCostPage } from "@/pages/PLCostPage";
 import { DataManagementPage } from "@/pages/DataManagementPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { HelpPage } from "@/pages/HelpPage";
@@ -25,6 +26,7 @@ export default function App() {
         <Route index element={<DashboardPage />} />
         <Route path="projects" element={<ProjectsPage />} />
         <Route path="projects/:projectId" element={<ProjectsPage />} />
+        <Route path="pl-cost" element={<PLCostPage />} />
         <Route path="data" element={<DataManagementPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="help" element={<HelpPage />} />
