@@ -1,38 +1,32 @@
 /**
  * Smart insights generator for the Trade Cost page.
  *
- * Walks the L1 (segment) layer of the hierarchy and surfaces 4-6
- * punchy callouts an executive can scan in one breath. The focus is
- * on **segment-level** comparisons because that's the unit of
+ * Walks the L1 (segment) layer of the hierarchy and surfaces up to
+ * five punchy callouts an executive can scan in one breath. The
+ * focus is **segment-level** comparisons because that's the unit of
  * portfolio thinking: "where did we spend most", "which segment did
  * we forecast best", "where did things go off the rails".
  *
  * Generated insights (in priority order):
  *
- *   1. (Optional alert) "X proje %120+ — bütçe aşımı"
- *      A drill-down callout pointing to the worst over-budget project.
- *      Only emitted when at least one L3 row is more than 120%
- *      realised. Keeps the operational signal visible alongside the
- *      portfolio-level segment insights.
- *
- *   2. En Dengeli Segment
+ *   1. En Dengeli Segment
  *      Segment whose R/E % is closest to 100% — the segment we
  *      forecast most accurately.
  *
- *   3. En Masraflı Segment
+ *   2. En Masraflı Segment
  *      Segment with the highest absolute `realizedUsd` — where the
  *      portfolio is spending the most money.
  *
- *   4. En Az Masraflı Segment
+ *   3. En Az Masraflı Segment
  *      Segment with the lowest absolute `realizedUsd` (above a small
  *      minimum so we don't pick a noise segment) — the smallest line
  *      item in the portfolio.
  *
- *   5. Tahminden En Çok Sapan Segment
+ *   4. Tahminden En Çok Sapan Segment
  *      Segment with the biggest absolute |deltaUsd| — the biggest
  *      dollar-amount surprise vs estimate, in either direction.
  *
- *   6. Tahminden En Az Sapan Segment
+ *   5. Tahminden En Az Sapan Segment
  *      Segment with the smallest absolute |deltaUsd| (still above a
  *      minimum so we don't pick a meaningless near-zero one) — the
  *      best forecast in dollar terms.
@@ -66,7 +60,6 @@ export interface PLCostInsight {
 }
 
 /** Threshold helpers. Tunable in one place if exec preferences shift. */
-const OVER_BUDGET_PCT = 120;
 /** Minimum realisedUsd a segment needs to be considered eligible for
  *  "en az masraflı" — without it, the smallest segment is always a
  *  $1 noise row and the callout reads as garbage. */
@@ -77,70 +70,25 @@ const MIN_DELTA_FOR_SMALL_VARIANCE = 5_000;
 
 /**
  * Build the ribbon insights from a fully-aggregated tree. Returns up
- * to 6 callouts. Empty tree → empty array (caller hides the ribbon).
+ * to 5 callouts. Empty tree (or no comparable segments) → empty
+ * array (caller hides the ribbon).
  */
 export function generateSmartInsights(tree: PLCostNode[]): PLCostInsight[] {
   if (tree.length === 0) return [];
 
-  // L1 segments are the primary subject. Filter to ones with real
+  // L1 segments are the only subject. Filter to ones with real
   // signal in both expected and realised — empty-expected segments
   // produce null R/E ratios that don't fit the comparisons.
   const segments = tree.filter(
     (s) => s.metrics.expectedUsd > 0 && s.metrics.realizedUsd > 0
   );
 
+  if (segments.length === 0) return [];
+
   const out: PLCostInsight[] = [];
   const consumedSegmentIds = new Set<string>();
 
-  // ─── 1. Over-budget projects alert (L3-level drill-down) ───
-  // Kept because it's the single most operationally urgent signal:
-  // "right now, one of your projects is bleeding money". The chip
-  // points to the worst offender so a click goes straight to the
-  // problem.
-  const l3Nodes: PLCostNode[] = [];
-  const walk = (nodes: PLCostNode[]) => {
-    for (const n of nodes) {
-      if (n.level === 3) l3Nodes.push(n);
-      if (n.children) walk(n.children);
-    }
-  };
-  walk(tree);
-  const overBudget = l3Nodes
-    .filter(
-      (n) =>
-        n.metrics.realizedExpectedPct != null &&
-        n.metrics.realizedExpectedPct > OVER_BUDGET_PCT &&
-        n.metrics.expectedUsd > 0
-    )
-    .sort(
-      (a, b) =>
-        (b.metrics.realizedExpectedPct ?? 0) -
-        (a.metrics.realizedExpectedPct ?? 0)
-    );
-  if (overBudget.length > 0) {
-    const worst = overBudget[0];
-    const worstPct = worst.metrics.realizedExpectedPct?.toFixed(0) ?? "—";
-    out.push({
-      text:
-        overBudget.length === 1
-          ? `${worst.label} %${worstPct} gerçekleşti — bütçe aşımı`
-          : `${overBudget.length} proje %${OVER_BUDGET_PCT}+ üzerinde — bütçe aşımı`,
-      tone: "danger",
-      tooltip:
-        overBudget.length === 1
-          ? `${worst.label} projesinde gerçekleşen gider tahminin %${worstPct}'ine ulaştı — yani tahminin ${(parseInt(worstPct, 10) - 100).toFixed(0)}% üzerinde. Tıklayarak bu projenin detay panelini açabilir, kalem bazında hangi giderin patladığını görebilirsiniz.`
-          : `${overBudget.length} farklı projede gerçekleşen gider, tahmin edilen bütçenin %${OVER_BUDGET_PCT}'ini aştı. En kötü vakada %${worstPct} gerçekleşme var. Tıklayarak en yüksek sapan projeye gidin.`,
-      targetNodeId: worst.id,
-    });
-  }
-
-  if (segments.length === 0) {
-    // Nothing comparable on the segment dimension — return only the
-    // alert (if any). Caller hides the ribbon when this is empty.
-    return out.slice(0, 6);
-  }
-
-  // ─── 2. En Dengeli Segment (R/E closest to 100%) ───
+  // ─── 1. En Dengeli Segment (R/E closest to 100%) ───
   const balanced = [...segments]
     .map((s) => ({
       seg: s,
@@ -160,7 +108,7 @@ export function generateSmartInsights(tree: PLCostNode[]): PLCostInsight[] {
     });
   }
 
-  // ─── 3. En Masraflı Segment (highest realisedUsd) ───
+  // ─── 2. En Masraflı Segment (highest realisedUsd) ───
   const heaviest = [...segments].sort(
     (a, b) => b.metrics.realizedUsd - a.metrics.realizedUsd
   )[0];
@@ -178,7 +126,7 @@ export function generateSmartInsights(tree: PLCostNode[]): PLCostInsight[] {
     });
   }
 
-  // ─── 4. En Az Masraflı Segment (lowest realisedUsd above floor) ───
+  // ─── 3. En Az Masraflı Segment (lowest realisedUsd above floor) ───
   const lightest = [...segments]
     .filter((s) => s.metrics.realizedUsd >= MIN_REALIZED_FOR_LOW_SPEND)
     .sort((a, b) => a.metrics.realizedUsd - b.metrics.realizedUsd)[0];
@@ -192,7 +140,7 @@ export function generateSmartInsights(tree: PLCostNode[]): PLCostInsight[] {
     });
   }
 
-  // ─── 5. Tahminden En Çok Sapan Segment (highest |deltaUsd|) ───
+  // ─── 4. Tahminden En Çok Sapan Segment (highest |deltaUsd|) ───
   const mostDeviated = [...segments].sort(
     (a, b) =>
       Math.abs(b.metrics.deltaUsd) - Math.abs(a.metrics.deltaUsd)
@@ -217,7 +165,7 @@ export function generateSmartInsights(tree: PLCostNode[]): PLCostInsight[] {
     });
   }
 
-  // ─── 6. Tahminden En Az Sapan Segment (smallest |deltaUsd|) ───
+  // ─── 5. Tahminden En Az Sapan Segment (smallest |deltaUsd|) ───
   // Hard floor on the delta — without it we'd surface a $200 delta
   // on a $5M segment as "perfect forecast" which feels like cheating.
   const leastDeviated = [...segments]
@@ -243,7 +191,7 @@ export function generateSmartInsights(tree: PLCostNode[]): PLCostInsight[] {
     });
   }
 
-  return out.slice(0, 6);
+  return out.slice(0, 5);
 }
 
 /** Push an insight only when its target segment hasn't already been
