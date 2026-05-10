@@ -202,7 +202,6 @@ export function AppSidebar({
               label="TYRO AI"
               showLabel={showLabels}
               tooltip="TYRO AI"
-              accentDot="#0d9488"
               onClick={() => {
                 onOpenAi();
                 onItemClick?.();
