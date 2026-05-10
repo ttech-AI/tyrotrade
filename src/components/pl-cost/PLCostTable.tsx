@@ -2,7 +2,7 @@ import * as React from "react";
 import { ChevronRight } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  EarthIcon,
+  PinLocation03Icon,
   Flag03Icon,
   BoatIcon,
   Briefcase01Icon,
@@ -229,7 +229,7 @@ function Row({
   const levelClass = (() => {
     switch (node.level) {
       case 1:
-        return "font-bold text-[14px] bg-foreground/[0.05]";
+        return "font-semibold text-[13.5px] bg-foreground/[0.05]";
       case 2:
         return "font-semibold text-[13px] bg-foreground/[0.025]";
       case 3:
@@ -245,8 +245,10 @@ function Row({
   const levelIcon = (() => {
     switch (node.level) {
       case 1:
-        // Segment → simple earth outline (geographical grouping)
-        return { icon: EarthIcon, color: accent.solid };
+        // Segment → location pin (geographical grouping). Slightly
+        // larger than the other-level glyphs so it anchors the row
+        // and reads as the "where" indicator at a glance.
+        return { icon: PinLocation03Icon, color: accent.solid };
       case 2:
         // Statü → per-status glyph (hourglass / bookmark / activity /
         // checkmark / lock / cancel) — instantly telegraphs lifecycle
@@ -320,21 +322,30 @@ function Row({
           ) : (
             <span className="size-5 shrink-0" aria-hidden />
           )}
+          {/* Icon container is sized to match the label's line-box so
+              <flex items-center> centres them on the same midline.
+              Without an explicit container size, the icon's hit-box
+              collapses to the glyph height and the label baseline
+              drifts off-centre at L1 (taller font + chunkier pin). */}
           <span
             className="shrink-0 grid place-items-center"
-            style={{ color: levelIcon.color }}
+            style={{
+              color: levelIcon.color,
+              width: node.level === 1 ? 20 : 18,
+              height: node.level === 1 ? 20 : 18,
+            }}
             aria-hidden
           >
             <HugeiconsIcon
               icon={levelIcon.icon}
-              size={node.level === 1 ? 16 : node.level === 2 ? 15 : 14}
-              strokeWidth={2}
+              size={node.level === 1 ? 18 : node.level === 2 ? 15 : 14}
+              strokeWidth={node.level === 1 ? 1.85 : 2}
             />
           </span>
-          <div className="min-w-0 flex-1">
-            <div className="truncate">{node.label}</div>
+          <div className="min-w-0 flex-1 flex flex-col justify-center">
+            <div className="truncate leading-none">{node.label}</div>
             {node.subLabel && (
-              <div className="text-[10.5px] text-muted-foreground truncate font-mono">
+              <div className="text-[10.5px] text-muted-foreground truncate font-mono leading-none mt-1">
                 {node.subLabel}
               </div>
             )}
