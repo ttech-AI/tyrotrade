@@ -41,6 +41,11 @@ interface AdvancedFilterProps {
   /** Per-page default for the includeWithoutShipPlan toggle —
    *  determines what counts as "active filter" for the badge. */
   shipPlanDefault?: boolean;
+  /** Per-page default for the period chip — used to decide whether
+   *  the current period selection counts toward the active-filter
+   *  badge. Trade Cost ships with `"all"` so its default doesn't
+   *  show as an active filter; other pages stay on the FY default. */
+  periodDefault?: import("@/lib/dashboard/periods").PeriodKey;
   /** Number of projects after filters applied — shown in footer. */
   resultCount?: number;
   /** Total before filters — shown in footer. */
@@ -108,6 +113,7 @@ export function AdvancedFilter({
   filters,
   onChange,
   shipPlanDefault = true,
+  periodDefault,
   resultCount,
   totalCount,
   iconOnly = false,
@@ -117,7 +123,11 @@ export function AdvancedFilter({
 }: AdvancedFilterProps) {
   const accent = useThemeAccent();
   const triggerTone = tone === "muted" ? MUTED_TONE : accent;
-  const activeCount = projectFilterCount(filters, shipPlanDefault);
+  const activeCount = projectFilterCount(
+    filters,
+    shipPlanDefault,
+    periodDefault
+  );
   const hasFilters = activeCount > 0;
   // Local hover state used by the collapsible variant — mirrors the
   // animation pattern in TyroWmsButton + AskAiButton.

@@ -62,12 +62,16 @@ export function PLCostPage() {
   const [viewMode, setViewMode] = React.useState<ViewMode>("project");
   // Unified filter state (period + categorical multi-selects). Same
   // shape Vessel Projects + Dashboard use, so the AdvancedFilter
-  // popover renders identical UI here. Default = current FY +
-  // ship-plan-included, with `includeWithoutShipPlan: true` so a
-  // project missing a vessel plan still shows up (P&L data lives on
-  // the project, not the voyage).
+  // popover renders identical UI here. Trade Cost-specific defaults:
+  //   - period: "all"  — Tahmini × Gerçekleşen comparisons are most
+  //     meaningful across the full lifecycle of every project, not
+  //     constrained to the current financial year. The user can
+  //     narrow with the period chip if they want a focused view.
+  //   - includeWithoutShipPlan: true — P&L data lives on the project,
+  //     not the voyage, so projects without a vessel plan still
+  //     contribute to expense / estimate aggregates.
   const [filters, setFilters] = React.useState<ProjectFilterState>(() =>
-    makeEmptyFilters({ includeWithoutShipPlan: true })
+    makeEmptyFilters({ includeWithoutShipPlan: true, period: "all" })
   );
   const now = React.useMemo(() => new Date(), []);
 
@@ -203,6 +207,7 @@ export function PLCostPage() {
               projects={rawProjects}
               filters={filters}
               onChange={setFilters}
+              periodDefault="all"
             />
             <ViewModeToggle
               value={viewMode}

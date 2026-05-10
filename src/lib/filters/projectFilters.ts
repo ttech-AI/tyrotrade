@@ -56,14 +56,28 @@ export interface ProjectFilterState {
 interface MakeEmptyOptions {
   /** Per-page default for the ship-plan toggle. */
   includeWithoutShipPlan?: boolean;
+  /** Per-page default time window. Trade Cost overrides this to
+   *  `"all"` so the report covers the whole portfolio out of the
+   *  box; Dashboard + Vessel Projects stay on `DEFAULT_PERIOD`
+   *  (current financial year). */
+  period?: PeriodKey;
+  /** Companion override for the FY chip when `period === "fy"`.
+   *  Ignored otherwise; defaults to the current FY key. */
+  fyKey?: string | null;
 }
 
 export function makeEmptyFilters(
   opts: MakeEmptyOptions = {}
 ): ProjectFilterState {
+  const period = opts.period ?? DEFAULT_PERIOD;
   return {
-    period: DEFAULT_PERIOD,
-    fyKey: getCurrentFyKey(),
+    period,
+    // Only carry an fyKey when the period is the FY chip — for "all"
+    // / "monthly" / "quarterly" / "yearly" the field is irrelevant.
+    fyKey:
+      period === "fy"
+        ? (opts.fyKey ?? getCurrentFyKey())
+        : (opts.fyKey ?? null),
     statuses: new Set(),
     groups: new Set(),
     incoterms: new Set(),
@@ -132,15 +146,18 @@ export function applyProjectFilter(
   });
 }
 
-/** Active-filter chip count. Period in default state (FY + current FY)
- *  doesn't count; any deviation does. ShipPlan toggle counts when set
- *  to its non-default value (depends on caller's default). */
+/** Active-filter chip count. Period in default state doesn't count;
+ *  any deviation does. ShipPlan toggle counts when set to its non-
+ *  default value (depends on caller's default). `periodDefault`
+ *  lets each page declare its own baseline — Trade Cost uses `"all"`
+ *  while Dashboard + Vessel Projects stay on the FY default. */
 export function projectFilterCount(
   f: ProjectFilterState,
-  shipPlanDefault: boolean = true
+  shipPlanDefault: boolean = true,
+  periodDefault: PeriodKey = DEFAULT_PERIOD
 ): number {
   const periodActive =
-    f.period !== DEFAULT_PERIOD ||
+    f.period !== periodDefault ||
     (f.period === "fy" && f.fyKey !== null && f.fyKey !== getCurrentFyKey());
   return (
     f.statuses.size +
