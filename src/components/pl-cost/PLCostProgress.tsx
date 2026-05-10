@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   CheckmarkCircle02Icon,
-  AiBrain01Icon,
+  AiBrain03Icon,
   Folder01Icon,
   Tag01Icon,
   ReceiptDollarIcon,
@@ -133,14 +133,26 @@ export function PLCostProgress({
               }}
             />
             <HugeiconsIcon
-              icon={AiBrain01Icon}
+              icon={AiBrain03Icon}
               size={44}
               strokeWidth={1.5}
               className="relative z-10"
             />
           </motion.span>
           <div>
-            <div className="text-[10.5px] uppercase tracking-[0.18em] font-semibold text-muted-foreground/80">
+            <div
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11.5px] uppercase tracking-[0.22em] font-bold shadow-sm"
+              style={{
+                background: accent.tint,
+                color: accent.solid,
+                boxShadow: `inset 0 0 0 1px ${accent.ring}`,
+              }}
+            >
+              <HugeiconsIcon
+                icon={AiBrain03Icon}
+                size={13}
+                strokeWidth={2.25}
+              />
               TYRO AI Motoru
             </div>
             <div
@@ -176,6 +188,8 @@ export function PLCostProgress({
                 meta={STAGE_META[s.stage]}
                 accentSolid={accent.solid}
                 accentTint={accent.tint}
+                accentRing={accent.ring}
+                accentGradient={accent.gradient}
                 stepNumber={idx + 1}
               />
             ))}
@@ -202,27 +216,34 @@ function StepRow({
   meta,
   accentSolid,
   accentTint,
+  accentRing,
+  accentGradient,
   stepNumber,
 }: {
   stage: StageProgress;
   meta: (typeof STAGE_META)[RollupStage];
   accentSolid: string;
   accentTint: string;
+  accentRing: string;
+  accentGradient: string;
   stepNumber: number;
 }) {
   const isRunning = stage.status === "running";
   const isDone = stage.status === "done";
   const isPending = stage.status === "pending";
 
+  // Running + done both follow the sidebar accent — only the
+  // intensity differs (running pops with full solid border, done
+  // settles into a softer tint). Pending stays neutral gray.
   const bgColor = isRunning
     ? accentTint
     : isDone
-      ? "rgba(16,185,129,0.08)"
+      ? accentTint
       : "rgba(255,255,255,0.5)";
   const borderColor = isRunning
     ? accentSolid
     : isDone
-      ? "rgba(16,185,129,0.32)"
+      ? accentRing
       : "rgba(100,116,139,0.16)";
 
   return (
@@ -235,18 +256,22 @@ function StepRow({
       transition={{ duration: 0.3, ease: "easeOut" }}
       className="flex items-center gap-3 rounded-xl px-3.5 py-3 border"
     >
-      {/* Stage icon — gradient pill while running, white pill with
-          tone'd glyph while done. Pulse glow on the running stage so
-          the eye anchors there even with a quick scan. */}
+      {/* Stage icon — gradient pill while running, accent gradient
+          pill while done (same family, slightly softer ring). Pulse
+          glow on the running stage so the eye anchors there even
+          with a quick scan. */}
       <span
         className="shrink-0 size-11 rounded-2xl grid place-items-center shadow-sm relative"
         style={{
           background: isRunning
             ? `linear-gradient(135deg, ${accentSolid}, ${accentSolid}dd)`
             : isDone
-              ? "linear-gradient(135deg, rgb(16 185 129), rgb(5 150 105))"
+              ? accentGradient
               : "rgb(248 250 252)",
           color: isRunning || isDone ? "white" : "rgb(148 163 184)",
+          boxShadow: isDone
+            ? `0 4px 12px -4px ${accentRing}, inset 0 1px 0 0 rgba(255,255,255,0.25)`
+            : undefined,
         }}
       >
         {isRunning && (
@@ -277,12 +302,10 @@ function StepRow({
             className={`text-[10px] font-bold tabular-nums px-1.5 py-0.5 rounded ${
               isPending
                 ? "text-muted-foreground/50 bg-foreground/[0.04]"
-                : isDone
-                  ? "text-emerald-700 bg-emerald-500/10"
-                  : "text-white"
+                : "text-white"
             }`}
             style={
-              isRunning
+              isRunning || isDone
                 ? { backgroundColor: accentSolid }
                 : undefined
             }
@@ -306,11 +329,9 @@ function StepRow({
                 : "text-muted-foreground/80"
           }`}
           style={
-            isDone
-              ? { color: "rgb(4 120 87)" }
-              : isRunning
-                ? { color: accentSolid }
-                : undefined
+            isDone || isRunning
+              ? { color: accentSolid }
+              : undefined
           }
         >
           {isDone && stage.count !== null
@@ -326,7 +347,7 @@ function StepRow({
             icon={CheckmarkCircle02Icon}
             size={22}
             strokeWidth={2}
-            style={{ color: "rgb(16 185 129)" }}
+            style={{ color: accentSolid }}
           />
         ) : isRunning ? (
           <Loader2
