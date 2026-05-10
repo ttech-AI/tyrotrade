@@ -175,14 +175,12 @@ export function PLCostProgress({
             />
           </motion.span>
 
-          {/* "TYRO AI MOTORU" badge — its own row, label only. */}
+          {/* "TYRO AI Motoru" wordmark — pill chrome dropped, swapped
+              for a large gradient wordmark that mirrors the logo's
+              sky-navy sweep. Reads as a brand moment between the
+              badge above and the thought-stream phrase below. */}
           <span
-            className="inline-flex items-center px-3.5 py-1 rounded-full text-[10.5px] uppercase tracking-[0.28em] font-bold shadow-sm"
-            style={{
-              background: accent.tint,
-              color: accent.solid,
-              boxShadow: `inset 0 0 0 1px ${accent.ring}`,
-            }}
+            className="text-brand-gradient text-[26px] font-bold uppercase tracking-[0.18em] leading-none"
           >
             TYRO AI Motoru
           </span>
