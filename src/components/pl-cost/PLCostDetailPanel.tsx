@@ -521,6 +521,7 @@ function ProjectListSection({ projectNos }: { projectNos: string[] }) {
           <Link
             key={no}
             to={`/projects/${no}`}
+            state={{ focusProjectNo: no }}
             onClick={(e) => e.stopPropagation()}
             title={`${no} projesini Vessel Projects'te aç`}
             className="group inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-foreground/[0.06] hover:bg-foreground/[0.10] text-[10.5px] font-mono transition-colors"
@@ -574,6 +575,12 @@ function ProjectNoLink({
   return (
     <Link
       to={`/projects/${projectNo}`}
+      // `focusProjectNo` is picked up by ProjectsPage and converted into
+      // a single-project filter on the left rail — so the user lands on
+      // a clean list of one project, not the full ~440. Wiped after one
+      // consumption so a back-button round trip doesn't keep the list
+      // pinned.
+      state={{ focusProjectNo: projectNo }}
       onClick={(e) => e.stopPropagation()}
       title={`${projectNo} projesini Vessel Projects'te aç`}
       className={cn(

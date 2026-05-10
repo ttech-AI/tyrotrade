@@ -43,6 +43,12 @@ interface MultiSelectComboboxProps {
   triggerClassName?: string;
   /** Optional max-height override on the list (default 240px). */
   maxListHeight?: number;
+  /** Compact rendering for tight toolbars (Trade Cost quick filters):
+   *  fixed-height single-line trigger that NEVER grows past h-9 when
+   *  multiple values are selected — single chip with truncated label
+   *  + numeric overflow pill instead of stacking selected items down.
+   *  Default false (legacy wrap-and-grow behaviour). */
+  compact?: boolean;
 }
 
 function normalizeOption(o: MultiSelectOption): {
@@ -74,6 +80,7 @@ export function MultiSelectCombobox({
   className,
   triggerClassName,
   maxListHeight = 240,
+  compact = false,
 }: MultiSelectComboboxProps) {
   const [open, setOpen] = React.useState(false);
 
@@ -119,11 +126,17 @@ export function MultiSelectCombobox({
               // cleanly. Solid white background (was 80% translucent)
               // so the border and chips read as a crisp form field
               // rather than a faint ghost.
-              "w-full min-h-10 rounded-lg border bg-white",
-              "px-3 py-2 text-left text-[13.5px] leading-tight",
-              "flex flex-wrap items-center gap-1.5",
+              //
+              // Compact mode (Trade Cost quick filters): single-line
+              // fixed height, no wrap — multiple selections collapse
+              // into a count badge instead of stacking down.
+              "w-full rounded-lg border bg-white text-left text-[13.5px] leading-tight",
+              "flex items-center gap-1.5",
               "transition-colors hover:bg-foreground/[0.02]",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              compact
+                ? "h-9 px-2.5 py-1 flex-nowrap overflow-hidden"
+                : "min-h-10 px-3 py-2 flex-wrap",
               hasSelection
                 ? "border-foreground/20"
                 : "border-input",
@@ -136,43 +149,82 @@ export function MultiSelectCombobox({
             }
           >
             {hasSelection ? (
-              <>
-                {/* Up to 4 chips inline (was 3); each chip wider
-                    (max-w 220 vs 160) and roomier (px-2 py-1 vs
-                    px-1.5 py-0.5) so long counterparty names stay
-                    legible without truncating to 2 chars. */}
-                {[...selected].slice(0, 4).map((v) => (
+              compact ? (
+                /* Compact: single truncated chip for the first
+                   selection + numeric pill for the rest. Trigger
+                   stays exactly one line tall so adjacent quick-
+                   filter columns can't push downstream content. */
+                <>
                   <span
-                    key={v}
-                    className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] font-semibold max-w-[220px]"
+                    className="inline-flex items-center gap-1 pl-2 pr-1 py-0.5 rounded-md text-[11.5px] font-semibold min-w-0 max-w-[140px]"
                     style={{
                       backgroundColor: accent.tint,
                       color: accent.solid,
                       boxShadow: `inset 0 0 0 1px ${accent.ring}`,
                     }}
                   >
-                    <span className="truncate">{labelByValue.get(v) ?? v}</span>
+                    <span className="truncate">
+                      {labelByValue.get([...selected][0]) ?? [...selected][0]}
+                    </span>
                     <X
                       className="size-3 shrink-0 opacity-70 hover:opacity-100 cursor-pointer"
                       onClick={(e) => {
                         e.stopPropagation();
-                        toggle(v);
+                        toggle([...selected][0]);
                       }}
                     />
                   </span>
-                ))}
-                {selected.size > 4 && (
-                  <span
-                    className="inline-flex items-center px-2 py-1 rounded-md text-[12px] font-bold tabular-nums"
-                    style={{
-                      backgroundColor: accent.solid,
-                      color: "white",
-                    }}
-                  >
-                    +{selected.size - 4}
-                  </span>
-                )}
-              </>
+                  {count > 1 && (
+                    <span
+                      className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[11.5px] font-bold tabular-nums shrink-0"
+                      style={{
+                        backgroundColor: accent.solid,
+                        color: "white",
+                      }}
+                    >
+                      +{count - 1}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Up to 4 chips inline (was 3); each chip wider
+                      (max-w 220 vs 160) and roomier (px-2 py-1 vs
+                      px-1.5 py-0.5) so long counterparty names stay
+                      legible without truncating to 2 chars. */}
+                  {[...selected].slice(0, 4).map((v) => (
+                    <span
+                      key={v}
+                      className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-[12px] font-semibold max-w-[220px]"
+                      style={{
+                        backgroundColor: accent.tint,
+                        color: accent.solid,
+                        boxShadow: `inset 0 0 0 1px ${accent.ring}`,
+                      }}
+                    >
+                      <span className="truncate">{labelByValue.get(v) ?? v}</span>
+                      <X
+                        className="size-3 shrink-0 opacity-70 hover:opacity-100 cursor-pointer"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggle(v);
+                        }}
+                      />
+                    </span>
+                  ))}
+                  {selected.size > 4 && (
+                    <span
+                      className="inline-flex items-center px-2 py-1 rounded-md text-[12px] font-bold tabular-nums"
+                      style={{
+                        backgroundColor: accent.solid,
+                        color: "white",
+                      }}
+                    >
+                      +{selected.size - 4}
+                    </span>
+                  )}
+                </>
+              )
             ) : (
               <span className="text-muted-foreground/80 truncate">
                 {placeholder}

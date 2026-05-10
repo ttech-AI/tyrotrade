@@ -169,7 +169,8 @@ function Combo({
         accent={accent}
         placeholder="Hepsi"
         searchPlaceholder={searchPlaceholder}
-        triggerClassName="h-9 text-[12.5px]"
+        triggerClassName="text-[12.5px]"
+        compact
       />
     </div>
   );
