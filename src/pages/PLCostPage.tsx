@@ -24,6 +24,15 @@ import {
 import { PLCostTable } from "@/components/pl-cost/PLCostTable";
 import { PLCostKpiTiles } from "@/components/pl-cost/PLCostKpiTiles";
 import { PLCostProgress } from "@/components/pl-cost/PLCostProgress";
+import { PLCostInsightsRibbon } from "@/components/pl-cost/PLCostInsightsRibbon";
+import { PLCostDetailPanel } from "@/components/pl-cost/PLCostDetailPanel";
+import { generateSmartInsights } from "@/lib/selectors/plInsights";
+import { AdvancedFilter } from "@/components/filters/AdvancedFilter";
+import {
+  applyProjectFilter,
+  makeEmptyFilters,
+  type ProjectFilterState,
+} from "@/lib/filters/projectFilters";
 
 /**
  * P&L Cost — Tahmini × Gerçekleşen maliyet karşılaştırma raporu.
@@ -41,10 +50,26 @@ import { PLCostProgress } from "@/components/pl-cost/PLCostProgress";
  */
 export function PLCostPage() {
   const accent = useThemeAccent();
-  const { projects } = useProjects();
+  const { projects: rawProjects } = useProjects();
   const rollup = useActualExpenseRollup();
   const [viewMode, setViewMode] = React.useState<ViewMode>("project");
+  // Unified filter state (period + categorical multi-selects). Same
+  // shape Vessel Projects + Dashboard use, so the AdvancedFilter
+  // popover renders identical UI here. Default = current FY +
+  // ship-plan-included, with `includeWithoutShipPlan: true` so a
+  // project missing a vessel plan still shows up (P&L data lives on
+  // the project, not the voyage).
+  const [filters, setFilters] = React.useState<ProjectFilterState>(() =>
+    makeEmptyFilters({ includeWithoutShipPlan: true })
+  );
+  const now = React.useMemo(() => new Date(), []);
 
+  // Apply the unified filter on the domain project list. Tree builds
+  // off the filtered subset.
+  const projects = React.useMemo(
+    () => applyProjectFilter(rawProjects, filters, now),
+    [rawProjects, filters, now]
+  );
   const totalProjects = projects.length;
 
   // Build the tree only once per (projects × rollup × viewMode) combo.
@@ -87,6 +112,30 @@ export function PLCostPage() {
     };
   }, [tree]);
 
+  const insights = React.useMemo(() => generateSmartInsights(tree), [tree]);
+
+  // Detail panel: selected node id (path) + lookup helper.
+  const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(
+    null
+  );
+  const findNodeById = React.useCallback(
+    (nodes: PLCostNode[], id: string): PLCostNode | null => {
+      for (const n of nodes) {
+        if (n.id === id) return n;
+        if (n.children) {
+          const found = findNodeById(n.children, id);
+          if (found) return found;
+        }
+      }
+      return null;
+    },
+    []
+  );
+  const selectedNode = React.useMemo(
+    () => (selectedNodeId ? findNodeById(tree, selectedNodeId) : null),
+    [selectedNodeId, tree, findNodeById]
+  );
+
   return (
     <div className="h-full flex flex-col gap-3 min-h-0">
       {/* ─── Toolbar ─── */}
@@ -118,8 +167,13 @@ export function PLCostPage() {
               )}
             </div>
           </div>
-          {/* Sağ: view mode segmented + manual refresh */}
+          {/* Sağ: filter + view mode + manual refresh */}
           <div className="flex items-center gap-2 shrink-0">
+            <AdvancedFilter
+              projects={rawProjects}
+              filters={filters}
+              onChange={setFilters}
+            />
             <ViewModeToggle value={viewMode} onChange={setViewMode} />
             <Button
               variant="outline"
@@ -157,13 +211,21 @@ export function PLCostPage() {
         <EmptyState accentColor={accent.solid} accentRing={accent.ring} accentGradient={accent.gradient} />
       ) : (
         <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden">
+          <PLCostInsightsRibbon
+            insights={insights}
+            onSelectNode={setSelectedNodeId}
+          />
           <PLCostKpiTiles
             rootMetrics={rootMetrics}
             totalProjects={totalProjects}
             topVariance={topVariance}
           />
           <div className="flex-1 min-h-0 overflow-hidden">
-            <PLCostTable tree={tree} />
+            <PLCostTable
+              tree={tree}
+              selectedNodeId={selectedNodeId}
+              onSelectNode={(node) => setSelectedNodeId(node.id)}
+            />
           </div>
           {rollup.isFetching && (
             <div className="text-[11px] text-muted-foreground/80 flex items-center gap-1.5 shrink-0">
@@ -173,6 +235,13 @@ export function PLCostPage() {
           )}
         </div>
       )}
+      {/* Detail side panel — slide-in / dismissible. Lives outside
+          the main grid so it overlays the table without affecting
+          its layout. */}
+      <PLCostDetailPanel
+        node={selectedNode}
+        onClose={() => setSelectedNodeId(null)}
+      />
     </div>
   );
 }

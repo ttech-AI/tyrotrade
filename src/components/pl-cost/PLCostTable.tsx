@@ -7,6 +7,10 @@ import type { PLCostNode } from "@/lib/selectors/plCost";
 
 interface PLCostTableProps {
   tree: PLCostNode[];
+  /** Currently-selected node id — drives the highlighted row. */
+  selectedNodeId?: string | null;
+  /** Click any row to open the detail panel. */
+  onSelectNode?: (node: PLCostNode) => void;
 }
 
 /**
@@ -20,15 +24,18 @@ interface PLCostTableProps {
  * the user sees the whole portfolio shape immediately. Deeper levels
  * collapsed by default.
  */
-export function PLCostTable({ tree }: PLCostTableProps) {
-  // Expanded set keyed by node id. L1 nodes auto-expanded on first
-  // render. We don't auto-expand L2+ — the table would be enormous
-  // and the user can drill in via chevron clicks.
-  const [expanded, setExpanded] = React.useState<Set<string>>(() => {
-    const s = new Set<string>();
-    for (const n of tree) s.add(n.id);
-    return s;
-  });
+export function PLCostTable({
+  tree,
+  selectedNodeId,
+  onSelectNode,
+}: PLCostTableProps) {
+  // All segments collapsed by default — the user expands the
+  // segment they care about. Otherwise an executive scrolling
+  // through 15+ segments × N voyage statuses lands in a sea of
+  // nested rows.
+  const [expanded, setExpanded] = React.useState<Set<string>>(
+    () => new Set()
+  );
 
   const toggle = React.useCallback((id: string) => {
     setExpanded((prev) => {
@@ -89,6 +96,8 @@ export function PLCostTable({ tree }: PLCostTableProps) {
                 node={node}
                 expanded={expanded.has(node.id)}
                 onToggle={toggle}
+                selected={selectedNodeId === node.id}
+                onSelect={onSelectNode}
               />
             ))}
             {visibleRows.length === 0 && (
@@ -120,10 +129,14 @@ function Row({
   node,
   expanded,
   onToggle,
+  selected,
+  onSelect,
 }: {
   node: PLCostNode;
   expanded: boolean;
   onToggle: (id: string) => void;
+  selected: boolean;
+  onSelect?: (node: PLCostNode) => void;
 }) {
   const accent = useThemeAccent();
   const hasChildren = !!node.children && node.children.length > 0;
@@ -144,16 +157,34 @@ function Row({
     }
   })();
 
+  const handleRowClick = () => {
+    if (onSelect) onSelect(node);
+  };
+
   return (
-    <tr className={cn("group hover:bg-foreground/[0.04]", levelClass)}>
+    <tr
+      onClick={handleRowClick}
+      className={cn(
+        "group hover:bg-foreground/[0.04]",
+        levelClass,
+        onSelect && "cursor-pointer",
+        selected && "bg-foreground/[0.06]"
+      )}
+    >
       {/* Tree cell — sticky left, handles chevron + indentation */}
       <td
-        className="sticky left-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border/30 group-hover:bg-foreground/[0.04]"
+        className={cn(
+          "sticky left-0 z-10 backdrop-blur-sm border-b border-border/30 group-hover:bg-foreground/[0.04]",
+          selected ? "bg-foreground/[0.07]" : "bg-background/95"
+        )}
         style={{
-          // Level 1 gets a thin accent bar so segments visually
-          // separate from each other.
-          borderLeft:
-            node.level === 1 ? `3px solid ${accent.solid}` : undefined,
+          // Selected row gets the accent bar; otherwise L1 gets it
+          // for segment separation.
+          borderLeft: selected
+            ? `3px solid ${accent.solid}`
+            : node.level === 1
+              ? `3px solid ${accent.solid}`
+              : undefined,
         }}
       >
         <div
@@ -163,7 +194,10 @@ function Row({
           {hasChildren ? (
             <button
               type="button"
-              onClick={() => onToggle(node.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggle(node.id);
+              }}
               className="size-5 rounded grid place-items-center hover:bg-foreground/10 shrink-0 transition-colors"
               aria-label={expanded ? "Daralt" : "Genişlet"}
             >
