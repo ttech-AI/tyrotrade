@@ -7,6 +7,13 @@ import {
   BoatIcon,
   Briefcase01Icon,
   ReceiptDollarIcon,
+  // Per-status (L2) glyphs — six canonical voyage statuses + fallback
+  HourglassIcon,
+  BookmarkCheck02Icon,
+  Activity03Icon,
+  CheckmarkCircle02Icon,
+  LockIcon,
+  CancelCircleIcon,
 } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatNumber } from "@/lib/format";
@@ -138,6 +145,63 @@ function Th({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Resolve an L2 voyage-status label to its glyph + tone colour. The
+ * six canonical statuses each get a semantically-loaded icon and a
+ * tone that telegraphs "where in the lifecycle this is" at a glance:
+ *
+ *   Waiting/planning  → cool greys + sky
+ *   In progress       → warm amber
+ *   Done well         → emerald
+ *   Done finalised    → slate-dark (lock)
+ *   Aborted           → rose
+ *
+ * Unknown / "—" falls back to the original flag.
+ */
+const STATUS_ICON_BY_LABEL: Record<
+  string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  { icon: any; color: string }
+> = {
+  "to be nominated": {
+    icon: HourglassIcon,
+    color: "rgb(100 116 139)", // slate — waiting in queue
+  },
+  nominated: {
+    icon: BookmarkCheck02Icon,
+    color: "rgb(2 132 199)", // sky — planned + assigned
+  },
+  commenced: {
+    icon: Activity03Icon,
+    color: "rgb(217 119 6)", // amber — voyage in motion
+  },
+  completed: {
+    icon: CheckmarkCircle02Icon,
+    color: "rgb(5 150 105)", // emerald — operationally done
+  },
+  closed: {
+    icon: LockIcon,
+    color: "rgb(71 85 105)", // slate-dark — financially locked
+  },
+  cancelled: {
+    icon: CancelCircleIcon,
+    color: "rgb(225 29 72)", // rose — aborted
+  },
+};
+function resolveStatusIcon(label: string): {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  icon: any;
+  color: string;
+} {
+  const key = label.trim().toLowerCase();
+  return (
+    STATUS_ICON_BY_LABEL[key] ?? {
+      icon: Flag03Icon,
+      color: "rgb(124 58 237)", // violet — generic flag fallback
+    }
+  );
+}
+
 function Row({
   node,
   viewMode,
@@ -184,8 +248,10 @@ function Row({
         // Segment → simple earth outline (geographical grouping)
         return { icon: EarthIcon, color: accent.solid };
       case 2:
-        // Statü → flag (workflow state marker)
-        return { icon: Flag03Icon, color: "rgb(124 58 237)" };
+        // Statü → per-status glyph (hourglass / bookmark / activity /
+        // checkmark / lock / cancel) — instantly telegraphs lifecycle
+        // stage without reading the label.
+        return resolveStatusIcon(node.label);
       case 3:
         return {
           icon: viewMode === "vessel" ? BoatIcon : Briefcase01Icon,
