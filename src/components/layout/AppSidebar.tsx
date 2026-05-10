@@ -12,8 +12,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Home01Icon,
   HotPriceIcon,
-  ChatEdit01Icon,
-  CubeIcon,
+  AiBrain02Icon,
 } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -185,16 +184,25 @@ export function AppSidebar({
           )}
           {/* Sibling-app + AI shortcuts above the Yardım nav item.
               They mirror the NavItemLink layout so they sit cleanly
-              in the Sistem group, with a small accent dot identifying
-              them as external/specialised tools. */}
+              in the Sistem group. TYRO AI uses the same brain glyph
+              the drawer header carries (a small emerald-teal accent
+              dot marks it as an AI tool); TYRO Stock uses the
+              origami T logo in its aurora palette so the row reads
+              like a tiny version of the sibling app's brand mark.  */}
           {onOpenAi && (
             <SidebarToolItem
               kind="button"
-              icon={ChatEdit01Icon}
+              iconNode={
+                <HugeiconsIcon
+                  icon={AiBrain02Icon}
+                  className="size-[18px]"
+                  strokeWidth={2}
+                />
+              }
               label="TYRO AI"
               showLabel={showLabels}
               tooltip="TYRO AI"
-              accentColor="#0d9488"
+              accentDot="#0d9488"
               onClick={() => {
                 onOpenAi();
                 onItemClick?.();
@@ -204,11 +212,10 @@ export function AppSidebar({
           <SidebarToolItem
             kind="link"
             href="https://tyrowms.github.io/"
-            icon={CubeIcon}
-            label="tyrostock"
+            iconNode={<Logo size={18} palette="aurora" />}
+            label="TYRO Stock"
             showLabel={showLabels}
-            tooltip="tyrostock'u yeni sekmede aç"
-            accentColor="#8b5cf6"
+            tooltip="TYRO Stock'u yeni sekmede aç"
             onClick={onItemClick}
           />
           <NavItemLink
@@ -323,41 +330,44 @@ function NavItemLink({
 /**
  * Sibling-app / AI shortcut row — mirrors `NavItemLink`'s layout
  * (same h-9 expanded row / h-10 w-10 collapsed icon-only) so the
- * Sistem group reads as one rhythmic stack, but the icon carries a
- * small accent dot to mark these as specialised tools rather than
- * navigation. `kind="button"` triggers an in-app action (AI
- * drawer); `kind="link"` opens an external URL in a new tab.
+ * Sistem group reads as one rhythmic stack. `kind="button"`
+ * triggers an in-app action (AI drawer); `kind="link"` opens an
+ * external URL in a new tab.
+ *
+ * `iconNode` is rendered as-is — callers pass a HugeIcon glyph,
+ * a brand `<Logo>` SVG, or any other React element. An optional
+ * `accentDot` colour pins a small dot to the icon's top-right
+ * corner; omit it when the icon is already chromatic (e.g. the
+ * full-colour TYRO Stock origami).
  */
 function SidebarToolItem(
   props: {
-    icon: import("@hugeicons/react").IconSvgElement;
+    iconNode: React.ReactNode;
     label: string;
     tooltip: string;
     showLabel: boolean;
-    accentColor: string;
+    /** Tiny indicator dot on the icon — usually omitted when the
+     *  icon itself carries brand colour. */
+    accentDot?: string;
     onClick?: () => void;
   } & (
     | { kind: "button" }
     | { kind: "link"; href: string }
   )
 ) {
-  const { icon, label, tooltip, showLabel, accentColor, onClick } = props;
+  const { iconNode, label, tooltip, showLabel, accentDot, onClick } = props;
 
   const innerContent = (
     <>
-      <span className="relative shrink-0">
-        <HugeiconsIcon
-          icon={icon}
-          className={showLabel ? "size-4" : "size-[18px]"}
-          strokeWidth={2}
-        />
-        {/* Accent dot pinned to the icon's top-right corner — small
-            visual differentiator versus pure nav rows. */}
-        <span
-          aria-hidden
-          className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full"
-          style={{ backgroundColor: accentColor }}
-        />
+      <span className="relative shrink-0 grid place-items-center size-[18px]">
+        {iconNode}
+        {accentDot && (
+          <span
+            aria-hidden
+            className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full"
+            style={{ backgroundColor: accentDot }}
+          />
+        )}
       </span>
       {showLabel && <span className="truncate">{label}</span>}
     </>
