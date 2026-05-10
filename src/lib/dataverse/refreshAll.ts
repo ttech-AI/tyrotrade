@@ -1,7 +1,6 @@
 import { getDataverseClient, type DataverseClient } from "@/lib/dataverse";
 import type { ODataQuery } from "@/lib/dataverse/odata";
 import { readCache, writeCache } from "@/lib/storage/entityCache";
-import { fetchActualExpenseRollupForAllProjects } from "@/lib/dataverse/actualExpenseRollup";
 import {
   PROJECT_COLUMNS,
   PROJECT_LINE_COLUMNS,
@@ -346,18 +345,30 @@ export async function listAllByInChunked<T>(
     // Empty list → no fetch (server would otherwise scan the entire entity).
     return { value: [], totalCount: 0 };
   }
-  const all: T[] = [];
-  let totalCount: number | undefined;
+  // Build all chunk requests up front, then fire them in PARALLEL via
+  // Promise.all. Sequential `await` in a loop made the
+  // realised-expense rollup take ~2-3 minutes (~110 fetches × ~1-2s
+  // each); parallel execution lets the browser pool ride at HTTP/2
+  // concurrency and finish in ~10-20s. Chunks are independent (each
+  // covers a disjoint slice of `projids`) so order doesn't matter.
+  const requests: Promise<{ value: T[]; totalCount?: number }>[] = [];
   for (let i = 0; i < projids.length; i += chunkSize) {
     const chunk = projids.slice(i, i + chunkSize);
     const inClause = buildInFilter(field, chunk);
     const $filter = extraFilter
       ? `${inClause} and (${extraFilter})`
       : inClause;
-    const result = await client.listAll<T>(entitySet, {
-      ...baseQuery,
-      $filter,
-    });
+    requests.push(
+      client.listAll<T>(entitySet, {
+        ...baseQuery,
+        $filter,
+      })
+    );
+  }
+  const results = await Promise.all(requests);
+  const all: T[] = [];
+  let totalCount: number | undefined;
+  for (const result of results) {
     all.push(...result.value);
     if (typeof result.totalCount === "number") {
       totalCount = (totalCount ?? 0) + result.totalCount;
@@ -370,7 +381,8 @@ export async function listAllByInChunked<T>(
  * Same chunking pattern but for `$apply` aggregates. Each chunk runs an
  * independent groupby so the (projid, currencycode) pairs can simply
  * be concatenated — they don't overlap across chunks since each project
- * lives in exactly one chunk.
+ * lives in exactly one chunk. Chunks fire in PARALLEL (see
+ * `listAllByInChunked` for rationale).
  */
 export async function applyByInChunked<T>(
   client: DataverseClient,
@@ -381,12 +393,16 @@ export async function applyByInChunked<T>(
   chunkSize: number = PROJID_CHUNK_SIZE
 ): Promise<{ value: T[] }> {
   if (projids.length === 0) return { value: [] };
-  const all: T[] = [];
+  const requests: Promise<{ value: T[] }>[] = [];
   for (let i = 0; i < projids.length; i += chunkSize) {
     const chunk = projids.slice(i, i + chunkSize);
     const inClause = buildInFilter(field, chunk);
     const apply = buildApply(inClause);
-    const result = await client.list<T>(entitySet, { $apply: apply });
+    requests.push(client.list<T>(entitySet, { $apply: apply }));
+  }
+  const results = await Promise.all(requests);
+  const all: T[] = [];
+  for (const result of results) {
     all.push(...result.value);
   }
   return { value: all };
@@ -750,28 +766,13 @@ export async function refreshAllEntities(
         });
       },
     },
-    {
-      // Tenant-wide realised-expense rollup for the P&L Cost report.
-      // 4-stage chunked pipeline (inventdimb + dist + expense-line +
-      // refmap, refmap parallel with inventdimb). Emits one row per
-      // (projectNo, expenseId) with the refmap label joined and
-      // code 710041 (Satış Fiyat Farkı) applied as a negative
-      // contribution. Adds ~5–10s to the refresh on this tenant;
-      // cache is small (~1600 rows) since aggregation drops ham
-      // expense voucher rows. See `actualExpenseRollup.ts`.
-      label: "Gerçekleşen Gider Toplamları",
-      run: async () => {
-        const projids = readProjids();
-        const rollup = await fetchActualExpenseRollupForAllProjects(
-          client,
-          projids
-        );
-        writeCache(ACTUAL_EXPENSE_ROLLUP_CACHE, {
-          fetchedAt: new Date().toISOString(),
-          value: rollup,
-        });
-      },
-    },
+    // NOTE: "Gerçekleşen Gider Toplamları" intentionally OUT of the
+    // refresh chain. The 4-stage rollup pipeline (inventdimb + dist +
+    // expense-line + refmap) ran 1+ minute even with parallel chunks
+    // and made the auto-refresh feel broken to users who don't open
+    // the P&L Cost page. Now lazy-loaded by `useActualExpenseRollup`
+    // when the P&L Cost page mounts, with a manual refresh button on
+    // the page itself.
   ];
 
   for (let i = 0; i < steps.length; i++) {

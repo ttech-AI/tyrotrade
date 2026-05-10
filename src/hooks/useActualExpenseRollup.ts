@@ -1,56 +1,147 @@
 import * as React from "react";
+import { getDataverseClient } from "@/lib/dataverse";
 import {
   CACHE_UPDATED_EVENT,
   readCache,
+  writeCache,
   type CacheUpdatedDetail,
 } from "@/lib/storage/entityCache";
+import { ACTUAL_EXPENSE_ROLLUP_CACHE } from "@/lib/dataverse/refreshAll";
 import {
-  ACTUAL_EXPENSE_ROLLUP_CACHE,
-} from "@/lib/dataverse/refreshAll";
-import type { ActualExpenseRollupRow } from "@/lib/dataverse/actualExpenseRollup";
+  fetchActualExpenseRollupForAllProjects,
+  type ActualExpenseRollupRow,
+} from "@/lib/dataverse/actualExpenseRollup";
+
+/** Cache freshness threshold — anything older than this and the
+ *  hook auto-refreshes on next mount. Manual `refresh()` always
+ *  bypasses the check. 6 hours: long enough that intra-day return
+ *  visits skip the 4-stage pipeline cost, short enough that the
+ *  next day's view sees fresh data without thinking about it. */
+const STALE_AFTER_MS = 6 * 60 * 60 * 1000;
 
 export interface UseActualExpenseRollupReturn {
-  /** Flat realised-expense rollup rows (per projectNo × expenseId).
-   *  Empty array when the cache hasn't been populated yet — the
-   *  P&L Cost page should prompt the user to run "Verileri
-   *  Güncelle" in that case. */
+  /** Flat realised-expense rollup rows (per projectNo × expenseId). */
   rows: ActualExpenseRollupRow[];
-  /** ISO timestamp of the most recent cache write, or null when
-   *  the slot is missing. */
+  /** ISO timestamp of the most recent successful fetch, or null. */
   fetchedAt: string | null;
-  /** True when the cache slot doesn't exist or carries no rows. */
+  /** True when the cache is missing entirely (first visit / cleared). */
   isEmpty: boolean;
+  /** True while a fetch is in flight. */
+  isFetching: boolean;
+  /** Last fetch error, if any. */
+  error: string | null;
+  /** Manually trigger a fetch (page's test "Yenile" button) —
+   *  bypasses the staleness check. */
+  refresh: () => void;
 }
 
 /**
- * 🔒 Read-only hook — exposes the tenant-wide realised-expense
- * rollup written by the "Gerçekleşen Gider Toplamları" refresh step.
+ * 🔒 Read-only hook — exposes the tenant-wide realised-expense rollup
+ * with a **lazy auto-fetch + manual refresh** pattern.
  *
- * Listens for the same `tyro:cache-updated` events as
- * `useRealProjects` so the P&L Cost page re-derives whenever the
- * rollup gets rewritten (manual refresh, post-login auto-refresh).
+ * On mount:
+ *   - Cache exists AND fresh (< 6h)  → render from cache, no fetch.
+ *   - Cache missing OR stale (≥ 6h)  → auto-fetch in the background;
+ *     page shows progress UI via `isFetching=true`.
+ *
+ * The page also exposes a manual "Yenile" button that calls
+ * `refresh()` (bypasses freshness check) — useful for testing and
+ * for users who want fresher data than the 6h threshold.
+ *
+ * Fetch writes to localStorage (`tyro:dv:actualExpenseRollup`) and
+ * fires the same-tab `tyro:cache-updated` event. The pipeline
+ * (`fetchActualExpenseRollupForAllProjects`) runs ~1-2 min on this
+ * tenant; pulling it out of the bulk refresh keeps auto-refresh
+ * fast and lets users who never open the P&L Cost page skip it.
  */
 export function useActualExpenseRollup(): UseActualExpenseRollupReturn {
   const fingerprint = useCacheFingerprint(ACTUAL_EXPENSE_ROLLUP_CACHE);
+  const [isFetching, setIsFetching] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
-  return React.useMemo<UseActualExpenseRollupReturn>(() => {
+  // Read snapshot from localStorage on every fingerprint bump.
+  const snapshot = React.useMemo(() => {
     const cached = readCache<ActualExpenseRollupRow>(
       ACTUAL_EXPENSE_ROLLUP_CACHE
     );
-    const rows = cached?.value ?? [];
     return {
-      rows,
+      rows: cached?.value ?? [],
       fetchedAt: cached?.fetchedAt ?? null,
-      isEmpty: rows.length === 0,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fingerprint]);
+
+  /** Run the 4-stage pipeline + write the result to cache. Surface
+   *  isFetching/error to the caller. */
+  const runFetch = React.useCallback(async () => {
+    setIsFetching(true);
+    setError(null);
+    try {
+      const client = getDataverseClient();
+      // Re-read the active project IDs at fetch time (the projects
+      // cache may have been refreshed in the background between
+      // mounts).
+      const projidCache = readCache<Record<string, unknown>>(
+        "mserp_etgtryprojecttableentities"
+      );
+      const projids = (projidCache?.value ?? [])
+        .map((p) => p.mserp_projid as string | undefined)
+        .filter((s): s is string => !!s);
+
+      const rollup = await fetchActualExpenseRollupForAllProjects(
+        client,
+        projids
+      );
+      writeCache(ACTUAL_EXPENSE_ROLLUP_CACHE, {
+        fetchedAt: new Date().toISOString(),
+        value: rollup,
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn("[useActualExpenseRollup] fetch failed:", err);
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsFetching(false);
+    }
+  }, []);
+
+  // Auto-fetch on mount when cache is missing / stale. Ref guards
+  // against double-firing in StrictMode. Only triggers ONCE per
+  // page mount; manual refresh button drives subsequent fetches.
+  const autoFetchedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (autoFetchedRef.current) return;
+    if (isFetching) return;
+    if (snapshot.rows.length === 0 || isStale(snapshot.fetchedAt)) {
+      autoFetchedRef.current = true;
+      void runFetch();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return {
+    rows: snapshot.rows,
+    fetchedAt: snapshot.fetchedAt,
+    isEmpty: snapshot.rows.length === 0,
+    isFetching,
+    error,
+    refresh: () => {
+      void runFetch();
+    },
+  };
+}
+
+function isStale(fetchedAt: string | null): boolean {
+  if (!fetchedAt) return true;
+  const t = new Date(fetchedAt).getTime();
+  if (!Number.isFinite(t)) return true;
+  return Date.now() - t > STALE_AFTER_MS;
 }
 
 /** Same fingerprint pattern as `useRealProjects.useCacheFingerprint`
  *  — listens for cross-tab `storage` events AND the same-tab
  *  `tyro:cache-updated` custom event so consumers re-render after a
- *  refresh in either tab. */
+ *  fetch in either tab. */
 function useCacheFingerprint(entitySet: string): string {
   const [fp, setFp] = React.useState(() => readFingerprint(entitySet));
   React.useEffect(() => {

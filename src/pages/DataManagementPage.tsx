@@ -9,7 +9,6 @@ import { useEntityRows } from "@/hooks/useEntityRows";
 import { getDataverseClient } from "@/lib/dataverse";
 import { readCache, writeCache } from "@/lib/storage/entityCache";
 import {
-  ACTUAL_EXPENSE_ROLLUP_CACHE,
   applyByInChunked,
   fetchFinancingOrderIds,
   fetchVesselMasterAndEnrichShipCache,
@@ -20,7 +19,6 @@ import {
   listAllByInChunked,
   NON_INTERCOMPANY_FILTER,
 } from "@/lib/dataverse/refreshAll";
-import { fetchActualExpenseRollupForAllProjects } from "@/lib/dataverse/actualExpenseRollup";
 import {
   EntityRowsTable,
   sortRows,
@@ -589,24 +587,9 @@ export function DataManagementPage() {
           });
         },
       },
-      {
-        // Tenant-wide realised-expense rollup — feeds the P&L Cost
-        // report. See `actualExpenseRollup.ts` for the 4-stage
-        // pipeline. Mirrors the auto-refresh chain step.
-        label: "Gerçekleşen Gider Toplamları",
-        refetch: async () => {
-          const client = getDataverseClient();
-          const projids = readProjids();
-          const rollup = await fetchActualExpenseRollupForAllProjects(
-            client,
-            projids
-          );
-          writeCache(ACTUAL_EXPENSE_ROLLUP_CACHE, {
-            fetchedAt: new Date().toISOString(),
-            value: rollup,
-          });
-        },
-      },
+      // NOTE: "Gerçekleşen Gider Toplamları" intentionally OUT of the
+      // bulk refresh — see refreshAll.ts for rationale. P&L Cost page
+      // lazy-loads it on mount.
     ];
   }, [projects.refetch, budget.refetch]);
 
