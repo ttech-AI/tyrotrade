@@ -12,7 +12,7 @@ import {
   BookmarkCheck02Icon,
   Activity03Icon,
   CheckmarkCircle02Icon,
-  LockIcon,
+  Archive01Icon,
   CancelCircleIcon,
 } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
@@ -180,8 +180,11 @@ const STATUS_ICON_BY_LABEL: Record<
     color: "rgb(5 150 105)", // emerald — operationally done
   },
   closed: {
-    icon: LockIcon,
-    color: "rgb(71 85 105)", // slate-dark — financially locked
+    // Archive box reads as "filed away / case closed" more clearly
+    // than a generic lock (which can be misread as "security
+    // restricted" rather than "this voyage is finalised").
+    icon: Archive01Icon,
+    color: "rgb(71 85 105)", // slate-dark — finalised and filed
   },
   cancelled: {
     icon: CancelCircleIcon,
@@ -342,10 +345,26 @@ function Row({
               strokeWidth={node.level === 1 ? 1.85 : 2}
             />
           </span>
+          {/* Match the label's line-box height to the icon container
+              so a single-line label centres exactly on the icon (with
+              normal font metrics the glyph block sits in the top
+              ~70% of its line-box; matching line-height bakes the
+              vertical breathing room into the line-box symmetrically
+              around the glyph). When a subLabel is present the
+              `flex-col + justify-center` wrapper still flanks them
+              around the icon midline. */}
           <div className="min-w-0 flex-1 flex flex-col justify-center">
-            <div className="truncate leading-none">{node.label}</div>
+            <div
+              className="truncate"
+              style={{ lineHeight: `${node.level === 1 ? 20 : 18}px` }}
+            >
+              {node.label}
+            </div>
             {node.subLabel && (
-              <div className="text-[10.5px] text-muted-foreground truncate font-mono leading-none mt-1">
+              <div
+                className="text-[10.5px] text-muted-foreground truncate font-mono"
+                style={{ lineHeight: "14px" }}
+              >
                 {node.subLabel}
               </div>
             )}
