@@ -219,33 +219,33 @@ export function BudgetSalesCard({ project }: Props) {
   );
 
   // Expense — 3-step chain via `useProjectExpenseLines` (inventdimb
-  // → dist → expense-line + refmap enrichment + header FX join).
-  // The enriched rows carry `mserp_amountcur_usd` — native amount
-  // converted to USD via the expense HEADER's `mserp_exchratesecond`
-  // when the row's currency isn't already USD. We read the `_usd`
-  // field for sums so totals never mix currencies. The original
-  // `mserp_amountcur` is still preserved for raw inspector views
-  // and is used as a fallback when the header lookup couldn't
-  // attach FX context (best-effort step).
-  //
+  // → dist → expense-line + refmap + header FX/accounttype join).
+  // The enriched rows carry `mserp_amountcur_usd` — a SIGNED USD
+  // amount:
+  //    +amount when header.accounttype = Vendor (real cost)
+  //    −amount when header.accounttype = Customer (reflection,
+  //              billed back to the customer so it nets the cost)
   // Tax / FX-adjustment codes (KDV, Damga Vergisi, Fiyat Farkları,
-  // …) are filtered OUT inside the hook itself via
-  // EXCLUDED_EXPENSE_IDS — by the time rows reach this component
-  // they're already gone, so no extra logic is needed here.
+  // …) are dropped inside the hook via EXCLUDED_EXPENSE_IDS. Lines
+  // with no Vendor/Customer classification (e.g. General accounting
+  // manual journals, or header chunks that failed) are also dropped
+  // there. By the time rows reach this component every entry has a
+  // sign that's safe to sum.
   const expenseLineQuery = useProjectExpenseLines(project.projectNo);
   const gerceklesenExpenseLines = React.useMemo(
     () =>
       expenseLineQuery.rows
         .map((r) => {
-          // Use the USD-converted amount when present; fall back to
-          // the native amount only when the header join didn't run
-          // for this row (rare — best-effort fallback).
           const rawUsd = r["mserp_amountcur_usd"];
-          const amount =
-            rawUsd !== undefined && rawUsd !== null && Number.isFinite(Number(rawUsd))
-              ? Number(rawUsd)
-              : Number(r["mserp_amountcur"]);
-          if (!Number.isFinite(amount) || amount === 0) return null;
+          if (
+            rawUsd === undefined ||
+            rawUsd === null ||
+            !Number.isFinite(Number(rawUsd))
+          ) {
+            return null;
+          }
+          const amount = Number(rawUsd);
+          if (amount === 0) return null;
           const description = String(r["mserp_description"] ?? "").trim();
           const expenseId = String(r["mserp_expenseid"] ?? "").trim();
           const expensenum = String(r["mserp_expensenum"] ?? "").trim();
@@ -264,20 +264,31 @@ export function BudgetSalesCard({ project }: Props) {
             expenseId,
             expensenum,
             refExpenseId,
+            // Signed: negative = reflection (Customer), positive =
+            // real cost (Vendor).
             totalUsd: amount,
+            isReflection: amount < 0,
           };
         })
         .filter((l): l is NonNullable<typeof l> => l !== null)
         // Largest absolute amount first — the chunky expense items
         // (demurrage, gümrük, opex) lead instead of being scattered
-        // among the small ones.
+        // among the small ones. Reflection (negative) rows
+        // participate by magnitude too.
         .sort((a, b) => Math.abs(b.totalUsd) - Math.abs(a.totalUsd)),
     [expenseLineQuery.rows]
   );
+  // Signed sum: Vendor adds, Customer (reflection) subtracts. A
+  // perfectly-matched reflection pair nets to zero here, mirroring
+  // the F&O native report.
   const gerceklesenGiderUsd = gerceklesenExpenseLines.reduce(
     (s, l) => s + l.totalUsd,
     0
   );
+  // When net result is negative (reflections outweigh raw costs)
+  // we render the headline as "+$X" green; otherwise the usual
+  // "−$X" red. Same convention applies per-line below.
+  const isGiderNetCredit = gerceklesenGiderUsd < 0;
 
   /* ─────────── P&L resolutions ─────────── */
   const tahminiKZ = tahminiSatisUsd - tahminiAlimUsd - tahminiGiderUsd;
@@ -471,8 +482,11 @@ export function BudgetSalesCard({ project }: Props) {
                 label="Gerçekleşen Gider"
                 count={gerceklesenExpenseLines.length}
                 countLabel="masraf kaydı"
-                value={`-${formatCurrency(Math.abs(gerceklesenGiderUsd), "USD")}`}
-                sign="negative"
+                // Net-credit (reflections > costs) flips the sign
+                // colour so the header reads "+$X" green instead
+                // of "−$-X" garbled.
+                value={`${isGiderNetCredit ? "+" : "−"}${formatCurrency(Math.abs(gerceklesenGiderUsd), "USD")}`}
+                sign={isGiderNetCredit ? "positive" : "negative"}
                 disabled={gerceklesenExpenseLines.length === 0}
                 faded={gerceklesenGiderUsd === 0}
               >
@@ -482,13 +496,17 @@ export function BudgetSalesCard({ project }: Props) {
                     code={l.label}
                     sub={
                       l.expenseId
-                        ? `Masraf Kalemi: ${l.expenseId}`
+                        ? `Masraf Kalemi: ${l.expenseId}${l.isReflection ? " · Yansıtma" : ""}`
                         : l.expensenum
-                          ? `Masraf No: ${l.expensenum}`
+                          ? `Masraf No: ${l.expensenum}${l.isReflection ? " · Yansıtma" : ""}`
                           : ""
                     }
-                    total={`-${formatCurrency(l.totalUsd, "USD")}`}
-                    sign="negative"
+                    // Reflection rows (Customer-side, negative
+                    // totalUsd) display as "+$X" green to telegraph
+                    // that they REDUCE the expense burden. Real
+                    // costs (Vendor-side, positive) stay "−$X" red.
+                    total={`${l.isReflection ? "+" : "−"}${formatCurrency(Math.abs(l.totalUsd), "USD")}`}
+                    sign={l.isReflection ? "positive" : "negative"}
                   />
                 ))}
               </ExpandableRow>

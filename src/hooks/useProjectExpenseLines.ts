@@ -22,17 +22,32 @@ const DIST_ENTITY = "mserp_tryaifrtexpenselinedistlineentities";
 const EXPENSE_ENTITY = "mserp_tryaiexpenselineentities";
 
 /** Expense HEADER entity — one row per `mserp_expensenum` carrying
- *  the row's currency + USD exchange rate. The LINE entity exposes
- *  only the native-currency amount (`mserp_amountcur`) and no
- *  currency context, so non-USD entries silently inflate any naive
- *  USD sum (TRY 1M would otherwise be summed as $1M). We fetch
- *  headers in parallel chunks once we have the expensenum set and
- *  build a `expensenum → { currency, rate }` map; for non-USD lines
- *  the USD-equivalent is computed as `amount * mserp_exchratesecond`.
- *  Best-effort: if a header chunk fails, lines in that chunk fall
- *  back to treating amount as USD (degraded — visible in console
- *  warnings). */
+ *  the row's currency + USD exchange rate + account type. Three
+ *  things the LINE entity DOESN'T expose:
+ *    - `mserp_currencycode`     — line currency (drives FX conversion)
+ *    - `mserp_exchratesecond`   — USD exchange rate at txn date
+ *    - `mserp_accounttype`      — Vendor (200000003), Customer
+ *                                  (200000001 → reflection), or
+ *                                  General accounting (200000000)
+ *  Without the FX context non-USD entries silently inflate the
+ *  USD sum. Without the account-type context "reflection" vouchers
+ *  (TYRO billing the customer to recover a vendor cost) get
+ *  double-counted on the realised side — same expenseid shows up
+ *  twice with the same positive amount instead of netting to zero.
+ *  We fetch headers in parallel chunks once we have the expensenum
+ *  set and build a `expensenum → { currency, rate, accountType }`
+ *  map. */
 const EXPENSE_TABLE_ENTITY = "mserp_tryaiexpensetableentities";
+
+/** F&O `mserp_accounttype` option-set values seen on expense
+ *  table headers. Vendor entries are real cost we incurred;
+ *  Customer entries are reflection vouchers (we billed the
+ *  customer to recover the cost) so they NET the Vendor side
+ *  out — same expensenum appears with both flavours. General
+ *  accounting entries are manual journals we can't classify
+ *  automatically. */
+const ACCOUNT_TYPE_VENDOR = 200000003;
+const ACCOUNT_TYPE_CUSTOMER = 200000001;
 
 /** F&O `mserp_expenseid` codes excluded from realised operational
  *  P&L. The enrichment step drops any expense line whose code
@@ -116,22 +131,24 @@ export interface UseProjectExpenseLinesReturn {
  *      vouchers.
  *   2b. (PARALLEL to Step 2) Fetch the expense HEADER rows from
  *       `mserp_tryaiexpensetableentities` for the same expensenum
- *       chunks. Header carries `mserp_currencycode` and
- *       `mserp_exchratesecond` (the row's USD exchange rate at the
- *       transaction date). Build a
- *       `expensenum → { currency, rate }` map purely for FX
- *       conversion. Best-effort: if a chunk fails, lines in that
- *       chunk fall back to treating amount as USD.
+ *       chunks. Header carries `mserp_currencycode`,
+ *       `mserp_exchratesecond` (USD exchange rate at the txn
+ *       date), and `mserp_accounttype` (Vendor / Customer /
+ *       General accounting). Build a
+ *       `expensenum → { currency, rate, accountType }` map.
  *   3. Enrich each Step-2 row by setting `mserp_refexpenseid` from
  *      Step-R's map keyed on the row's `mserp_expenseid`, AND
- *      attaching a derived `mserp_amountcur_usd` field — the
- *      native `mserp_amountcur` multiplied by Step-2b's exchRate
+ *      attaching a derived `mserp_amountcur_usd` field. The value
+ *      is signed:
+ *        - Vendor header   → +amount (real cost, adds to total)
+ *        - Customer header → −amount (reflection, subtracts)
+ *        - else            → line is dropped entirely
+ *      Amount itself is FX-converted via `mserp_exchratesecond`
  *      when the row's currency isn't USD. Lines whose
  *      `mserp_expenseid` is in `EXCLUDED_EXPENSE_IDS` (tax /
  *      pass-through / FX-adjustment codes — see the constant for
  *      the full list with their human-readable labels) are
- *      filtered out so they don't inflate operational P&L.
- *      Consumers
+ *      filtered out before the sign step. Consumers
  *      should sum `mserp_amountcur_usd` for USD totals; the
  *      original `mserp_amountcur` is preserved for the raw
  *      inspector view.
@@ -272,15 +289,17 @@ export function useProjectExpenseLines(
               $count: true,
             })
           );
-          // Header fetch — pure FX-context join. Realised-P&L
-          // exclusions are applied at the line level by matching
-          // `mserp_expenseid` against `EXCLUDED_EXPENSE_IDS` so the
-          // gate is targeted, not wholesale.
+          // Header fetch — pulls currency + exchRate (FX context)
+          // AND accounttype (Vendor / Customer discriminator for
+          // the reflection sign-flip). Realised-P&L exclusions are
+          // applied at the line level by matching `mserp_expenseid`
+          // against `EXCLUDED_EXPENSE_IDS` so the gate is targeted,
+          // not wholesale.
           headerPromises.push(
             client.listAll<Record<string, unknown>>(EXPENSE_TABLE_ENTITY, {
               $filter: inFilter,
               $select:
-                "mserp_expensenum,mserp_currencycode,mserp_exchratesecond",
+                "mserp_expensenum,mserp_currencycode,mserp_exchratesecond,mserp_accounttype",
             })
           );
         }
@@ -293,15 +312,15 @@ export function useProjectExpenseLines(
         const all: Record<string, unknown>[] = [];
         for (const r of lineSettled) all.push(...r.value);
 
-        // Build expensenum → { currency, exchRate } map from
-        // header rows. Each settled chunk that succeeded
+        // Build expensenum → { currency, exchRate, accountType }
+        // map from header rows. Each settled chunk that succeeded
         // contributes; chunks that failed leave their lines
-        // without FX context — those lines fall back to treating
-        // the native amount as USD (degraded behaviour, surfaced
-        // via the console.warn below).
-        const fxByExpensenum = new Map<
+        // without context — those lines get dropped during
+        // enrichment because there's no way to tell Vendor from
+        // Customer (reflection).
+        const headerByExpensenum = new Map<
           string,
-          { currency: string; rate: number }
+          { currency: string; rate: number; accountType: number | null }
         >();
         for (const settled of headerSettled) {
           if (settled.status !== "fulfilled") continue;
@@ -309,10 +328,12 @@ export function useProjectExpenseLines(
             const num = String(h.mserp_expensenum ?? "").trim();
             const cur = String(h.mserp_currencycode ?? "").trim().toUpperCase();
             const rate = Number(h.mserp_exchratesecond);
+            const at = Number(h.mserp_accounttype);
             if (!num) continue;
-            fxByExpensenum.set(num, {
+            headerByExpensenum.set(num, {
               currency: cur || "USD",
               rate: Number.isFinite(rate) ? rate : 1,
+              accountType: Number.isFinite(at) ? at : null,
             });
           }
         }
@@ -322,7 +343,7 @@ export function useProjectExpenseLines(
         if (headerFailureCount > 0) {
           // eslint-disable-next-line no-console
           console.warn(
-            `[useProjectExpenseLines] expense-table header fetch failed for ${headerFailureCount}/${headerSettled.length} chunks of ${projectNo} — non-USD lines in those chunks will be treated as USD (FX rate unknown).`
+            `[useProjectExpenseLines] expense-table header fetch failed for ${headerFailureCount}/${headerSettled.length} chunks of ${projectNo} — lines in those chunks will be dropped (no way to confirm accounttype / FX rate).`
           );
         }
 
@@ -330,48 +351,76 @@ export function useProjectExpenseLines(
         //   (a) Skip lines whose `mserp_expenseid` is in
         //       EXCLUDED_EXPENSE_IDS (tax / pass-through / FX-
         //       adjustment codes — KDV, Damga, fiyat farkları, …).
-        //   (b) refmap → mserp_refexpenseid textual class.
-        //   (c) FX conversion → mserp_amountcur_usd (native amount
-        //       multiplied by exchRate when currency != USD). Lines
-        //       whose header chunk failed fall back to USD.
+        //   (b) Look up the line's header. Drop if missing OR if
+        //       accountType isn't Vendor/Customer (manual
+        //       journals, unknown codes — can't classify the
+        //       sign safely).
+        //   (c) refmap → mserp_refexpenseid textual class.
+        //   (d) FX conversion → native amount * exchRate when
+        //       currency != USD.
+        //   (e) Sign-flip based on accountType:
+        //         Vendor (200000003)   → +amount  (real cost)
+        //         Customer (200000001) → −amount  (reflection)
+        //       Stored on `mserp_amountcur_usd` so downstream sums
+        //       naturally net Vendor / Customer pairs to zero
+        //       (matches the F&O report).
         // Original mserp_amountcur is preserved untouched for raw
-        // inspector views. Downstream P&L sums should read `_usd`
-        // so totals never mix currencies.
+        // inspector views.
         const enriched: Record<string, unknown>[] = [];
         let droppedExcludedCount = 0;
+        let droppedNoHeaderCount = 0;
+        let droppedUnknownAccountTypeCount = 0;
         for (const r of all) {
           const code = String(r.mserp_expenseid ?? "").trim();
           if (code && EXCLUDED_EXPENSE_IDS.has(code)) {
             droppedExcludedCount += 1;
             continue;
           }
+          const expensenum = String(r.mserp_expensenum ?? "").trim();
+          const header = expensenum
+            ? headerByExpensenum.get(expensenum)
+            : undefined;
+          if (!header) {
+            droppedNoHeaderCount += 1;
+            continue;
+          }
+          const sign =
+            header.accountType === ACCOUNT_TYPE_VENDOR
+              ? +1
+              : header.accountType === ACCOUNT_TYPE_CUSTOMER
+                ? -1
+                : 0;
+          if (sign === 0) {
+            // General accounting (200000000) or any other unknown
+            // option-set value — we can't classify it as a real
+            // cost or a reflection so we drop it.
+            droppedUnknownAccountTypeCount += 1;
+            continue;
+          }
+
           const out: Record<string, unknown> = { ...r };
           const ref = code ? refMap.get(code) : undefined;
           if (ref) out.mserp_refexpenseid = ref;
 
           const amount = Number(r.mserp_amountcur);
           if (Number.isFinite(amount)) {
-            const expensenum = String(r.mserp_expensenum ?? "").trim();
-            const fx = expensenum ? fxByExpensenum.get(expensenum) : undefined;
-            // USD or unknown currency → no conversion. Otherwise
-            // multiply by the header's exchratesecond (rate is in
-            // USD-per-native form, so e.g. TRY × 0.0750 ≈ USD).
-            out.mserp_amountcur_usd =
-              !fx || fx.currency === "USD" ? amount : amount * fx.rate;
-            // Companion fields surfaced from the header — handy in
-            // the inspector + for debugging "why does this line
-            // read as $X". Attached only when FX context was found.
-            if (fx) {
-              out.mserp_currencycode = fx.currency;
-              out.mserp_exchratesecond = fx.rate;
-            }
+            const usd =
+              header.currency === "USD" ? amount : amount * header.rate;
+            out.mserp_amountcur_usd = sign * usd;
+            out.mserp_currencycode = header.currency;
+            out.mserp_exchratesecond = header.rate;
+            out.mserp_accounttype = header.accountType;
           }
           enriched.push(out);
         }
-        if (droppedExcludedCount > 0) {
+        const droppedTotal =
+          droppedExcludedCount +
+          droppedNoHeaderCount +
+          droppedUnknownAccountTypeCount;
+        if (droppedTotal > 0) {
           // eslint-disable-next-line no-console
           console.info(
-            `[useProjectExpenseLines] dropped ${droppedExcludedCount}/${all.length} expense lines for ${projectNo} — expenseid in EXCLUDED_EXPENSE_IDS (${Array.from(EXCLUDED_EXPENSE_IDS).join(", ")}).`
+            `[useProjectExpenseLines] ${projectNo}: kept ${enriched.length}/${all.length} lines (dropped ${droppedExcludedCount} excluded-id, ${droppedNoHeaderCount} no-header, ${droppedUnknownAccountTypeCount} unknown-accounttype).`
           );
         }
 
