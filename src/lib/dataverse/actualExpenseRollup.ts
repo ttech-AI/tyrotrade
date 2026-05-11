@@ -7,10 +7,12 @@
  *
  * Two normalisations applied during aggregation:
  *
- *   1. **Expense-id exclusion**: lines whose `mserp_expenseid` is
- *      in `EXCLUDED_EXPENSE_IDS` (KDV, Damga Vergisi, …) are
- *      dropped. Targeted to pass-through tax / surcharge codes that
- *      don't belong in operational P&L.
+ *   1. **Label-keyword exclusion**: lines whose description or
+ *      refmap-resolved label matches any token in
+ *      `EXCLUDED_LABEL_KEYWORDS` (vergi / KDV / ÖTV) are dropped.
+ *      Targeted at pass-through tax / surcharge items so new
+ *      codes are caught automatically as long as the label text
+ *      still carries the tag.
  *   2. **FX conversion**: each line's native `mserp_amountcur` is
  *      multiplied by the header's `mserp_exchratesecond` when the
  *      row's currency isn't USD, so non-USD invoices don't inflate
@@ -70,13 +72,32 @@ const EXPENSE_ENTITY = "mserp_tryaiexpenselineentities";
 const EXPENSE_TABLE_ENTITY = "mserp_tryaiexpensetableentities";
 const REFMAP_ENTITY = "mserp_tryaiotherexpenseprojectlineentities";
 
-/** F&O `mserp_expenseid` codes excluded from realised P&L. Tax /
- *  pass-through line types that don't belong in operational
- *  expense totals (KDV, Damga Vergisi). Mirrors
- *  `EXCLUDED_EXPENSE_IDS` in `useProjectExpenseLines` so the
- *  project drill-down and the Trade Cost aggregate agree on which
- *  codes are filtered out. */
-const EXCLUDED_EXPENSE_IDS = new Set<string>(["731016", "730030"]);
+/** Substring keywords (Turkish-locale lowercased) excluded from
+ *  realised P&L. The aggregation pass drops any line whose
+ *  `mserp_description` OR refmap-resolved `mserp_refexpenseid`
+ *  contains any of these tokens as a case-/locale-insensitive
+ *  substring. Same list lives in `useProjectExpenseLines` so the
+ *  per-project drill-down and the Trade Cost aggregate agree on
+ *  what counts as "operational" expense. Extend as new
+ *  pass-through categories surface (Stopaj, Resim, …). */
+const EXCLUDED_LABEL_KEYWORDS = ["vergi", "kdv", "ötv"];
+
+/** Same Turkish-locale-aware label match used by
+ *  `useProjectExpenseLines`. Kept inline (instead of factored out)
+ *  so each file stays self-contained — neither one imports anything
+ *  from the other. */
+function matchesExcludedLabel(
+  ...labels: (string | null | undefined)[]
+): boolean {
+  for (const label of labels) {
+    if (!label) continue;
+    const lower = label.toLocaleLowerCase("tr");
+    for (const keyword of EXCLUDED_LABEL_KEYWORDS) {
+      if (lower.includes(keyword)) return true;
+    }
+  }
+  return false;
+}
 
 /* ─────────── Progress reporting ─────────── */
 
@@ -325,27 +346,19 @@ export async function fetchActualExpenseRollupForAllProjects(
   onProgress?.({ stage: "aggregate", status: "running" });
 
   // Index expense-rows by expensenum for the per-project pass.
-  // Lines whose `mserp_expenseid` is in EXCLUDED_EXPENSE_IDS
-  // (KDV, Damga Vergisi, …) are dropped here — same gate the
-  // per-project hook applies.
+  // Filtering by refmap-resolved label happens INSIDE the
+  // aggregation pass below (we need the per-projid refmap there),
+  // so the indexing step just bins everything that has a usable
+  // expensenum. The per-line keyword filter on `description`
+  // alone could run here, but applying it in the aggregation pass
+  // alongside the refmap lookup keeps all label-based gating in
+  // one place — drift between the two locations is impossible.
   const rowsByExpenseNum = new Map<string, Record<string, unknown>[]>();
-  let droppedExcludedCount = 0;
   for (const r of expResult.value) {
     const en = String(r.mserp_expensenum ?? "").trim();
     if (!en) continue;
-    const code = String(r.mserp_expenseid ?? "").trim();
-    if (code && EXCLUDED_EXPENSE_IDS.has(code)) {
-      droppedExcludedCount += 1;
-      continue;
-    }
     if (!rowsByExpenseNum.has(en)) rowsByExpenseNum.set(en, []);
     rowsByExpenseNum.get(en)!.push(r);
-  }
-  if (droppedExcludedCount > 0) {
-    // eslint-disable-next-line no-console
-    console.info(
-      `[actualExpenseRollup] dropped ${droppedExcludedCount}/${expResult.value.length} expense lines — expenseid in EXCLUDED_EXPENSE_IDS (${Array.from(EXCLUDED_EXPENSE_IDS).join(", ")}).`
-    );
   }
 
   // Aggregate per (projid, expenseId).
@@ -356,6 +369,8 @@ export async function fetchActualExpenseRollupForAllProjects(
       { totalUsd: number; rowCount: number; expenseNum: string; description: string }
     >
   >();
+  let droppedExcludedCount = 0;
+  let totalLineCount = 0;
   for (const [projid, dimIds] of projToInventDimIds) {
     // Collect this project's expensenum set via its inventdimids.
     const projExpenseNums = new Set<string>();
@@ -367,6 +382,9 @@ export async function fetchActualExpenseRollupForAllProjects(
 
     if (!rollup.has(projid)) rollup.set(projid, new Map());
     const projMap = rollup.get(projid)!;
+    // Per-project refmap lookup table — used both for the label
+    // gate below and the final flatten step.
+    const projRefLookup = projRefMap.get(projid);
 
     for (const en of projExpenseNums) {
       const expRows = rowsByExpenseNum.get(en);
@@ -376,9 +394,19 @@ export async function fetchActualExpenseRollupForAllProjects(
       // amount as USD (degraded, see the console.warn above).
       const fx = fxByExpenseNum.get(en);
       for (const exr of expRows) {
+        totalLineCount += 1;
         const expenseId = String(exr.mserp_expenseid ?? "").trim();
         if (!expenseId) continue;
         const description = String(exr.mserp_description ?? "").trim();
+        const refLabel = projRefLookup?.get(expenseId);
+        // Label-keyword gate: drop pass-through / tax items whose
+        // label (description OR refmap class) carries any of the
+        // excluded keywords. Done here so the SAME refmap lookup
+        // serves both the gate and the final flatten step.
+        if (matchesExcludedLabel(description, refLabel)) {
+          droppedExcludedCount += 1;
+          continue;
+        }
         const rawAmount = Number(exr.mserp_amountcur);
         const nativeAmount = Number.isFinite(rawAmount) ? rawAmount : 0;
         // FX conversion: USD (or no header) stays as-is; non-USD
@@ -406,6 +434,12 @@ export async function fetchActualExpenseRollupForAllProjects(
         }
       }
     }
+  }
+  if (droppedExcludedCount > 0) {
+    // eslint-disable-next-line no-console
+    console.info(
+      `[actualExpenseRollup] dropped ${droppedExcludedCount}/${totalLineCount} expense lines — label matched EXCLUDED_LABEL_KEYWORDS (${EXCLUDED_LABEL_KEYWORDS.join(", ")}).`
+    );
   }
 
   // Flatten + refmap join.
