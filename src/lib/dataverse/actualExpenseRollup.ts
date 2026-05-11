@@ -1,14 +1,29 @@
 /**
- * Tenant-wide aggregation of realised expense lines for the P&L Cost
- * report. Mirrors the per-project chain inside `useProjectExpenseLines`
- * (inventdimb → dist → expense-line + refmap) but runs ONCE for all
- * active projects in the refresh chain — so the report can render
- * 320 projects without firing 320 round-trips.
+ * Tenant-wide aggregation of realised expense lines for the Trade
+ * Cost report. Mirrors the per-project chain inside
+ * `useProjectExpenseLines` (inventdimb → dist → expense-line + refmap
+ * + Fatura/FX header join) but runs ONCE for all active projects so
+ * the report can render 320 projects without firing 320 round-trips.
  *
- * Output is a flat array keyed by (projectNo, expenseId), with the
- * Step-R refmap label joined in and code 710041 (Satış Fiyat Farkı)
- * applied as a NEGATIVE contribution (the realised expense reducer
- * documented in BudgetSalesCard).
+ * Two non-obvious normalisations applied during aggregation:
+ *
+ *   1. **Fatura gate**: only expense-line rows whose header has
+ *      `mserp_documenttype eq 200000001` ("Fatura") are kept. Other
+ *      doc types (debit notes, manual journals, advances) don't
+ *      belong in realised P&L and were leaking surprise items into
+ *      the totals before this gate was added.
+ *   2. **FX conversion**: each line's native `mserp_amountcur` is
+ *      multiplied by the header's `mserp_exchratesecond` when the
+ *      row's currency isn't USD, so non-USD invoices don't inflate
+ *      the dollar sum (TRY 1M was previously summed as $1M).
+ *
+ * Both gates come from the same expense-table header fetch (Step 3b
+ * below), filtered to Fatura at the server side. Code 710041 (Satış
+ * Fiyat Farkı) stays applied as a NEGATIVE contribution on the
+ * already-USD-converted amount — same rule BudgetSalesCard runs
+ * row-by-row.
+ *
+ * Output is a flat array keyed by (projectNo, expenseId).
  */
 
 import type { DataverseClient } from "@/lib/dataverse";
@@ -48,7 +63,21 @@ const PRICE_DIFF_EXPENSE_CODE = "710041";
 const INVENTDIMB_ENTITY = "mserp_inventdimbientities";
 const DIST_ENTITY = "mserp_tryaifrtexpenselinedistlineentities";
 const EXPENSE_ENTITY = "mserp_tryaiexpenselineentities";
+/** Expense HEADER entity — joined to lines by `mserp_expensenum`.
+ *  Carries `mserp_documenttype` (filter to Fatura) + currency +
+ *  USD exchange rate. Without this join non-USD line amounts
+ *  silently inflate the USD sum, AND non-invoice doc types
+ *  (debit notes, manual journals) leak into realised P&L. Same
+ *  pattern as the per-project chain in `useProjectExpenseLines`. */
+const EXPENSE_TABLE_ENTITY = "mserp_tryaiexpensetableentities";
 const REFMAP_ENTITY = "mserp_tryaiotherexpenseprojectlineentities";
+
+/** F&O option-set code for "Fatura" (invoice) on
+ *  `mserp_documenttype`. Other codes (debit memo, manual journal,
+ *  advance, …) don't belong in realised P&L. Mirrors the
+ *  per-project hook's `DOCUMENT_TYPE_INVOICE` so the two surfaces
+ *  agree on which doc-types count. */
+const DOCUMENT_TYPE_INVOICE = 200000001;
 
 /* ─────────── Progress reporting ─────────── */
 
@@ -237,15 +266,58 @@ export async function fetchActualExpenseRollupForAllProjects(
 
   if (dimToExpenseNums.size === 0) return [];
 
-  // Step 3: authoritative expense-line rows.
+  // Step 3: authoritative expense-line rows + expense-table
+  // headers in parallel. The header fetch is filtered to Fatura
+  // doc-type so it acts as BOTH the FX lookup AND the inclusion
+  // gate (lines whose expensenum doesn't appear in the response
+  // are dropped during aggregation below — they're either
+  // non-Fatura or the chunk failed).
   onProgress?.({ stage: "expense-line", status: "running" });
-  const expResult = await listAllByInChunked<Record<string, unknown>>(
-    client,
-    EXPENSE_ENTITY,
-    "mserp_expensenum",
-    allExpenseNums,
-    { $select: EXPENSE_LINE_COLUMNS.join(",") }
-  );
+  const [expResult, headerSettled] = await Promise.all([
+    listAllByInChunked<Record<string, unknown>>(
+      client,
+      EXPENSE_ENTITY,
+      "mserp_expensenum",
+      allExpenseNums,
+      { $select: EXPENSE_LINE_COLUMNS.join(",") }
+    ),
+    listAllByInChunked<Record<string, unknown>>(
+      client,
+      EXPENSE_TABLE_ENTITY,
+      "mserp_expensenum",
+      allExpenseNums,
+      { $select: "mserp_expensenum,mserp_currencycode,mserp_exchratesecond" },
+      undefined,
+      `mserp_documenttype eq ${DOCUMENT_TYPE_INVOICE}`
+    )
+      .then((r) => ({ status: "fulfilled" as const, value: r }))
+      .catch((reason) => ({ status: "rejected" as const, reason })),
+  ]);
+
+  // Build expensenum → { currency, rate } map from Fatura headers.
+  const fxByExpenseNum = new Map<
+    string,
+    { currency: string; rate: number }
+  >();
+  if (headerSettled.status === "fulfilled") {
+    for (const h of headerSettled.value.value) {
+      const num = String(h.mserp_expensenum ?? "").trim();
+      const cur = String(h.mserp_currencycode ?? "").trim().toUpperCase();
+      const rate = Number(h.mserp_exchratesecond);
+      if (!num) continue;
+      fxByExpenseNum.set(num, {
+        currency: cur || "USD",
+        rate: Number.isFinite(rate) ? rate : 1,
+      });
+    }
+  } else {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[actualExpenseRollup] expense-table header fetch failed — every line will be dropped (no way to confirm Fatura doc-type / FX rate):",
+      headerSettled.reason
+    );
+  }
+
   onProgress?.({
     stage: "expense-line",
     status: "done",
@@ -254,12 +326,25 @@ export async function fetchActualExpenseRollupForAllProjects(
   onProgress?.({ stage: "aggregate", status: "running" });
 
   // Index expense-rows by expensenum for the per-project pass.
+  // Lines whose expensenum is missing from the Fatura header map
+  // are dropped here — same gate the per-project hook applies.
   const rowsByExpenseNum = new Map<string, Record<string, unknown>[]>();
+  let droppedNonFaturaCount = 0;
   for (const r of expResult.value) {
     const en = String(r.mserp_expensenum ?? "").trim();
     if (!en) continue;
+    if (!fxByExpenseNum.has(en)) {
+      droppedNonFaturaCount += 1;
+      continue;
+    }
     if (!rowsByExpenseNum.has(en)) rowsByExpenseNum.set(en, []);
     rowsByExpenseNum.get(en)!.push(r);
+  }
+  if (droppedNonFaturaCount > 0) {
+    // eslint-disable-next-line no-console
+    console.info(
+      `[actualExpenseRollup] dropped ${droppedNonFaturaCount}/${expResult.value.length} expense lines — header was not Fatura doc-type (or header fetch failed).`
+    );
   }
 
   // Aggregate per (projid, expenseId).
@@ -285,15 +370,24 @@ export async function fetchActualExpenseRollupForAllProjects(
     for (const en of projExpenseNums) {
       const expRows = rowsByExpenseNum.get(en);
       if (!expRows) continue;
+      // FX context for this expensenum (guaranteed to exist because
+      // the gate above kept only rows whose expensenum is in
+      // fxByExpenseNum).
+      const fx = fxByExpenseNum.get(en)!;
       for (const exr of expRows) {
         const expenseId = String(exr.mserp_expenseid ?? "").trim();
         if (!expenseId) continue;
         const description = String(exr.mserp_description ?? "").trim();
         const rawAmount = Number(exr.mserp_amountcur);
-        const amount = Number.isFinite(rawAmount) ? rawAmount : 0;
+        const nativeAmount = Number.isFinite(rawAmount) ? rawAmount : 0;
+        // FX conversion: USD stays as-is, everything else gets
+        // multiplied by the header's exchratesecond (rate is in
+        // USD-per-native form — TRY × 0.0750 ≈ USD).
+        const amountUsd =
+          fx.currency === "USD" ? nativeAmount : nativeAmount * fx.rate;
         // 710041 (Satış Fiyat Farkı) reduces realised expense.
         const adjusted =
-          expenseId === PRICE_DIFF_EXPENSE_CODE ? -amount : amount;
+          expenseId === PRICE_DIFF_EXPENSE_CODE ? -amountUsd : amountUsd;
 
         const existing = projMap.get(expenseId);
         if (existing) {
