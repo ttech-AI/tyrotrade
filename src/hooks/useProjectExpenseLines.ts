@@ -34,33 +34,33 @@ const EXPENSE_ENTITY = "mserp_tryaiexpenselineentities";
  *  warnings). */
 const EXPENSE_TABLE_ENTITY = "mserp_tryaiexpensetableentities";
 
-/** Substring keywords (Turkish-locale lowercased) excluded from
- *  realised P&L. The enrichment step drops any expense whose
- *  `mserp_description` or refmap-resolved `mserp_refexpenseid`
- *  contains any of these tokens as a case-/locale-insensitive
- *  substring. Robust to new tax codes appearing under different
- *  numeric `mserp_expenseid` values (KDV oranı %18 → %20, …) as
- *  long as the label text still carries the tag. Extend as new
- *  pass-through categories surface (e.g. Resim, Damga, Stopaj). */
-const EXCLUDED_LABEL_KEYWORDS = ["vergi", "kdv", "ötv"];
-
-/** Does any label (description, refmap class, …) match an excluded
- *  keyword? Uses `toLocaleLowerCase("tr")` so the Turkish dotted-I
- *  (İ → i, I → ı) gets normalised correctly — without that
- *  "VERGİ".toLowerCase() yields "vergi̇" (with a combining dot)
- *  which fails a naive `.includes("vergi")`. */
-function matchesExcludedLabel(
-  ...labels: (string | null | undefined)[]
-): boolean {
-  for (const label of labels) {
-    if (!label) continue;
-    const lower = label.toLocaleLowerCase("tr");
-    for (const keyword of EXCLUDED_LABEL_KEYWORDS) {
-      if (lower.includes(keyword)) return true;
-    }
-  }
-  return false;
-}
+/** F&O `mserp_expenseid` codes excluded from realised operational
+ *  P&L. The enrichment step drops any expense line whose code
+ *  matches one of these. Names alongside each code document what
+ *  the label looked like when the entry was added — the lookup
+ *  itself is strictly numeric, so a label rename in F&O won't
+ *  re-admit the row.
+ *
+ *  Excluded set:
+ *    - "710017" — FIYAT FARKLARI / SATINALMA FIYAT FARKLARI
+ *    - "710041" — SATIS FIYAT FARKLARI
+ *    - "730030" — ITHALAT BULK KDV
+ *    - "731016" — ITHALAT - DAMGA VERGISI
+ *    - "790051" — ITHALAT - HAZINE FIYAT FARKI
+ *    - "790052" — IHRACAT - HAZINE FIYAT FARKI
+ *
+ *  Extend this set as new pass-through / FX-adjustment codes
+ *  surface; the same constant lives in `actualExpenseRollup.ts`
+ *  so the per-project drill-down and the Trade Cost aggregate
+ *  stay in sync. */
+const EXCLUDED_EXPENSE_IDS = new Set<string>([
+  "710017",
+  "710041",
+  "730030",
+  "731016",
+  "790051",
+  "790052",
+]);
 
 /** Reference-map entity — per project, carries
  *  `(mserp_tryexpensetype, mserp_refexpenseid)` pairs that translate
@@ -126,12 +126,12 @@ export interface UseProjectExpenseLinesReturn {
  *      Step-R's map keyed on the row's `mserp_expenseid`, AND
  *      attaching a derived `mserp_amountcur_usd` field — the
  *      native `mserp_amountcur` multiplied by Step-2b's exchRate
-
-*      when the row's currency isn't USD. Lines whose description
- *      or refmap-resolved label contains any token in
- *      `EXCLUDED_LABEL_KEYWORDS` (vergi / KDV / ÖTV — tax /
- *      pass-through items) are filtered out so they don't inflate
- *      operational P&L. Consumers
+ *      when the row's currency isn't USD. Lines whose
+ *      `mserp_expenseid` is in `EXCLUDED_EXPENSE_IDS` (tax /
+ *      pass-through / FX-adjustment codes — see the constant for
+ *      the full list with their human-readable labels) are
+ *      filtered out so they don't inflate operational P&L.
+ *      Consumers
  *      should sum `mserp_amountcur_usd` for USD totals; the
  *      original `mserp_amountcur` is preserved for the raw
  *      inspector view.
@@ -254,7 +254,7 @@ export function useProjectExpenseLines(
         // Step 2 + 2b in parallel: line rows (authoritative amounts
         // in native currency) AND header rows (currency + exchRate
         // context). Header map is pure FX — line-level exclusions
-        // run separately against `EXCLUDED_LABEL_KEYWORDS` below.
+        // run separately against `EXCLUDED_EXPENSE_IDS` below.
         // Best-effort: a failed header chunk just degrades the FX
         // step for its lines (USD fallback) without blocking the
         // chain.
@@ -272,10 +272,9 @@ export function useProjectExpenseLines(
               $count: true,
             })
           );
-          // Header fetch — pure FX-context join (no document-type
-          // filter). Realised-P&L exclusions are applied at the
-          // line level by keyword-matching the label text against
-          // `EXCLUDED_LABEL_KEYWORDS` (vergi / KDV / ÖTV …) so the
+          // Header fetch — pure FX-context join. Realised-P&L
+          // exclusions are applied at the line level by matching
+          // `mserp_expenseid` against `EXCLUDED_EXPENSE_IDS` so the
           // gate is targeted, not wholesale.
           headerPromises.push(
             client.listAll<Record<string, unknown>>(EXPENSE_TABLE_ENTITY, {
@@ -328,12 +327,10 @@ export function useProjectExpenseLines(
         }
 
         // Enrichment:
-        //   (a) refmap → mserp_refexpenseid textual class.
-        //   (b) Skip lines whose description / refmap label
-        //       contains any token in EXCLUDED_LABEL_KEYWORDS
-        //       (vergi / kdv / ötv …). Keyword match runs AFTER
-        //       refmap attachment so the label text we check is
-        //       the same one the UI ultimately renders.
+        //   (a) Skip lines whose `mserp_expenseid` is in
+        //       EXCLUDED_EXPENSE_IDS (tax / pass-through / FX-
+        //       adjustment codes — KDV, Damga, fiyat farkları, …).
+        //   (b) refmap → mserp_refexpenseid textual class.
         //   (c) FX conversion → mserp_amountcur_usd (native amount
         //       multiplied by exchRate when currency != USD). Lines
         //       whose header chunk failed fall back to USD.
@@ -343,16 +340,14 @@ export function useProjectExpenseLines(
         const enriched: Record<string, unknown>[] = [];
         let droppedExcludedCount = 0;
         for (const r of all) {
-          const out: Record<string, unknown> = { ...r };
           const code = String(r.mserp_expenseid ?? "").trim();
-          const ref = code ? refMap.get(code) : undefined;
-          if (ref) out.mserp_refexpenseid = ref;
-
-          const description = String(r.mserp_description ?? "").trim();
-          if (matchesExcludedLabel(description, ref)) {
+          if (code && EXCLUDED_EXPENSE_IDS.has(code)) {
             droppedExcludedCount += 1;
             continue;
           }
+          const out: Record<string, unknown> = { ...r };
+          const ref = code ? refMap.get(code) : undefined;
+          if (ref) out.mserp_refexpenseid = ref;
 
           const amount = Number(r.mserp_amountcur);
           if (Number.isFinite(amount)) {
@@ -376,7 +371,7 @@ export function useProjectExpenseLines(
         if (droppedExcludedCount > 0) {
           // eslint-disable-next-line no-console
           console.info(
-            `[useProjectExpenseLines] dropped ${droppedExcludedCount}/${all.length} expense lines for ${projectNo} — label matched EXCLUDED_LABEL_KEYWORDS (${EXCLUDED_LABEL_KEYWORDS.join(", ")}).`
+            `[useProjectExpenseLines] dropped ${droppedExcludedCount}/${all.length} expense lines for ${projectNo} — expenseid in EXCLUDED_EXPENSE_IDS (${Array.from(EXCLUDED_EXPENSE_IDS).join(", ")}).`
           );
         }
 

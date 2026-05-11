@@ -7,12 +7,10 @@
  *
  * Two normalisations applied during aggregation:
  *
- *   1. **Label-keyword exclusion**: lines whose description or
- *      refmap-resolved label matches any token in
- *      `EXCLUDED_LABEL_KEYWORDS` (vergi / KDV / ÖTV) are dropped.
- *      Targeted at pass-through tax / surcharge items so new
- *      codes are caught automatically as long as the label text
- *      still carries the tag.
+ *   1. **Expense-id exclusion**: lines whose `mserp_expenseid` is
+ *      in `EXCLUDED_EXPENSE_IDS` (KDV, Damga Vergisi, the four
+ *      fiyat-farkı codes) are dropped. Numeric, not label-based,
+ *      so an F&O label rename never re-admits the row.
  *   2. **FX conversion**: each line's native `mserp_amountcur` is
  *      multiplied by the header's `mserp_exchratesecond` when the
  *      row's currency isn't USD, so non-USD invoices don't inflate
@@ -45,20 +43,14 @@ export interface ActualExpenseRollupRow {
   refExpenseId: string | null;
   /** Sample free-text description from the contributing rows. */
   description: string;
-  /** Net USD total. Code 710041 contributes NEGATIVELY (FX-driven
-   *  sales-price-difference adjustment that REDUCES realised expense
-   *  burden — same rule the BudgetSalesCard applies row-by-row). */
+  /** Realised USD total — sum of contributing line amounts
+   *  converted to USD via the expense-table header's
+   *  `mserp_exchratesecond` when the row's currency isn't USD. */
   totalUsd: number;
   /** Number of underlying expense-line rows aggregated. Helpful for
    *  drill-down: "this rollup row aggregates 4 voucher entries." */
   rowCount: number;
 }
-
-/** Localised constant — code 710041 ("Satış Fiyat Farkı") subtracts
- *  from realised expense instead of adding. Mirrors
- *  `PRICE_DIFF_EXPENSE_CODE` in BudgetSalesCard.tsx so the two stay
- *  consistent. */
-const PRICE_DIFF_EXPENSE_CODE = "710041";
 
 /* ─────────── Entity sets used by the chain ─────────── */
 const INVENTDIMB_ENTITY = "mserp_inventdimbientities";
@@ -72,32 +64,25 @@ const EXPENSE_ENTITY = "mserp_tryaiexpenselineentities";
 const EXPENSE_TABLE_ENTITY = "mserp_tryaiexpensetableentities";
 const REFMAP_ENTITY = "mserp_tryaiotherexpenseprojectlineentities";
 
-/** Substring keywords (Turkish-locale lowercased) excluded from
- *  realised P&L. The aggregation pass drops any line whose
- *  `mserp_description` OR refmap-resolved `mserp_refexpenseid`
- *  contains any of these tokens as a case-/locale-insensitive
- *  substring. Same list lives in `useProjectExpenseLines` so the
- *  per-project drill-down and the Trade Cost aggregate agree on
- *  what counts as "operational" expense. Extend as new
- *  pass-through categories surface (Stopaj, Resim, …). */
-const EXCLUDED_LABEL_KEYWORDS = ["vergi", "kdv", "ötv"];
-
-/** Same Turkish-locale-aware label match used by
- *  `useProjectExpenseLines`. Kept inline (instead of factored out)
- *  so each file stays self-contained — neither one imports anything
- *  from the other. */
-function matchesExcludedLabel(
-  ...labels: (string | null | undefined)[]
-): boolean {
-  for (const label of labels) {
-    if (!label) continue;
-    const lower = label.toLocaleLowerCase("tr");
-    for (const keyword of EXCLUDED_LABEL_KEYWORDS) {
-      if (lower.includes(keyword)) return true;
-    }
-  }
-  return false;
-}
+/** F&O `mserp_expenseid` codes excluded from realised operational
+ *  P&L. Same set + names that live in `useProjectExpenseLines.ts`
+ *  so the per-project drill-down and the Trade Cost aggregate
+ *  agree on which codes are filtered out:
+ *    - "710017" — FIYAT FARKLARI / SATINALMA FIYAT FARKLARI
+ *    - "710041" — SATIS FIYAT FARKLARI
+ *    - "730030" — ITHALAT BULK KDV
+ *    - "731016" — ITHALAT - DAMGA VERGISI
+ *    - "790051" — ITHALAT - HAZINE FIYAT FARKI
+ *    - "790052" — IHRACAT - HAZINE FIYAT FARKI
+ *  Extend in both files together. */
+const EXCLUDED_EXPENSE_IDS = new Set<string>([
+  "710017",
+  "710041",
+  "730030",
+  "731016",
+  "790051",
+  "790052",
+]);
 
 /* ─────────── Progress reporting ─────────── */
 
@@ -346,19 +331,27 @@ export async function fetchActualExpenseRollupForAllProjects(
   onProgress?.({ stage: "aggregate", status: "running" });
 
   // Index expense-rows by expensenum for the per-project pass.
-  // Filtering by refmap-resolved label happens INSIDE the
-  // aggregation pass below (we need the per-projid refmap there),
-  // so the indexing step just bins everything that has a usable
-  // expensenum. The per-line keyword filter on `description`
-  // alone could run here, but applying it in the aggregation pass
-  // alongside the refmap lookup keeps all label-based gating in
-  // one place — drift between the two locations is impossible.
+  // Lines whose `mserp_expenseid` is in EXCLUDED_EXPENSE_IDS are
+  // dropped here — purely numeric lookup, so the gate is identical
+  // for every project (no per-projid refmap needed).
   const rowsByExpenseNum = new Map<string, Record<string, unknown>[]>();
+  let droppedExcludedCount = 0;
   for (const r of expResult.value) {
     const en = String(r.mserp_expensenum ?? "").trim();
     if (!en) continue;
+    const code = String(r.mserp_expenseid ?? "").trim();
+    if (code && EXCLUDED_EXPENSE_IDS.has(code)) {
+      droppedExcludedCount += 1;
+      continue;
+    }
     if (!rowsByExpenseNum.has(en)) rowsByExpenseNum.set(en, []);
     rowsByExpenseNum.get(en)!.push(r);
+  }
+  if (droppedExcludedCount > 0) {
+    // eslint-disable-next-line no-console
+    console.info(
+      `[actualExpenseRollup] dropped ${droppedExcludedCount}/${expResult.value.length} expense lines — expenseid in EXCLUDED_EXPENSE_IDS (${Array.from(EXCLUDED_EXPENSE_IDS).join(", ")}).`
+    );
   }
 
   // Aggregate per (projid, expenseId).
@@ -369,8 +362,6 @@ export async function fetchActualExpenseRollupForAllProjects(
       { totalUsd: number; rowCount: number; expenseNum: string; description: string }
     >
   >();
-  let droppedExcludedCount = 0;
-  let totalLineCount = 0;
   for (const [projid, dimIds] of projToInventDimIds) {
     // Collect this project's expensenum set via its inventdimids.
     const projExpenseNums = new Set<string>();
@@ -382,9 +373,6 @@ export async function fetchActualExpenseRollupForAllProjects(
 
     if (!rollup.has(projid)) rollup.set(projid, new Map());
     const projMap = rollup.get(projid)!;
-    // Per-project refmap lookup table — used both for the label
-    // gate below and the final flatten step.
-    const projRefLookup = projRefMap.get(projid);
 
     for (const en of projExpenseNums) {
       const expRows = rowsByExpenseNum.get(en);
@@ -394,19 +382,9 @@ export async function fetchActualExpenseRollupForAllProjects(
       // amount as USD (degraded, see the console.warn above).
       const fx = fxByExpenseNum.get(en);
       for (const exr of expRows) {
-        totalLineCount += 1;
         const expenseId = String(exr.mserp_expenseid ?? "").trim();
         if (!expenseId) continue;
         const description = String(exr.mserp_description ?? "").trim();
-        const refLabel = projRefLookup?.get(expenseId);
-        // Label-keyword gate: drop pass-through / tax items whose
-        // label (description OR refmap class) carries any of the
-        // excluded keywords. Done here so the SAME refmap lookup
-        // serves both the gate and the final flatten step.
-        if (matchesExcludedLabel(description, refLabel)) {
-          droppedExcludedCount += 1;
-          continue;
-        }
         const rawAmount = Number(exr.mserp_amountcur);
         const nativeAmount = Number.isFinite(rawAmount) ? rawAmount : 0;
         // FX conversion: USD (or no header) stays as-is; non-USD
@@ -416,17 +394,14 @@ export async function fetchActualExpenseRollupForAllProjects(
           !fx || fx.currency === "USD"
             ? nativeAmount
             : nativeAmount * fx.rate;
-        // 710041 (Satış Fiyat Farkı) reduces realised expense.
-        const adjusted =
-          expenseId === PRICE_DIFF_EXPENSE_CODE ? -amountUsd : amountUsd;
 
         const existing = projMap.get(expenseId);
         if (existing) {
-          existing.totalUsd += adjusted;
+          existing.totalUsd += amountUsd;
           existing.rowCount += 1;
         } else {
           projMap.set(expenseId, {
-            totalUsd: adjusted,
+            totalUsd: amountUsd,
             rowCount: 1,
             expenseNum: en,
             description,
@@ -434,12 +409,6 @@ export async function fetchActualExpenseRollupForAllProjects(
         }
       }
     }
-  }
-  if (droppedExcludedCount > 0) {
-    // eslint-disable-next-line no-console
-    console.info(
-      `[actualExpenseRollup] dropped ${droppedExcludedCount}/${totalLineCount} expense lines — label matched EXCLUDED_LABEL_KEYWORDS (${EXCLUDED_LABEL_KEYWORDS.join(", ")}).`
-    );
   }
 
   // Flatten + refmap join.

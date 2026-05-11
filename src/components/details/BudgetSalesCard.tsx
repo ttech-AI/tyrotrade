@@ -228,12 +228,10 @@ export function BudgetSalesCard({ project }: Props) {
   // and is used as a fallback when the header lookup couldn't
   // attach FX context (best-effort step).
   //
-  // Special handling for code `710041` (Satış Fiyat Farkı): this is
-  // an FX-driven sales price-difference adjustment that REDUCES the
-  // realised expense burden rather than adding to it. We surface it
-  // as a positive (green +) line in the breakdown AND subtract its
-  // amount from the gerceklesenGider total instead of adding.
-  const PRICE_DIFF_EXPENSE_CODE = "710041";
+  // Tax / FX-adjustment codes (KDV, Damga Vergisi, Fiyat Farkları,
+  // …) are filtered OUT inside the hook itself via
+  // EXCLUDED_EXPENSE_IDS — by the time rows reach this component
+  // they're already gone, so no extra logic is needed here.
   const expenseLineQuery = useProjectExpenseLines(project.projectNo);
   const gerceklesenExpenseLines = React.useMemo(
     () =>
@@ -256,7 +254,6 @@ export function BudgetSalesCard({ project }: Props) {
           // entry for this code. This is what the user sees as the
           // primary line label.
           const refExpenseId = String(r["mserp_refexpenseid"] ?? "").trim();
-          const isPriceDiff = expenseId === PRICE_DIFF_EXPENSE_CODE;
           return {
             label:
               refExpenseId ||
@@ -268,24 +265,19 @@ export function BudgetSalesCard({ project }: Props) {
             expensenum,
             refExpenseId,
             totalUsd: amount,
-            isPriceDiff,
           };
         })
         .filter((l): l is NonNullable<typeof l> => l !== null)
         // Largest absolute amount first — the chunky expense items
-        // (KDV, demurrage, gümrük) lead instead of being scattered
-        // among the small ones. Price-diff rows participate by their
-        // magnitude too, not their sign.
+        // (demurrage, gümrük, opex) lead instead of being scattered
+        // among the small ones.
         .sort((a, b) => Math.abs(b.totalUsd) - Math.abs(a.totalUsd)),
     [expenseLineQuery.rows]
   );
-  // Net gider: regular expenses ADD, price-diff entries SUBTRACT.
   const gerceklesenGiderUsd = gerceklesenExpenseLines.reduce(
-    (s, l) => s + (l.isPriceDiff ? -l.totalUsd : l.totalUsd),
+    (s, l) => s + l.totalUsd,
     0
   );
-  // Net price-diff outweighed raw expenses → row reads as a credit.
-  const isGiderNetCredit = gerceklesenGiderUsd < 0;
 
   /* ─────────── P&L resolutions ─────────── */
   const tahminiKZ = tahminiSatisUsd - tahminiAlimUsd - tahminiGiderUsd;
@@ -479,11 +471,8 @@ export function BudgetSalesCard({ project }: Props) {
                 label="Gerçekleşen Gider"
                 count={gerceklesenExpenseLines.length}
                 countLabel="masraf kaydı"
-                // When price-diff lines outweigh raw expenses the net
-                // becomes negative — flip the sign on the headline so
-                // the row reads "+$X" green instead of "-$-X".
-                value={`${isGiderNetCredit ? "+" : "-"}${formatCurrency(Math.abs(gerceklesenGiderUsd), "USD")}`}
-                sign={isGiderNetCredit ? "positive" : "negative"}
+                value={`-${formatCurrency(Math.abs(gerceklesenGiderUsd), "USD")}`}
+                sign="negative"
                 disabled={gerceklesenExpenseLines.length === 0}
                 faded={gerceklesenGiderUsd === 0}
               >
@@ -498,12 +487,8 @@ export function BudgetSalesCard({ project }: Props) {
                           ? `Masraf No: ${l.expensenum}`
                           : ""
                     }
-                    // Price-diff (710041) lines reduce the realised
-                    // expense burden — show them as positive/green
-                    // instead of negative/red so the breakdown reads
-                    // honestly.
-                    total={`${l.isPriceDiff ? "+" : "-"}${formatCurrency(l.totalUsd, "USD")}`}
-                    sign={l.isPriceDiff ? "positive" : "negative"}
+                    total={`-${formatCurrency(l.totalUsd, "USD")}`}
+                    sign="negative"
                   />
                 ))}
               </ExpandableRow>
