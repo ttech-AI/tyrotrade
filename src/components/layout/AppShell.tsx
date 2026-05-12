@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, useMatch } from "react-router-dom";
 import { Menu, Ship, Database, Search, Settings } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Home01Icon, HotPriceIcon } from "@hugeicons/core-free-icons";
@@ -10,6 +10,7 @@ import { TyroChatButton } from "@/components/layout/TyroChatButton";
 import { NotificationButton } from "@/components/layout/NotificationButton";
 import { TyroAiDrawer } from "@/components/chat/TyroAiDrawer";
 import { TyroChatDrawer } from "@/components/chat/TyroChatDrawer";
+import { useProjects } from "@/hooks/useProjects";
 import { AppSidebar } from "./AppSidebar";
 import { SidebarProvider, useSidebar } from "./sidebar-context";
 import { DataverseLoginAutoRefresh } from "@/components/auth/DataverseLoginAutoRefresh";
@@ -138,6 +139,19 @@ function TopBar({ title, pathname }: { title: string; pathname: string }) {
   const { open: cmdOpen, setOpen: setCmdOpen } = useCommandPalette();
   const [chatOpen, setChatOpen] = React.useState(false);
 
+  // Resolve the active project when the user is on a detail route so
+  // TyroChatDrawer can forward the context to the Copilot agent.
+  const projectMatch = useMatch("/projects/:projectId");
+  const activeProjectId = projectMatch?.params.projectId;
+  const { projects } = useProjects();
+  const activeProject = activeProjectId
+    ? projects.find((p) => p.projectNo === activeProjectId)
+    : undefined;
+  const projectContext =
+    activeProject
+      ? { projectId: activeProject.projectNo, projectName: activeProject.projectName }
+      : undefined;
+
   return (
     <>
       <div className="px-3 pt-3 pb-3">
@@ -183,7 +197,11 @@ function TopBar({ title, pathname }: { title: string; pathname: string }) {
         </GlassPanel>
       </div>
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} />
-      <TyroChatDrawer open={chatOpen} onOpenChange={setChatOpen} />
+      <TyroChatDrawer
+        open={chatOpen}
+        onOpenChange={setChatOpen}
+        projectContext={projectContext}
+      />
     </>
   );
 }

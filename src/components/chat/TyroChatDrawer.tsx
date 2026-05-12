@@ -14,14 +14,9 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { TYRO_CHAT_TONE } from "@/components/layout/TyroChatButton";
-import { useSettings } from "@/hooks/useSettings";
-import { DEFAULT_COPILOT_CHAT_URL } from "@/lib/settings/userSettings";
+import { ProjectWebChat, type ProjectContext } from "./ProjectWebChat";
 import { cn } from "@/lib/utils";
 
-/** Onboarding bullet points — one short value-prop per line so the
- *  user knows what kinds of questions the agent can handle before
- *  they hit "Sohbete başla". Kept domain-specific and crisp so the
- *  intro screen doesn't read like generic AI marketing copy. */
 const FEATURES: string[] = [
   "Aktif sevkiyat ve milestone takibi",
   "Finansal analiz, marj ve K&Z sorguları",
@@ -31,40 +26,32 @@ const FEATURES: string[] = [
 interface TyroChatDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Set when the user is viewing a project detail route.
+   *  Forwarded to the WebChat panel so it can inject project context. */
+  projectContext?: ProjectContext;
 }
 
 /**
- * Right-side drawer that hosts the Copilot Studio agent as an iframe.
- *
- * Same chrome dialect as `TyroAiDrawer` (rounded-l-3xl, top accent
- * strip, opaque white surface) so the two AI surfaces feel like
- * siblings — only the tone palette differs (indigo-violet here vs.
- * live theme accent for Gemini).
- *
- * On first open we lay an onboarding overlay with the robot icon,
- * a short value pitch, three feature bullets, and a single primary
- * CTA. The Copilot iframe loads underneath; once the user dismisses
- * the overlay (CTA click) the agent's chat surface is fully visible.
+ * Right-side drawer that hosts the Copilot Studio agent via
+ * botframework-webchat (Direct Line). When `projectContext` is
+ * provided the agent automatically receives the current project ID and
+ * name so it can answer project-scoped questions without the user
+ * having to repeat themselves.
  */
-export function TyroChatDrawer({ open, onOpenChange }: TyroChatDrawerProps) {
-  const { settings } = useSettings();
-  // Defensive fallback: even if `readSettings` somehow returns an empty
-  // override (e.g. malformed JSON), default to the bound TYRO agent so
-  // the drawer never opens to a blank iframe.
-  const url =
-    (settings.copilotChatUrl ?? "").trim() || DEFAULT_COPILOT_CHAT_URL;
-
-  // Lazy-mount the iframe — only renders after the user opens the
-  // drawer the first time, then stays mounted so subsequent re-opens
-  // skip the cold-start handshake.
+export function TyroChatDrawer({
+  open,
+  onOpenChange,
+  projectContext,
+}: TyroChatDrawerProps) {
+  // Lazy-mount the webchat — only starts connecting after the first open.
+  // Stays mounted afterwards so subsequent re-opens skip the cold-start.
   const [hasOpened, setHasOpened] = React.useState(false);
   React.useEffect(() => {
     if (open) setHasOpened(true);
   }, [open]);
 
-  // Onboarding overlay state — visible by default, dismissed by the
-  // primary CTA. State persists while the drawer stays mounted, so
-  // re-opening doesn't re-show the overlay (one-time onboarding).
+  // One-time onboarding overlay — dismissed by the primary CTA.
+  // Stays dismissed while the drawer remains mounted.
   const [overlayVisible, setOverlayVisible] = React.useState(true);
 
   return (
@@ -79,7 +66,7 @@ export function TyroChatDrawer({ open, onOpenChange }: TyroChatDrawerProps) {
         )}
         aria-describedby={undefined}
       >
-        {/* Top accent bar — instant visual ID (indigo-violet) */}
+        {/* Top accent bar */}
         <div
           aria-hidden
           className="h-1 w-full shrink-0"
@@ -102,30 +89,28 @@ export function TyroChatDrawer({ open, onOpenChange }: TyroChatDrawerProps) {
               TYRO Chat
             </SheetTitle>
             <SheetDescription className="text-[12px] text-muted-foreground leading-tight mt-0.5">
-              Uluslararası ticaret asistanı
+              {projectContext
+                ? projectContext.projectName
+                : "Uluslararası ticaret asistanı"}
             </SheetDescription>
           </div>
         </div>
 
-        {/* Body — iframe + masks + onboarding overlay */}
+        {/* Body — webchat + onboarding overlay */}
         <div className="flex-1 min-h-0 bg-white relative">
           {hasOpened ? (
             <>
-              <iframe
-                key={url}
-                src={url}
-                title="TYRO Chat — Copilot Studio agent"
-                className="w-full h-full border-0"
-                allow="microphone; clipboard-read; clipboard-write"
-                referrerPolicy="strict-origin-when-cross-origin"
-              />
-              {/* Mask over the agent's own dark "TYRO Project MCP Agent"
-                  banner — cross-origin so we paint white over it. */}
+              {/* WebChat panel — mounts immediately so the Direct Line
+                  handshake starts in the background while the user
+                  reads the onboarding overlay. */}
               <div
-                aria-hidden
-                className="absolute inset-x-0 top-0 bg-white pointer-events-none"
-                style={{ height: 56 }}
-              />
+                className={cn(
+                  "absolute inset-0 transition-opacity duration-300",
+                  overlayVisible ? "opacity-0 pointer-events-none" : "opacity-100"
+                )}
+              >
+                <ProjectWebChat projectContext={projectContext} />
+              </div>
 
               <AnimatePresence>
                 {overlayVisible && (
@@ -140,8 +125,6 @@ export function TyroChatDrawer({ open, onOpenChange }: TyroChatDrawerProps) {
                       "bg-white/98 backdrop-blur-sm"
                     )}
                   >
-                    {/* Robot pill — pulses gently to draw the eye to
-                        the assistant identity at first glance. */}
                     <motion.span
                       initial={{ scale: 0.92, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
@@ -161,7 +144,6 @@ export function TyroChatDrawer({ open, onOpenChange }: TyroChatDrawerProps) {
                         size={30}
                         strokeWidth={1.75}
                       />
-                      {/* Soft halo ring */}
                       <span
                         aria-hidden
                         className="absolute -inset-1.5 rounded-3xl pointer-events-none"
@@ -172,7 +154,6 @@ export function TyroChatDrawer({ open, onOpenChange }: TyroChatDrawerProps) {
                       />
                     </motion.span>
 
-                    {/* Title + value-prop copy */}
                     <motion.div
                       initial={{ opacity: 0, y: 6 }}
                       animate={{ opacity: 1, y: 0 }}
@@ -182,21 +163,33 @@ export function TyroChatDrawer({ open, onOpenChange }: TyroChatDrawerProps) {
                       <h3 className="text-[18px] font-bold tracking-tight text-slate-900 leading-tight">
                         Yapay Zeka Asistanı
                       </h3>
-                      <p className="text-[12.5px] text-muted-foreground mt-2 leading-relaxed max-w-[320px] mx-auto">
-                        Proje, gemi ve finansal verilerinizi doğal dilde
-                        sorgulayın. TYRO Chat sevkiyat takibinden marj
-                        analizine kadar her sorunuza saniyeler içinde
-                        yanıt verir.
-                      </p>
+                      {projectContext ? (
+                        <p className="text-[12.5px] text-muted-foreground mt-2 leading-relaxed max-w-[320px] mx-auto">
+                          <span className="font-semibold text-slate-700">
+                            {projectContext.projectName}
+                          </span>{" "}
+                          projesi hakkında sorularınızı yanıtlamaya hazır. Sefer
+                          durumu, maliyet analizi ve daha fazlası için sorun.
+                        </p>
+                      ) : (
+                        <p className="text-[12.5px] text-muted-foreground mt-2 leading-relaxed max-w-[320px] mx-auto">
+                          Proje, gemi ve finansal verilerinizi doğal dilde
+                          sorgulayın. TYRO Chat sevkiyat takibinden marj
+                          analizine kadar her sorunuza saniyeler içinde
+                          yanıt verir.
+                        </p>
+                      )}
                     </motion.div>
 
-                    {/* Feature bullets — each lands in sequence */}
                     <motion.ul
                       initial="hidden"
                       animate="visible"
                       variants={{
                         visible: {
-                          transition: { staggerChildren: 0.07, delayChildren: 0.28 },
+                          transition: {
+                            staggerChildren: 0.07,
+                            delayChildren: 0.28,
+                          },
                         },
                       }}
                       className="mt-6 w-full max-w-[320px] flex flex-col gap-2.5"
@@ -231,10 +224,8 @@ export function TyroChatDrawer({ open, onOpenChange }: TyroChatDrawerProps) {
                       ))}
                     </motion.ul>
 
-                    {/* Spacer pushes the CTA toward the bottom */}
                     <div className="flex-1" />
 
-                    {/* Primary CTA — the only action on this surface. */}
                     <motion.button
                       type="button"
                       initial={{ opacity: 0, y: 10 }}
