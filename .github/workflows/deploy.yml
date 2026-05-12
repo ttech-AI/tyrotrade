@@ -25,7 +25,7 @@ jobs:
           node-version: 20
           cache: npm
 
-      - run: npm ci
+      - run: npm ci --legacy-peer-deps
 
       - name: Build
         run: npm run build
@@ -40,9 +40,10 @@ jobs:
           # Production redirect URI — must be added to the Azure AD app's
           # SPA platform redirect URIs list. The GitHub Pages URL below
           # follows the `https://<owner>.github.io/<repo>/` pattern.
-          VITE_AAD_REDIRECT_URI: https://tyroaihub.github.io/tyrotrade/
+          VITE_AAD_REDIRECT_URI: https://pinarkurtunluoglu.github.io/tyrotrade/
           VITE_DATAVERSE_URL: https://operations-tiryaki.crm4.dynamics.com
           VITE_DATAVERSE_SCOPE: https://operations-tiryaki.crm4.dynamics.com/user_impersonation
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - uses: actions/upload-pages-artifact@v3
         with:
