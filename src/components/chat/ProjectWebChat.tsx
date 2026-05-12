@@ -27,7 +27,8 @@ interface ChatMessage {
   id: string;
   role: "user" | "bot";
   text: string;
-  pending?: boolean;
+  pending?: boolean;   // waiting for first token — show dots
+  streaming?: boolean; // tokens arriving — show text + cursor
 }
 
 interface ProjectWebChatProps {
@@ -73,19 +74,15 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
   const bottomRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLTextAreaElement>(null);
 
-  // Keep contextRef current so the init effect always reads the latest value.
   React.useEffect(() => {
     contextRef.current = projectContext;
   }, [projectContext]);
 
-  // Re-send project context when user navigates to a different project
-  // while the conversation is already live.
   React.useEffect(() => {
     if (!ready || !projectContext || !clientRef.current) return;
     void sendEvent(clientRef.current, projectContext);
   }, [projectContext?.projectId, projectContext?.projectName, ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Scroll to bottom whenever messages change.
   React.useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -103,30 +100,59 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
         clientRef.current = client;
 
         setBusy(true);
-        const greeting = await collectMessages(
-          client.startConversationStreaming()
-        );
+
+        // Stream greeting messages as they arrive.
+        const GREETING_ID = "greeting";
+        let firstGreeting = true;
+
+        for await (const activity of client.startConversationStreaming()) {
+          if (cancelled) return;
+          if (
+            activity.type === "message" &&
+            activity.from?.role === "bot" &&
+            activity.text
+          ) {
+            if (firstGreeting) {
+              firstGreeting = false;
+              setMessages([
+                {
+                  id: GREETING_ID,
+                  role: "bot",
+                  text: activity.text,
+                  streaming: true,
+                },
+              ]);
+            } else {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === GREETING_ID
+                    ? { ...m, text: m.text + "\n" + activity.text }
+                    : m
+                )
+              );
+            }
+          }
+        }
+
         if (cancelled) return;
 
-        if (greeting.length > 0) {
-          setMessages(
-            greeting.map((text, i) => ({ id: `g${i}`, role: "bot", text }))
+        // Finalize greeting: remove cursor.
+        if (!firstGreeting) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === GREETING_ID ? { ...m, streaming: false } : m
+            )
           );
         }
 
         setReady(true);
         setBusy(false);
 
-        // Send initial project context after greeting — the Copilot runtime
-        // is confirmed alive once startConversationStreaming() resolves.
         const ctx = contextRef.current;
         if (ctx) await sendEvent(client, ctx);
       } catch (err) {
         if (cancelled) return;
         if (err instanceof InteractionRequiredAuthError) {
-          // Edge case: token expired / consent revoked mid-session.
-          // Silently redirect for re-consent + flag the chat to reopen
-          // automatically when MSAL returns.
           sessionStorage.setItem("tyro:openChatAfterAuth", "1");
           void instance.acquireTokenRedirect({
             scopes: [COPILOT_STUDIO_SCOPE],
@@ -161,13 +187,40 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
 
     try {
       const activity: Activity = { type: "message", text };
-      const replies = await collectMessages(
-        clientRef.current.sendActivityStreaming(activity)
-      );
+      let firstChunk = true;
+
+      for await (const reply of clientRef.current.sendActivityStreaming(
+        activity
+      )) {
+        if (reply.type === "message" && reply.from?.role === "bot" && reply.text) {
+          if (firstChunk) {
+            firstChunk = false;
+            // First token: replace dots with actual text + cursor.
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === botId
+                  ? { ...m, text: reply.text!, pending: false, streaming: true }
+                  : m
+              )
+            );
+          } else {
+            // Subsequent Activities append with a newline.
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === botId
+                  ? { ...m, text: m.text + "\n" + reply.text! }
+                  : m
+              )
+            );
+          }
+        }
+      }
+
+      // Stream finished: remove cursor, fill fallback if nothing arrived.
       setMessages((prev) =>
         prev.map((m) =>
           m.id === botId
-            ? { ...m, text: replies.join("\n") || "…", pending: false }
+            ? { ...m, text: m.text || "…", pending: false, streaming: false }
             : m
         )
       );
@@ -175,7 +228,7 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
       setMessages((prev) =>
         prev.map((m) =>
           m.id === botId
-            ? { ...m, text: "Yanıt alınamadı.", pending: false }
+            ? { ...m, text: "Yanıt alınamadı.", pending: false, streaming: false }
             : m
         )
       );
@@ -260,7 +313,12 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
                   <span className="size-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:300ms]" />
                 </span>
               ) : (
-                <span className="whitespace-pre-wrap">{msg.text}</span>
+                <>
+                  <span className="whitespace-pre-wrap">{msg.text}</span>
+                  {msg.streaming && (
+                    <span className="inline-block w-0.5 h-[1em] bg-slate-500 ml-0.5 align-middle animate-pulse" />
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -323,23 +381,6 @@ async function getToken(
   return result.accessToken;
 }
 
-/** Drain an Activity async-generator and return bot message texts. */
-async function collectMessages(
-  gen: AsyncGenerator<Activity>
-): Promise<string[]> {
-  const texts: string[] = [];
-  for await (const activity of gen) {
-    if (
-      activity.type === "message" &&
-      activity.from?.role === "bot" &&
-      activity.text
-    ) {
-      texts.push(activity.text);
-    }
-  }
-  return texts;
-}
-
 /** Send a setProjectContext event activity; ignore any bot response. */
 async function sendEvent(
   client: CopilotStudioClient,
@@ -350,9 +391,7 @@ async function sendEvent(
     name: "setProjectContext",
     value: { projectId: ctx.projectId, projectName: ctx.projectName },
   };
-  // Consume the generator so the HTTP request completes; responses are
-  // intentionally discarded (the topic sets a variable, not a message).
   for await (const _ of client.sendActivityStreaming(activity)) {
-    // noop
+    // noop — consume generator so the HTTP request completes
   }
 }
