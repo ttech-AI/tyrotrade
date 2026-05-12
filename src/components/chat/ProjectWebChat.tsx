@@ -1,164 +1,202 @@
 import * as React from "react";
-import ReactWebChat, { createDirectLine, createStore } from "botframework-webchat";
+import { useMsal } from "@azure/msal-react";
+import {
+  CopilotStudioClient,
+  ConnectionSettings,
+  ScopeHelper,
+} from "@microsoft/agents-copilotstudio-client";
+import type { Activity } from "@microsoft/agents-activity";
+import { ArrowUp, Bot } from "lucide-react";
+import { shouldUseMock } from "@/lib/dataverse";
+import { isAuthConfigured } from "@/lib/auth/msal";
+import { cn } from "@/lib/utils";
 
-const TOKEN_URL =
-  "https://zpujifdpjwwjqlezxfxp.supabase.co/functions/v1/get-copilot-token";
-
-const SUPABASE_ANON_KEY: string =
-  (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ?? "";
-
-const STYLE_OPTIONS = {
-  hideUploadButton: true,
-  bubbleBorderRadius: 12,
-  bubbleFromUserBorderRadius: 12,
-  bubbleFromUserBackground: "#6366f1",
-  bubbleFromUserTextColor: "#ffffff",
-  bubbleBackground: "#f1f5f9",
-  bubbleTextColor: "#0f172a",
-  primaryFont: "Inter Variable, Inter, system-ui, sans-serif",
-  bubbleBorderColor: "transparent",
-  bubbleFromUserBorderColor: "transparent",
-  backgroundColor: "#ffffff",
-  sendBoxBackground: "#f8fafc",
-  sendBoxBorderBottom: "1px solid #e2e8f0",
-  sendBoxBorderLeft: "1px solid #e2e8f0",
-  sendBoxBorderRight: "1px solid #e2e8f0",
-  sendBoxBorderTop: "1px solid #e2e8f0",
-  sendBoxButtonColor: "#6366f1",
-  sendBoxButtonColorOnFocus: "#4f46e5",
-  sendBoxButtonColorOnHover: "#4f46e5",
-  sendBoxTextWrap: true,
-  timestampFormat: "relative" as const,
-};
+const COPILOT_SETTINGS = new ConnectionSettings({
+  directConnectUrl:
+    "https://default9efa3bdf67ad47e38dfbd1df79a6d7.fa.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/crfc1_agentokBCAt/conversations?api-version=2022-03-01-preview",
+  environmentId: "Default-9efa3bdf-67ad-47e3-8dfb-d1df79a6d7fa",
+  schemaName: "crfc1_agentokBCAt",
+});
 
 export interface ProjectContext {
   projectId: string;
   projectName: string;
 }
 
+interface ChatMessage {
+  id: string;
+  role: "user" | "bot";
+  text: string;
+  pending?: boolean;
+}
+
 interface ProjectWebChatProps {
-  /** When provided, dispatches a setProjectContext event to the bot. */
   projectContext?: ProjectContext;
 }
 
 /**
- * Renders a botframework-webchat panel connected to Copilot Studio via
- * Direct Line. When `projectContext` is provided (user is on a project
- * detail route) it dispatches a `setProjectContext` event to the bot
- * after the first incoming agent message — this is when the Copilot
- * runtime is confirmed ready. Subsequent prop changes (user switches
- * projects without closing the drawer) re-dispatch the event without
- * resetting the conversation.
+ * Outer shell — guards against calling useMsal() when MsalProvider is not
+ * mounted (mock mode or incomplete auth config).
  */
-export function ProjectWebChat({ projectContext }: ProjectWebChatProps) {
-  const [directLine, setDirectLine] = React.useState<ReturnType<
-    typeof createDirectLine
-  > | null>(null);
+export function ProjectWebChat(props: ProjectWebChatProps) {
+  if (shouldUseMock() || !isAuthConfigured) {
+    return (
+      <div className="h-full flex items-center justify-center px-8 text-center">
+        <p className="text-[12.5px] text-muted-foreground leading-relaxed">
+          TYRO Chat gerçek mod gerektirir.
+          <br />
+          <span className="font-medium text-slate-600">VITE_USE_MOCK=false</span>{" "}
+          ile oturum açın.
+        </p>
+      </div>
+    );
+  }
+  return <ProjectWebChatCore {...props} />;
+}
+
+/**
+ * Inner component — safe to call useMsal() here because the outer guard
+ * ensures MsalProvider is mounted before this renders.
+ */
+function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
+  const { instance, accounts } = useMsal();
+
+  const [messages, setMessages] = React.useState<ChatMessage[]>([]);
+  const [input, setInput] = React.useState("");
+  const [ready, setReady] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  // Holds the webchat Redux store so we can dispatch into it from effects.
-  const storeRef = React.useRef<ReturnType<typeof createStore> | null>(null);
-  // Set to true after first incoming agent message — gate for sending context.
-  const connectedRef = React.useRef(false);
-  // Always tracks the latest context without triggering store recreation.
-  const contextRef = React.useRef<ProjectContext | undefined>(projectContext);
+  const clientRef = React.useRef<CopilotStudioClient | null>(null);
+  const contextRef = React.useRef(projectContext);
+  const bottomRef = React.useRef<HTMLDivElement>(null);
+  const inputRef = React.useRef<HTMLTextAreaElement>(null);
 
-  // Keep contextRef in sync with prop changes.
+  // Keep contextRef current so the init effect always reads the latest value.
   React.useEffect(() => {
     contextRef.current = projectContext;
   }, [projectContext]);
 
-  // Re-send context whenever projectContext changes AND bot is already ready.
+  // Re-send project context when user navigates to a different project
+  // while the conversation is already live.
   React.useEffect(() => {
-    if (!connectedRef.current || !storeRef.current || !projectContext) return;
-    storeRef.current.dispatch({
-      type: "WEB_CHAT/SEND_EVENT",
-      payload: {
-        name: "setProjectContext",
-        value: {
-          projectId: projectContext.projectId,
-          projectName: projectContext.projectName,
-        },
-      },
-    });
-  }, [projectContext?.projectId, projectContext?.projectName]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!ready || !projectContext || !clientRef.current) return;
+    void sendEvent(clientRef.current, projectContext);
+  }, [projectContext?.projectId, projectContext?.projectName, ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Scroll to bottom whenever messages change.
+  React.useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // Initialise: get token → create client → start conversation → send context.
   React.useEffect(() => {
     let cancelled = false;
 
-    async function bootstrap() {
+    async function init() {
       try {
-        const headers: Record<string, string> = {};
-        if (SUPABASE_ANON_KEY) headers["apikey"] = SUPABASE_ANON_KEY;
-
-        const res = await fetch(TOKEN_URL, { headers });
-        if (!res.ok) throw new Error(`Token alınamadı (HTTP ${res.status})`);
-
-        const data = (await res.json()) as { token?: string };
-        if (!data.token) throw new Error("Geçersiz token yanıtı");
+        const token = await getToken(instance, accounts);
         if (cancelled) return;
 
-        // Build Redux middleware that sends project context once the
-        // agent runtime signals readiness via its first message activity.
-        const store = createStore(
-          {},
-          ({ dispatch }: { dispatch: (a: unknown) => void }) =>
-            (next: (a: unknown) => unknown) =>
-            (action: { type: string; payload?: { activity?: { type?: string; from?: { role?: string } } } }) => {
-              if (
-                action.type === "DIRECT_LINE/INCOMING_ACTIVITY" &&
-                action.payload?.activity?.type === "message" &&
-                !connectedRef.current
-              ) {
-                connectedRef.current = true;
-                const ctx = contextRef.current;
-                if (ctx) {
-                  dispatch({
-                    type: "WEB_CHAT/SEND_EVENT",
-                    payload: {
-                      name: "setProjectContext",
-                      value: {
-                        projectId: ctx.projectId,
-                        projectName: ctx.projectName,
-                      },
-                    },
-                  });
-                }
-              }
-              return next(action);
-            }
-        );
+        const client = new CopilotStudioClient(COPILOT_SETTINGS, token);
+        clientRef.current = client;
 
-        storeRef.current = store;
-        setDirectLine(createDirectLine({ token: data.token }));
+        setBusy(true);
+        const greeting = await collectMessages(
+          client.startConversationStreaming()
+        );
+        if (cancelled) return;
+
+        if (greeting.length > 0) {
+          setMessages(
+            greeting.map((text, i) => ({ id: `g${i}`, role: "bot", text }))
+          );
+        }
+
+        setReady(true);
+        setBusy(false);
+
+        // Send initial project context after greeting — the Copilot runtime
+        // is confirmed alive once startConversationStreaming() resolves.
+        const ctx = contextRef.current;
+        if (ctx) await sendEvent(client, ctx);
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof Error ? err.message : "Bağlantı hatası");
+        setBusy(false);
       }
     }
 
-    bootstrap();
+    init();
     return () => {
       cancelled = true;
     };
-    // Intentionally empty deps — store + directLine are created once per mount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleSend() {
+    const text = input.trim();
+    if (!text || !clientRef.current || busy) return;
+
+    setInput("");
+    const userId = `u${Date.now()}`;
+    const botId = `b${Date.now()}`;
+    setMessages((prev) => [
+      ...prev,
+      { id: userId, role: "user", text },
+      { id: botId, role: "bot", text: "", pending: true },
+    ]);
+    setBusy(true);
+
+    try {
+      const activity: Activity = { type: "message", text };
+      const replies = await collectMessages(
+        clientRef.current.sendActivityStreaming(activity)
+      );
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === botId
+            ? { ...m, text: replies.join("\n") || "…", pending: false }
+            : m
+        )
+      );
+    } catch {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === botId
+            ? { ...m, text: "Yanıt alınamadı.", pending: false }
+            : m
+        )
+      );
+    } finally {
+      setBusy(false);
+      inputRef.current?.focus();
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      void handleSend();
+    }
+  }
 
   if (error) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-3 px-6 text-center">
-        <p className="text-[13px] font-medium text-slate-700">Bağlantı kurulamadı</p>
-        <p className="text-[11.5px] text-muted-foreground leading-relaxed">{error}</p>
+        <p className="text-[13px] font-medium text-slate-700">
+          Bağlantı kurulamadı
+        </p>
+        <p className="text-[11.5px] text-muted-foreground leading-relaxed max-w-xs">
+          {error}
+        </p>
         <button
           type="button"
           onClick={() => {
             setError(null);
-            setDirectLine(null);
-            connectedRef.current = false;
-            storeRef.current = null;
+            setReady(false);
+            clientRef.current = null;
           }}
-          className="mt-1 text-[12px] font-medium text-indigo-600 hover:text-indigo-700 underline-offset-2 hover:underline"
+          className="text-[12px] font-medium text-indigo-600 hover:text-indigo-700 underline-offset-2 hover:underline"
         >
           Tekrar dene
         </button>
@@ -166,7 +204,7 @@ export function ProjectWebChat({ projectContext }: ProjectWebChatProps) {
     );
   }
 
-  if (!directLine || !storeRef.current) {
+  if (!ready && messages.length === 0) {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="flex flex-col items-center gap-2">
@@ -178,13 +216,130 @@ export function ProjectWebChat({ projectContext }: ProjectWebChatProps) {
   }
 
   return (
-    <div className="h-full w-full">
-      <ReactWebChat
-        directLine={directLine}
-        store={storeRef.current}
-        styleOptions={STYLE_OPTIONS}
-        locale="tr-TR"
-      />
+    <div className="h-full flex flex-col">
+      {/* Message list */}
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+        {messages.map((msg) => (
+          <div
+            key={msg.id}
+            className={cn(
+              "flex gap-2",
+              msg.role === "user" ? "justify-end" : "justify-start"
+            )}
+          >
+            {msg.role === "bot" && (
+              <span className="size-6 rounded-full bg-indigo-100 text-indigo-600 grid place-items-center shrink-0 mt-0.5">
+                <Bot className="size-3.5" />
+              </span>
+            )}
+            <div
+              className={cn(
+                "max-w-[80%] rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed",
+                msg.role === "user"
+                  ? "bg-indigo-600 text-white rounded-br-sm"
+                  : "bg-slate-100 text-slate-800 rounded-bl-sm"
+              )}
+            >
+              {msg.pending ? (
+                <span className="flex gap-1 items-center h-4">
+                  <span className="size-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0ms]" />
+                  <span className="size-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:150ms]" />
+                  <span className="size-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:300ms]" />
+                </span>
+              ) : (
+                <span className="whitespace-pre-wrap">{msg.text}</span>
+              )}
+            </div>
+          </div>
+        ))}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <div className="shrink-0 border-t border-border/40 px-3 py-2.5 flex items-end gap-2">
+        <textarea
+          ref={inputRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Bir şey sorun…"
+          rows={1}
+          disabled={busy}
+          className={cn(
+            "flex-1 resize-none rounded-xl border border-border/60 bg-slate-50",
+            "px-3 py-2 text-[13px] leading-relaxed outline-none",
+            "focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/30",
+            "placeholder:text-muted-foreground/60 disabled:opacity-50",
+            "max-h-32 overflow-y-auto"
+          )}
+          style={{ height: "auto" }}
+          onInput={(e) => {
+            const el = e.currentTarget;
+            el.style.height = "auto";
+            el.style.height = `${el.scrollHeight}px`;
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => void handleSend()}
+          disabled={!input.trim() || busy}
+          className={cn(
+            "size-9 rounded-full grid place-items-center shrink-0",
+            "bg-indigo-600 text-white shadow-sm",
+            "hover:bg-indigo-700 active:scale-95 transition-all",
+            "disabled:opacity-40 disabled:pointer-events-none"
+          )}
+        >
+          <ArrowUp className="size-4" />
+        </button>
+      </div>
     </div>
   );
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+async function getToken(
+  instance: ReturnType<typeof useMsal>["instance"],
+  accounts: ReturnType<typeof useMsal>["accounts"]
+): Promise<string> {
+  const account = accounts[0];
+  if (!account) throw new Error("Microsoft oturumu bulunamadı.");
+  const scope = ScopeHelper.getScopeFromSettings(COPILOT_SETTINGS);
+  const result = await instance.acquireTokenSilent({ scopes: [scope], account });
+  return result.accessToken;
+}
+
+/** Drain an Activity async-generator and return bot message texts. */
+async function collectMessages(
+  gen: AsyncGenerator<Activity>
+): Promise<string[]> {
+  const texts: string[] = [];
+  for await (const activity of gen) {
+    if (
+      activity.type === "message" &&
+      activity.from?.role === "bot" &&
+      activity.text
+    ) {
+      texts.push(activity.text);
+    }
+  }
+  return texts;
+}
+
+/** Send a setProjectContext event activity; ignore any bot response. */
+async function sendEvent(
+  client: CopilotStudioClient,
+  ctx: ProjectContext
+): Promise<void> {
+  const activity: Activity = {
+    type: "event",
+    name: "setProjectContext",
+    value: { projectId: ctx.projectId, projectName: ctx.projectName },
+  };
+  // Consume the generator so the HTTP request completes; responses are
+  // intentionally discarded (the topic sets a variable, not a message).
+  for await (const _ of client.sendActivityStreaming(activity)) {
+    // noop
+  }
 }
