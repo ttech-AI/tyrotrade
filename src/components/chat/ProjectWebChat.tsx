@@ -4,12 +4,11 @@ import { InteractionRequiredAuthError } from "@azure/msal-browser";
 import {
   CopilotStudioClient,
   ConnectionSettings,
-  ScopeHelper,
 } from "@microsoft/agents-copilotstudio-client";
 import type { Activity } from "@microsoft/agents-activity";
 import { ArrowUp, Bot } from "lucide-react";
 import { shouldUseMock } from "@/lib/dataverse";
-import { isAuthConfigured } from "@/lib/auth/msal";
+import { isAuthConfigured, COPILOT_STUDIO_SCOPE } from "@/lib/auth/msal";
 import { cn } from "@/lib/utils";
 
 const COPILOT_SETTINGS = new ConnectionSettings({
@@ -125,11 +124,12 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
       } catch (err) {
         if (cancelled) return;
         if (err instanceof InteractionRequiredAuthError) {
-          // Silently redirect for consent — no button, no screen.
-          // sessionStorage flag reopens chat on return.
+          // Edge case: token expired / consent revoked mid-session.
+          // Silently redirect for re-consent + flag the chat to reopen
+          // automatically when MSAL returns.
           sessionStorage.setItem("tyro:openChatAfterAuth", "1");
           void instance.acquireTokenRedirect({
-            scopes: [ScopeHelper.getScopeFromSettings(COPILOT_SETTINGS)],
+            scopes: [COPILOT_STUDIO_SCOPE],
             account: accounts[0],
           });
           return;
@@ -318,8 +318,7 @@ async function getToken(
 ): Promise<string> {
   const account = accounts[0];
   if (!account) throw new Error("Microsoft oturumu bulunamadı.");
-  const scope = ScopeHelper.getScopeFromSettings(COPILOT_SETTINGS);
-  const request = { scopes: [scope], account };
+  const request = { scopes: [COPILOT_STUDIO_SCOPE], account };
   const result = await instance.acquireTokenSilent(request);
   return result.accessToken;
 }
