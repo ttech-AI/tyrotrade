@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 interface TyroChatButtonProps {
   onClick: () => void;
   className?: string;
+  active?: boolean;
 }
 
 /**
@@ -27,7 +28,7 @@ const TYRO_CHAT_RING = "rgba(67, 56, 202, 0.55)";
  * text-[13px]) so the two AI CTAs sit as identical-shaped siblings on
  * the topbar.
  */
-export function TyroChatButton({ onClick, className }: TyroChatButtonProps) {
+export function TyroChatButton({ onClick, className, active }: TyroChatButtonProps) {
   const [hovered, setHovered] = React.useState(false);
   return (
     <button
@@ -35,7 +36,8 @@ export function TyroChatButton({ onClick, className }: TyroChatButtonProps) {
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      aria-label="TYRO Chat'i aç"
+      aria-label={active ? "TYRO Chat'i kapat" : "TYRO Chat'i aç"}
+      aria-pressed={active}
       className={cn(
         "group relative inline-flex items-center justify-center gap-2 shrink-0",
         "rounded-full px-3.5 min-w-[110px] h-9 text-[13px] font-semibold text-white",
@@ -49,7 +51,10 @@ export function TyroChatButton({ onClick, className }: TyroChatButtonProps) {
       )}
       style={{
         background: TYRO_CHAT_GRADIENT,
-        boxShadow: `0 4px 12px -4px ${TYRO_CHAT_RING}, inset 0 1px 0 0 rgba(255,255,255,0.2)`,
+        boxShadow: active
+          ? `0 0 0 2px rgba(99,102,241,0.5), 0 4px 12px -4px ${TYRO_CHAT_RING}, inset 0 1px 0 0 rgba(255,255,255,0.2)`
+          : `0 4px 12px -4px ${TYRO_CHAT_RING}, inset 0 1px 0 0 rgba(255,255,255,0.2)`,
+        opacity: active ? 0.85 : 1,
       }}
     >
       {/* Animated shimmer overlay on hover */}

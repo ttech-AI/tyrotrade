@@ -103,7 +103,8 @@ function ShellInner() {
         <TopBar
           title={title}
           pathname={location.pathname}
-          onOpenChat={() => setChatOpen(true)}
+          chatOpen={chatOpen}
+          onOpenChat={() => setChatOpen((o) => !o)}
         />
         <div className="flex-1 overflow-hidden p-3 pt-0">
           <Outlet />
@@ -153,11 +154,12 @@ function DesktopChatSlot({
   return (
     <div
       className={cn(
-        "shrink-0 flex flex-col border-l border-border/60 overflow-hidden",
+        "shrink-0 flex flex-col overflow-hidden",
         "bg-white/95 backdrop-blur-2xl backdrop-saturate-150",
-        "shadow-[-30px_0_80px_-16px_rgba(15,23,42,0.12)]",
         "transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-        open ? "w-[460px]" : "w-0"
+        open
+          ? "w-[460px] border-l border-border/60 rounded-l-3xl shadow-[-30px_0_80px_-16px_rgba(15,23,42,0.12)]"
+          : "w-0"
       )}
     >
       {hasOpened && (
@@ -252,10 +254,12 @@ function DesktopSidebarSlot({ onOpenAi }: { onOpenAi: () => void }) {
 function TopBar({
   title,
   pathname,
+  chatOpen,
   onOpenChat,
 }: {
   title: string;
   pathname: string;
+  chatOpen: boolean;
   onOpenChat: () => void;
 }) {
   const isMobile = useIsMobile();
@@ -294,6 +298,7 @@ function TopBar({
             <NotificationButton />
             <TyroChatButton
               className="hidden sm:inline-flex"
+              active={chatOpen}
               onClick={onOpenChat}
             />
           </div>
