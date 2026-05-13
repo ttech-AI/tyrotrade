@@ -57,6 +57,7 @@ export function TyroChatDrawer({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
+        hideOverlay
         side="right"
         className={cn(
           "w-full sm:max-w-[460px] p-0 flex flex-col gap-0 overflow-hidden",
