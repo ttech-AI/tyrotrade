@@ -103,6 +103,60 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
   const contextRef = React.useRef(projectContext);
   const bottomRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLTextAreaElement>(null);
+  const readyRef = React.useRef(false);
+  // Generation counter — increment to abort any in-flight streaming loop.
+  // Each send captures its own gen at start and checks it on every iteration.
+  const abortGenRef = React.useRef(0);
+  // Pending question stored in a ref + a counter to force re-run of the
+  // send effect. Refs are always current (no closure staleness) and the
+  // counter guarantees the effect fires on every new quick-ask. The
+  // projectId is bundled with the question so the send effect can wait
+  // until projectContext settles to the matching project before sending.
+  const pendingQuestionRef = React.useRef<{ q: string; projectId: string } | null>(null);
+  const [askTrigger, setAskTrigger] = React.useState(0);
+
+  // Listen for quick-ask events + check sessionStorage on mount so a
+  // question fired before this component mounted is still picked up.
+  React.useEffect(() => {
+    function pickUpPending() {
+      const raw = sessionStorage.getItem("tyro:chat:pendingAsk");
+      if (!raw) return;
+      sessionStorage.removeItem("tyro:chat:pendingAsk");
+      let parsed: { q: string; projectId: string } | null = null;
+      try {
+        const obj = JSON.parse(raw);
+        if (obj && typeof obj.q === "string" && typeof obj.projectId === "string") {
+          parsed = obj;
+        }
+      } catch {
+        parsed = { q: raw, projectId: "" };
+      }
+      if (!parsed) return;
+      pendingQuestionRef.current = parsed;
+      setAskTrigger((t) => t + 1);
+    }
+    pickUpPending();
+    window.addEventListener("tyro:askInChat", pickUpPending);
+    return () => window.removeEventListener("tyro:askInChat", pickUpPending);
+  }, []);
+
+  React.useEffect(() => {
+    contextRef.current = projectContext;
+  }, [projectContext]);
+
+  // Clear chat history when switching to a different project so the
+  // panel shows a fresh conversation scoped to the new project.
+  // Declared BEFORE the persist effect so the clear runs first when
+  // projectId changes — otherwise we'd briefly write old messages
+  // under the new project key.
+  const prevProjectIdRef = React.useRef<string | undefined>(projectContext?.projectId);
+  React.useEffect(() => {
+    const currentId = projectContext?.projectId;
+    if (prevProjectIdRef.current !== currentId) {
+      prevProjectIdRef.current = currentId;
+      setMessages([]);
+    }
+  }, [projectContext?.projectId]);
 
   // Persist messages tagged with page session + project ID.
   React.useEffect(() => {
@@ -118,9 +172,19 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
     } catch { /* ignore quota errors */ }
   }, [messages, projectContext?.projectId]);
 
+  // Send pending question: fires whenever a new quick-ask arrives (askTrigger)
+  // or when the project context settles. Does NOT guard on busy — instead,
+  // sendPendingQuestion bumps abortGenRef to cancel any in-flight stream.
   React.useEffect(() => {
-    contextRef.current = projectContext;
-  }, [projectContext]);
+    const pending = pendingQuestionRef.current;
+    if (!ready || !clientRef.current) return;
+    if (!pending) return;
+    // Wait for context to settle to the target project (only if a
+    // target projectId was specified — legacy/plain pending has "").
+    if (pending.projectId && projectContext?.projectId !== pending.projectId) return;
+    pendingQuestionRef.current = null;
+    void sendPendingQuestion(pending.q);
+  }, [ready, askTrigger, projectContext?.projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => {
     if (!ready || !projectContext || !clientRef.current) return;
@@ -204,6 +268,7 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
           );
         }
 
+        readyRef.current = true;
         setReady(true);
         setBusy(false);
 
@@ -234,6 +299,7 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
     const text = input.trim();
     if (!text || !clientRef.current || busy) return;
 
+    const gen = ++abortGenRef.current;
     setInput("");
     const userId = `u${Date.now()}`;
     const botId = `b${Date.now()}`;
@@ -253,17 +319,12 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
 
     try {
       const activity = { type: "message", text: enrichedText } as Activity;
-      // Track whether we received any streaming typing chunks.
-      // If yes, the final message activity is the authoritative version
-      // (replace, not append). If no chunks came, each message appends.
       let hadStreamingChunks = false;
       let firstMessage = true;
 
-      for await (const reply of clientRef.current.sendActivityStreaming(
-        activity
-      )) {
+      for await (const reply of clientRef.current.sendActivityStreaming(activity)) {
+        if (abortGenRef.current !== gen) break;
         if (isStreamingChunk(reply) && reply.text != null) {
-          // Typing chunk: each has the CUMULATIVE text so far → replace.
           hadStreamingChunks = true;
           setMessages((prev) =>
             prev.map((m) =>
@@ -272,14 +333,9 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
                 : m
             )
           );
-        } else if (
-          reply.type === "message" &&
-          reply.from?.role === "bot" &&
-          reply.text
-        ) {
+        } else if (reply.type === "message" && reply.from?.role === "bot" && reply.text) {
           if (hadStreamingChunks || firstMessage) {
             firstMessage = false;
-            // Replace: either finalising streaming chunks, or first message.
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === botId
@@ -288,7 +344,6 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
               )
             );
           } else {
-            // Subsequent standalone messages → append.
             setMessages((prev) =>
               prev.map((m) =>
                 m.id === botId
@@ -300,7 +355,7 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
         }
       }
 
-      // Stream finished: remove cursor, fill fallback if nothing arrived.
+      if (abortGenRef.current !== gen) return;
       setMessages((prev) =>
         prev.map((m) =>
           m.id === botId
@@ -309,6 +364,7 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
         )
       );
     } catch {
+      if (abortGenRef.current !== gen) return;
       setMessages((prev) =>
         prev.map((m) =>
           m.id === botId
@@ -317,8 +373,63 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
         )
       );
     } finally {
-      setBusy(false);
-      inputRef.current?.focus();
+      if (abortGenRef.current === gen) {
+        setBusy(false);
+        inputRef.current?.focus();
+      }
+    }
+  }
+
+  async function sendPendingQuestion(text: string) {
+    if (!clientRef.current) return;
+    // Bump generation to abort any in-flight handleSend/sendPendingQuestion loop.
+    const gen = ++abortGenRef.current;
+    const userId = `u${Date.now()}`;
+    const botId = `b${Date.now()}`;
+    // Finalize any dangling streaming/pending bot message from the aborted stream,
+    // then append the new user message + bot placeholder in one state update.
+    setMessages((prev) => {
+      const finalized = prev.map((m) =>
+        m.streaming || m.pending
+          ? { ...m, streaming: false, pending: false, text: m.text || "…" }
+          : m
+      );
+      return [
+        ...finalized,
+        { id: userId, role: "user" as const, text },
+        { id: botId, role: "bot" as const, text: "", pending: true },
+      ];
+    });
+    setBusy(true);
+    const ctx = contextRef.current;
+    const enrichedText = ctx
+      ? `[Aktif Proje: ${ctx.projectId} - ${ctx.projectName}]\n${text}`
+      : text;
+    try {
+      const activity = { type: "message", text: enrichedText } as Activity;
+      let hadChunks = false;
+      let firstMsg = true;
+      for await (const reply of clientRef.current.sendActivityStreaming(activity)) {
+        if (abortGenRef.current !== gen) break;
+        if (isStreamingChunk(reply) && reply.text != null) {
+          hadChunks = true;
+          setMessages((prev) => prev.map((m) => m.id === botId ? { ...m, text: reply.text!, pending: false, streaming: true } : m));
+        } else if (reply.type === "message" && reply.from?.role === "bot" && reply.text) {
+          if (hadChunks || firstMsg) {
+            firstMsg = false;
+            setMessages((prev) => prev.map((m) => m.id === botId ? { ...m, text: reply.text!, pending: false, streaming: true } : m));
+          } else {
+            setMessages((prev) => prev.map((m) => m.id === botId ? { ...m, text: m.text + "\n" + reply.text! } : m));
+          }
+        }
+      }
+      if (abortGenRef.current !== gen) return;
+      setMessages((prev) => prev.map((m) => m.id === botId ? { ...m, text: m.text || "…", pending: false, streaming: false } : m));
+    } catch {
+      if (abortGenRef.current !== gen) return;
+      setMessages((prev) => prev.map((m) => m.id === botId ? { ...m, text: "Yanıt alınamadı.", pending: false, streaming: false } : m));
+    } finally {
+      if (abortGenRef.current === gen) setBusy(false);
     }
   }
 
