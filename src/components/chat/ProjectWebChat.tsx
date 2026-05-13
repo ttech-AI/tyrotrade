@@ -449,7 +449,7 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
       <div className="shrink-0 border-t border-border/40 px-3 py-3 bg-white/80 backdrop-blur-sm">
         <div
           className={cn(
-            "flex items-end gap-2 rounded-2xl border border-border/50 bg-white px-3 py-2",
+            "flex items-center gap-2 rounded-2xl border border-border/50 bg-white px-3 py-1.5",
             "transition-all duration-150",
             "focus-within:border-[#6366f1]/40 focus-within:shadow-[0_0_0_3px_rgba(99,102,241,0.08)]"
           )}
@@ -463,16 +463,18 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
             rows={1}
             disabled={busy}
             className={cn(
-              "flex-1 resize-none bg-transparent",
-              "text-[13px] leading-relaxed outline-none",
+              "flex-1 resize-none bg-transparent block",
+              "text-[13px] leading-[20px] outline-none py-1.5",
               "placeholder:text-muted-foreground/50 disabled:opacity-50",
               "max-h-32 overflow-y-auto"
             )}
-            style={{ height: "auto" }}
+            style={{ height: "32px" }}
             onInput={(e) => {
               const el = e.currentTarget;
-              el.style.height = "auto";
-              el.style.height = `${el.scrollHeight}px`;
+              el.style.height = "32px";
+              if (el.scrollHeight > 32) {
+                el.style.height = `${el.scrollHeight}px`;
+              }
             }}
           />
           <button
