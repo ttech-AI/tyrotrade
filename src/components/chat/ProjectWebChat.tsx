@@ -6,10 +6,13 @@ import {
   ConnectionSettings,
 } from "@microsoft/agents-copilotstudio-client";
 import type { Activity } from "@microsoft/agents-activity";
-import { ArrowUp, Bot } from "lucide-react";
+import { ArrowUp } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { BubbleChatIcon } from "@hugeicons/core-free-icons";
 import { shouldUseMock } from "@/lib/dataverse";
 import { MarkdownText } from "./ChatMessage";
 import { isAuthConfigured, COPILOT_STUDIO_SCOPE } from "@/lib/auth/msal";
+import { TYRO_CHAT_TONE } from "@/components/layout/TyroChatButton";
 import { cn } from "@/lib/utils";
 
 const COPILOT_SETTINGS = new ConnectionSettings({
@@ -314,12 +317,8 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
   if (error) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-3 px-6 text-center">
-        <p className="text-[13px] font-medium text-slate-700">
-          Bağlantı kurulamadı
-        </p>
-        <p className="text-[11.5px] text-muted-foreground leading-relaxed max-w-xs">
-          {error}
-        </p>
+        <p className="text-[13px] font-medium text-slate-700">Bağlantı kurulamadı</p>
+        <p className="text-[11.5px] text-muted-foreground leading-relaxed max-w-xs">{error}</p>
         <button
           type="button"
           onClick={() => {
@@ -328,7 +327,8 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
             clientRef.current = null;
             setInitKey((k) => k + 1);
           }}
-          className="text-[12px] font-medium text-indigo-600 hover:text-indigo-700 underline-offset-2 hover:underline"
+          className="text-[12px] font-semibold underline-offset-2 hover:underline transition-opacity hover:opacity-70"
+          style={{ color: TYRO_CHAT_TONE.solid }}
         >
           Tekrar dene
         </button>
@@ -339,8 +339,25 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
   if (!ready && messages.length === 0) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="flex flex-col items-center gap-2">
-          <div className="size-6 rounded-full border-2 border-indigo-500 border-t-transparent animate-spin" />
+        <div className="flex flex-col items-center gap-3">
+          <span
+            className="size-11 rounded-2xl grid place-items-center shadow-sm text-white"
+            style={{
+              background: TYRO_CHAT_TONE.gradient,
+              boxShadow: `0 8px 24px -6px ${TYRO_CHAT_TONE.ring}, inset 0 1px 0 0 rgba(255,255,255,0.25)`,
+            }}
+          >
+            <HugeiconsIcon icon={BubbleChatIcon} size={20} strokeWidth={1.75} />
+          </span>
+          <div className="flex gap-1">
+            {[0, 150, 300].map((delay) => (
+              <span
+                key={delay}
+                className="size-1.5 rounded-full animate-bounce"
+                style={{ background: TYRO_CHAT_TONE.solid, animationDelay: `${delay}ms` }}
+              />
+            ))}
+          </div>
           <p className="text-[11.5px] text-muted-foreground">Bağlanıyor…</p>
         </div>
       </div>
@@ -348,35 +365,49 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-slate-50/40">
       {/* Message list */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {messages.map((msg) => (
           <div
             key={msg.id}
-            className={cn(
-              "flex gap-2",
-              msg.role === "user" ? "justify-end" : "justify-start"
-            )}
+            className={cn("flex gap-2 items-end", msg.role === "user" ? "justify-end" : "justify-start")}
           >
             {msg.role === "bot" && (
-              <span className="size-6 rounded-full bg-indigo-100 text-indigo-600 grid place-items-center shrink-0 mt-0.5">
-                <Bot className="size-3.5" />
+              <span
+                className="size-7 rounded-xl grid place-items-center shrink-0 text-white shadow-sm"
+                style={{
+                  background: TYRO_CHAT_TONE.gradient,
+                  boxShadow: `0 4px 12px -4px ${TYRO_CHAT_TONE.ring}, inset 0 1px 0 0 rgba(255,255,255,0.25)`,
+                }}
+              >
+                <HugeiconsIcon icon={BubbleChatIcon} size={13} strokeWidth={2} />
               </span>
             )}
             <div
               className={cn(
-                "max-w-[80%] rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed",
+                "max-w-[82%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed",
                 msg.role === "user"
-                  ? "bg-indigo-600 text-white rounded-br-sm"
-                  : "bg-slate-100 text-slate-800 rounded-bl-sm"
+                  ? "text-white rounded-br-sm shadow-sm"
+                  : "bg-white border border-border/50 text-slate-800 rounded-bl-sm shadow-sm"
               )}
+              style={msg.role === "user" ? {
+                background: TYRO_CHAT_TONE.gradient,
+                boxShadow: `0 4px 16px -4px ${TYRO_CHAT_TONE.ring}`,
+              } : undefined}
             >
               {msg.pending ? (
-                <span className="flex gap-1 items-center h-4">
-                  <span className="size-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0ms]" />
-                  <span className="size-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:150ms]" />
-                  <span className="size-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:300ms]" />
+                <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                  <span className="text-[12px]">TYRO düşünüyor</span>
+                  <span className="inline-flex gap-0.5">
+                    {[0, 150, 300].map((delay) => (
+                      <span
+                        key={delay}
+                        className="size-1 rounded-full bg-current animate-pulse"
+                        style={{ animationDelay: `${delay}ms` }}
+                      />
+                    ))}
+                  </span>
                 </span>
               ) : (
                 <>
@@ -386,7 +417,10 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
                     <span className="whitespace-pre-wrap">{msg.text}</span>
                   )}
                   {msg.streaming && (
-                    <span className="inline-block w-0.5 h-[1em] bg-slate-500 ml-0.5 align-middle animate-pulse" />
+                    <span
+                      className="inline-block w-0.5 h-[1em] ml-0.5 align-middle animate-pulse rounded-full"
+                      style={{ background: msg.role === "user" ? "rgba(255,255,255,0.7)" : TYRO_CHAT_TONE.solid }}
+                    />
                   )}
                 </>
               )}
@@ -397,42 +431,48 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
       </div>
 
       {/* Input */}
-      <div className="shrink-0 border-t border-border/40 px-3 py-2.5 flex items-end gap-2">
-        <textarea
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Bir şey sorun…"
-          rows={1}
-          disabled={busy}
+      <div className="shrink-0 border-t border-border/40 px-3 py-3 bg-white/80 backdrop-blur-sm">
+        <div
           className={cn(
-            "flex-1 resize-none rounded-xl border border-border/60 bg-slate-50",
-            "px-3 py-2 text-[13px] leading-relaxed outline-none",
-            "focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/30",
-            "placeholder:text-muted-foreground/60 disabled:opacity-50",
-            "max-h-32 overflow-y-auto"
-          )}
-          style={{ height: "auto" }}
-          onInput={(e) => {
-            const el = e.currentTarget;
-            el.style.height = "auto";
-            el.style.height = `${el.scrollHeight}px`;
-          }}
-        />
-        <button
-          type="button"
-          onClick={() => void handleSend()}
-          disabled={!input.trim() || busy}
-          className={cn(
-            "size-9 rounded-full grid place-items-center shrink-0",
-            "bg-indigo-600 text-white shadow-sm",
-            "hover:bg-indigo-700 active:scale-95 transition-all",
-            "disabled:opacity-40 disabled:pointer-events-none"
+            "flex items-end gap-2 rounded-2xl border border-border/50 bg-white px-3 py-2",
+            "transition-all duration-150",
+            "focus-within:border-[#6366f1]/40 focus-within:shadow-[0_0_0_3px_rgba(99,102,241,0.08)]"
           )}
         >
-          <ArrowUp className="size-4" />
-        </button>
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Bir şey sorun…"
+            rows={1}
+            disabled={busy}
+            className={cn(
+              "flex-1 resize-none bg-transparent",
+              "text-[13px] leading-relaxed outline-none",
+              "placeholder:text-muted-foreground/50 disabled:opacity-50",
+              "max-h-32 overflow-y-auto"
+            )}
+            style={{ height: "auto" }}
+            onInput={(e) => {
+              const el = e.currentTarget;
+              el.style.height = "auto";
+              el.style.height = `${el.scrollHeight}px`;
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => void handleSend()}
+            disabled={!input.trim() || busy}
+            className="size-8 rounded-xl grid place-items-center shrink-0 text-white transition-all hover:scale-[1.06] active:scale-95 disabled:opacity-35 disabled:pointer-events-none shadow-sm"
+            style={{
+              background: TYRO_CHAT_TONE.gradient,
+              boxShadow: `0 4px 12px -4px ${TYRO_CHAT_TONE.ring}`,
+            }}
+          >
+            <ArrowUp className="size-3.5" />
+          </button>
+        </div>
       </div>
     </div>
   );
