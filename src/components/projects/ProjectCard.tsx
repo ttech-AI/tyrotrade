@@ -1,14 +1,20 @@
+import * as React from "react";
 import { ArrowRight, Route } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { BubbleChatIcon } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
 import { formatTons } from "@/lib/format";
 import { type Project } from "@/lib/dataverse/entities";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { TYRO_CHAT_TONE } from "@/components/layout/TyroChatButton";
 
 interface ProjectCardProps {
   project: Project;
   selected: boolean;
   onClick: () => void;
+  onQuickAsk?: (e: React.MouseEvent, project: Project) => void;
 }
+
 
 const STATUS_TONE: Record<
   string,
@@ -64,7 +70,8 @@ const FALLBACK_TONE = {
   label: "text-slate-600",
 };
 
-export function ProjectCard({ project, selected, onClick }: ProjectCardProps) {
+export function ProjectCard({ project, selected, onClick, onQuickAsk }: ProjectCardProps) {
+  const [hovered, setHovered] = React.useState(false);
   const accent = useThemeAccent();
   const totalKg = project.lines.reduce((s, l) => s + l.quantityKg, 0);
   // Use vessel voyage status when present; fall back to project Open/Closed.
@@ -74,6 +81,11 @@ export function ProjectCard({ project, selected, onClick }: ProjectCardProps) {
   const dp = project.vesselPlan?.dischargePort.name;
 
   return (
+    <div
+      className="relative"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
     <button
       type="button"
       onClick={onClick}
@@ -162,6 +174,23 @@ export function ProjectCard({ project, selected, onClick }: ProjectCardProps) {
           <span className={cn("font-semibold", tone.label)}>{status}</span>
         </div>
       )}
+
     </button>
+
+    {onQuickAsk && hovered && (
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onQuickAsk(e, project); }}
+        aria-label="TYRO Chat'te sor"
+        className="absolute top-1.5 right-1.5 size-6 rounded-lg grid place-items-center text-white shadow-md transition-all hover:scale-110 active:scale-95"
+        style={{
+          background: TYRO_CHAT_TONE.gradient,
+          boxShadow: `0 3px 8px -2px ${TYRO_CHAT_TONE.ring}`,
+        }}
+      >
+        <HugeiconsIcon icon={BubbleChatIcon} size={12} strokeWidth={2} />
+      </button>
+    )}
+    </div>
   );
 }

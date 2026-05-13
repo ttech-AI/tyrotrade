@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Search01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { GlassPanel } from "@/components/glass/GlassPanel";
 import { ProjectCard } from "./ProjectCard";
+import { ProjectQuickAsk } from "./ProjectQuickAsk";
 import type { Project } from "@/lib/dataverse/entities";
 import { useThemeAccent } from "@/components/layout/theme-accent";
 import { cn } from "@/lib/utils";
@@ -36,6 +37,11 @@ export function ProjectList({
 }: ProjectListProps) {
   const accent = useThemeAccent();
   const [query, setQuery] = React.useState("");
+  const [quickAsk, setQuickAsk] = React.useState<{
+    project: Project;
+    x: number;
+    y: number;
+  } | null>(null);
 
   const visible = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -146,6 +152,9 @@ export function ProjectList({
             project={p}
             selected={selectedId === p.projectNo}
             onClick={() => onSelect(p.projectNo)}
+            onQuickAsk={(e, project) =>
+              setQuickAsk({ project, x: e.clientX, y: e.clientY })
+            }
           />
         ))}
         {visible.length === 0 && (
@@ -154,6 +163,15 @@ export function ProjectList({
           </div>
         )}
       </div>
+
+      {quickAsk && (
+        <ProjectQuickAsk
+          project={quickAsk.project}
+          anchor={{ x: quickAsk.x, y: quickAsk.y }}
+          onClose={() => setQuickAsk(null)}
+          onSelectProject={() => onSelect(quickAsk.project.projectNo)}
+        />
+      )}
     </GlassPanel>
   );
 }

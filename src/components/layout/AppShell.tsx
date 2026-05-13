@@ -61,6 +61,13 @@ function ShellInner() {
     return false;
   });
 
+  // Open chat when a quick-ask is fired from project right-click.
+  React.useEffect(() => {
+    function handler() { setChatOpen(true); }
+    window.addEventListener("tyro:askInChat", handler);
+    return () => window.removeEventListener("tyro:askInChat", handler);
+  }, []);
+
   // Project context resolved here so both desktop panel and mobile drawer share it.
   const projectMatch = useMatch("/projects/:projectId");
   const activeProjectId = projectMatch?.params.projectId;
