@@ -141,10 +141,6 @@ export function NotificationButton() {
     : upcomingInWindow.slice(0, 8);
 
   const totalNew = recent.length + upcoming.length;
-  // "Imminent" = anything happening in the next 24h. Triggers the pulse.
-  const imminent = upcoming.some(
-    (e) => e.date.getTime() - now.getTime() <= 24 * 60 * 60 * 1000
-  );
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
