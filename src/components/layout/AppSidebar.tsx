@@ -301,7 +301,7 @@ function NavItemLink({
       to={item.to}
       onClick={onClick}
       className={cn(
-        "group flex items-center rounded-xl text-[13px] font-medium transition-all relative shrink-0",
+        "group flex items-center rounded-xl text-[13px] font-medium transition-colors relative shrink-0",
         showLabel
           ? "h-9 w-full pl-3 pr-3 gap-2.5"
           : "h-10 w-10 justify-center px-0",
@@ -373,7 +373,7 @@ function SidebarToolItem(
   );
 
   const sharedClassName = cn(
-    "group flex items-center rounded-xl text-[13px] font-medium transition-all relative shrink-0",
+    "group flex items-center rounded-xl text-[13px] font-medium transition-colors relative shrink-0",
     showLabel
       ? "h-9 w-full pl-3 pr-3 gap-2.5"
       : "h-10 w-10 justify-center px-0",

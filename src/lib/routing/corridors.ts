@@ -244,6 +244,13 @@ const ITALY_GREECE_PORTS = new Set([
   "molfetta",
 ]);
 
+/** Atlantic Iberia — west of Gibraltar on the Atlantic side. Reachable
+ *  from anywhere east of Gibraltar by transiting the strait + Gulf of
+ *  Cádiz. Sevilla is upriver on the Guadalquivir but vessels do reach
+ *  it; the corridor terminates at the river mouth area, then the line
+ *  draws inland to the port coordinates. */
+const ATLANTIC_IBERIA_PORTS = new Set(["sevilla"]);
+
 /** Levant ports — between Türkiye Med and Egypt on the East Med coast. */
 const LEVANT_PORTS = new Set(["beirut", "tripoli_lb", "tartous", "latakia"]);
 
@@ -259,6 +266,17 @@ const isTurkeyMed = (k: string) => TURKEY_MED_PORTS.has(k);
 const isEgypt = (k: string) => EGYPT_PORTS.has(k);
 const isItalyGreece = (k: string) => ITALY_GREECE_PORTS.has(k);
 const isLevant = (k: string) => LEVANT_PORTS.has(k);
+const isAtlanticIberia = (k: string) => ATLANTIC_IBERIA_PORTS.has(k);
+
+/** Med → Gibraltar → Gulf of Cádiz approach. Reused by every corridor
+ *  that ends in Atlantic Iberia. The final waypoint sits at the
+ *  Guadalquivir river mouth (Sanlúcar de Barrameda) so the line
+ *  enters the river from the sea before drawing inland to the port. */
+const MED_TO_ATLANTIC_IBERIA: Waypoint[] = [
+  wp(0.0, 36.2),
+  GIBRALTAR,
+  wp(-6.3, 36.78, "Guadalquivir Mouth"),
+];
 
 /**
  * Pick a corridor between two ports. Returns an ordered list of
@@ -382,6 +400,17 @@ function pickForward(o: string, d: string): Waypoint[] | null {
     const head = isAzov(o) ? [...KERCH_LEG] : [];
     return [...head, ...BS_TO_AEGEAN, wp(22.0, 38.0), wp(18.0, 38.5)];
   }
+  if (isBlackSea(o) && isAtlanticIberia(d)) {
+    const head = isAzov(o) ? [...KERCH_LEG] : [];
+    return [
+      ...head,
+      ...BS_TO_AEGEAN,
+      wp(22.0, 37.0),
+      wp(16.0, 37.0),
+      wp(8.0, 37.0),
+      ...MED_TO_ATLANTIC_IBERIA,
+    ];
+  }
   if (isBlackSea(o) && isUmmQasr(d)) {
     const head = isAzov(o) ? [...KERCH_LEG] : [];
     return [...head, ...BS_TO_AEGEAN, ...MED_TO_SUEZ.slice(2), ...SUEZ_TO_GULF];
@@ -403,6 +432,15 @@ function pickForward(o: string, d: string): Waypoint[] | null {
   }
   if (isMarmara(o) && isUmmQasr(d)) {
     return [...DARDANELLES_LEG, ...MED_TO_SUEZ.slice(2), ...SUEZ_TO_GULF];
+  }
+  if (isMarmara(o) && isAtlanticIberia(d)) {
+    return [
+      ...DARDANELLES_LEG,
+      wp(22.0, 37.0),
+      wp(16.0, 37.0),
+      wp(8.0, 37.0),
+      ...MED_TO_ATLANTIC_IBERIA,
+    ];
   }
 
   /* ─────────── Marmara ↔ Marmara ─────────── */
@@ -429,6 +467,15 @@ function pickForward(o: string, d: string): Waypoint[] | null {
       ...SUEZ_TO_GULF.slice(2),
     ];
   }
+  if (isTurkeyMed(o) && isAtlanticIberia(d)) {
+    return [
+      wp(30.0, 35.0),
+      wp(22.0, 36.0),
+      wp(16.0, 37.0),
+      wp(8.0, 37.0),
+      ...MED_TO_ATLANTIC_IBERIA,
+    ];
+  }
 
   /* ─────────── Levant ↔ within Levant / Egypt ─────────── */
 
@@ -444,10 +491,22 @@ function pickForward(o: string, d: string): Waypoint[] | null {
   if (isEgypt(o) && isUmmQasr(d)) {
     return [...SUEZ_TO_GULF];
   }
+  if (isEgypt(o) && isAtlanticIberia(d)) {
+    return [
+      wp(28.0, 33.5),
+      wp(20.0, 35.5),
+      wp(12.0, 37.0),
+      wp(4.0, 37.5),
+      ...MED_TO_ATLANTIC_IBERIA,
+    ];
+  }
 
   /* ─────────── Italy/Greece ↔ Italy/Greece ─────────── */
 
   if (isItalyGreece(o) && isItalyGreece(d)) return []; // West/Mid Med direct
+  if (isItalyGreece(o) && isAtlanticIberia(d)) {
+    return [wp(5.0, 38.0), wp(-2.0, 36.5), ...MED_TO_ATLANTIC_IBERIA];
+  }
 
   return null;
 }

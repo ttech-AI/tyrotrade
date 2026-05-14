@@ -39,12 +39,11 @@ export interface BentoTileProps extends BentoTileSpan {
 /** Stagger child variants — used by BentoGrid parent. Exported so individual
  *  tiles can be dropped into other motion contexts. */
 export const tileVariants: Variants = {
-  hidden: { opacity: 0, y: 10, filter: "blur(6px)" },
+  hidden: { opacity: 0, y: 8 },
   show: {
     opacity: 1,
     y: 0,
-    filter: "blur(0px)",
-    transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] },
   },
 };
 
@@ -83,19 +82,13 @@ export function BentoTile({
     solid: accent.solid,
   };
 
-  const hover =
-    interactive && !reduceMotion
-      ? { y: -2, scale: 1.005 }
-      : undefined;
-
   return (
     <motion.div
       variants={tileVariants}
-      whileHover={hover}
-      transition={{ type: "spring", stiffness: 400, damping: 30 }}
       onClick={onClick}
       className={cn(
         "min-w-0 min-h-0",
+        interactive && !reduceMotion && "hover:-translate-y-0.5 hover:scale-[1.005] transition-transform duration-200",
         span,
         rowSpan,
         onClick && "cursor-pointer"

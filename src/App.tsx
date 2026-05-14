@@ -1,16 +1,44 @@
+import * as React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AppShell } from "@/components/layout/AppShell";
-import { LoginPage } from "@/pages/LoginPage";
-import { DashboardPage } from "@/pages/DashboardPage";
-import { ProjectsPage } from "@/pages/ProjectsPage";
-import { PLCostPage } from "@/pages/PLCostPage";
-import { DataManagementPage } from "@/pages/DataManagementPage";
-import { SettingsPage } from "@/pages/SettingsPage";
-import { HelpPage } from "@/pages/HelpPage";
 import { AuthGate } from "@/components/auth/AuthGate";
 import { shouldUseMock } from "@/lib/dataverse";
 import { isAuthConfigured } from "@/lib/auth/msal";
+
+// Lazy-load every page so each route's JS chunk is fetched on first visit
+// rather than bundled into the main entry. AppShell and AuthGate stay eager
+// because they render on every authenticated route.
+const LoginPage = React.lazy(() =>
+  import("@/pages/LoginPage").then((m) => ({ default: m.LoginPage }))
+);
+const DashboardPage = React.lazy(() =>
+  import("@/pages/DashboardPage").then((m) => ({ default: m.DashboardPage }))
+);
+const ProjectsPage = React.lazy(() =>
+  import("@/pages/ProjectsPage").then((m) => ({ default: m.ProjectsPage }))
+);
+const PLCostPage = React.lazy(() =>
+  import("@/pages/PLCostPage").then((m) => ({ default: m.PLCostPage }))
+);
+const DataManagementPage = React.lazy(() =>
+  import("@/pages/DataManagementPage").then((m) => ({
+    default: m.DataManagementPage,
+  }))
+);
+const SettingsPage = React.lazy(() =>
+  import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsPage }))
+);
+const HelpPage = React.lazy(() =>
+  import("@/pages/HelpPage").then((m) => ({ default: m.HelpPage }))
+);
+
+// Wraps a lazy page in a Suspense boundary. Each route gets its own boundary
+// so AppShell stays rendered while the page chunk is loading — only the
+// main content area shows nothing during the brief fetch.
+function S({ children }: { children: React.ReactNode }) {
+  return <React.Suspense fallback={null}>{children}</React.Suspense>;
+}
 
 export default function App() {
   // Auth required when:
@@ -21,15 +49,15 @@ export default function App() {
 
   const shellTree = (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/login" element={<S><LoginPage /></S>} />
       <Route element={<AppShell />}>
-        <Route index element={<DashboardPage />} />
-        <Route path="projects" element={<ProjectsPage />} />
-        <Route path="projects/:projectId" element={<ProjectsPage />} />
-        <Route path="pl-cost" element={<PLCostPage />} />
-        <Route path="data" element={<DataManagementPage />} />
-        <Route path="settings" element={<SettingsPage />} />
-        <Route path="help" element={<HelpPage />} />
+        <Route index element={<S><DashboardPage /></S>} />
+        <Route path="projects" element={<S><ProjectsPage /></S>} />
+        <Route path="projects/:projectId" element={<S><ProjectsPage /></S>} />
+        <Route path="pl-cost" element={<S><PLCostPage /></S>} />
+        <Route path="data" element={<S><DataManagementPage /></S>} />
+        <Route path="settings" element={<S><SettingsPage /></S>} />
+        <Route path="help" element={<S><HelpPage /></S>} />
       </Route>
       <Route path="*" element={<Navigate to="/projects" replace />} />
     </Routes>

@@ -1190,6 +1190,18 @@ export const PORT_RECORDS: Record<string, PortRecord> = {
     lat: 34.7229,
     aliases: ["moreheadcity", "morehead city", "morehead"],
   },
+  sevilla: {
+    // Puerto de Sevilla — actual seaport ~60 nautical miles up the
+    // Guadalquivir River from the Atlantic. Vessels enter via Sanlúcar
+    // de Barrameda at the river mouth. Coords anchor on the port
+    // itself; the corridor (Black Sea → Atlantic Iberia) routes
+    // through Gibraltar + Gulf of Cádiz to keep the line on water.
+    name: "Sevilla",
+    country: "Spain",
+    lon: -6.0058,
+    lat: 37.331,
+    aliases: ["sevilla", "seville"],
+  },
 };
 
 /** Normalisation: lowercase → strip Turkish diacritics → strip non-alphanumerics.

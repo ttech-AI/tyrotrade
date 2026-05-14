@@ -14,7 +14,7 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { TYRO_CHAT_TONE } from "@/components/layout/TyroChatButton";
-import { ProjectWebChat, type ProjectContext } from "./ProjectWebChat";
+import { ProjectWebChat, type ProjectContext, type UserContext } from "./ProjectWebChat";
 import { cn } from "@/lib/utils";
 
 const FEATURES: string[] = [
@@ -26,9 +26,8 @@ const FEATURES: string[] = [
 interface TyroChatDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Set when the user is viewing a project detail route.
-   *  Forwarded to the WebChat panel so it can inject project context. */
   projectContext?: ProjectContext;
+  userContext?: UserContext;
 }
 
 /**
@@ -42,6 +41,7 @@ export function TyroChatDrawer({
   open,
   onOpenChange,
   projectContext,
+  userContext,
 }: TyroChatDrawerProps) {
   // Lazy-mount the webchat — only starts connecting after the first open.
   // Stays mounted afterwards so subsequent re-opens skip the cold-start.
@@ -110,7 +110,7 @@ export function TyroChatDrawer({
                   overlayVisible ? "opacity-0 pointer-events-none" : "opacity-100"
                 )}
               >
-                <ProjectWebChat projectContext={projectContext} />
+                <ProjectWebChat projectContext={projectContext} userContext={userContext} />
               </div>
 
               <AnimatePresence>

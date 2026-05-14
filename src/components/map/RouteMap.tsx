@@ -414,7 +414,7 @@ export function RouteMap({ project }: RouteMapProps) {
           )}
         </div>
 
-        <div className="absolute top-3 left-3 z-[3] pointer-events-none">
+        <div className="absolute top-3 left-3 z-[3] pointer-events-none max-w-[calc(100%-5rem)]">
           <GlassPanel
             tone="strong"
             className="rounded-xl pointer-events-auto"
@@ -422,7 +422,7 @@ export function RouteMap({ project }: RouteMapProps) {
               boxShadow: `0 6px 18px -4px ${accent.ring}, inset 0 1px 0 0 rgba(255,255,255,0.55)`,
             }}
           >
-            <div className="px-3 py-2 flex items-center gap-2">
+            <div className="px-3 py-2 flex flex-wrap items-center gap-x-2 gap-y-1">
               <Compass
                 className="size-3.5"
                 style={{ color: accent.solid }}
@@ -951,19 +951,19 @@ function PortChip({
   const tone = kind === "loading" ? "text-amber-700" : "text-emerald-700";
   const bg = kind === "loading" ? "bg-amber-500/15" : "bg-emerald-500/15";
   return (
-    <GlassPanel tone="strong" className="rounded-2xl flex-1 min-w-0 pointer-events-auto">
-      <div className="px-3 py-2.5 flex items-center gap-2.5">
-        <div className={`size-9 rounded-xl ${bg} ${tone} grid place-items-center shrink-0`}>
-          <Icon className="size-4" />
+    <GlassPanel tone="strong" className="@container rounded-2xl flex-1 min-w-0 pointer-events-auto">
+      <div className="px-2.5 py-2 flex items-center gap-2">
+        <div className={`size-7 @[140px]:size-9 rounded-xl ${bg} ${tone} grid place-items-center shrink-0`}>
+          <Icon className="size-3.5 @[140px]:size-4" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            {kind === "loading" ? "Kalkış Limanı" : "Varış Limanı"}
+            {kind === "loading" ? "Kalkış" : "Varış"}
           </div>
-          <div className="text-sm font-semibold truncate">{name}</div>
+          <div className="text-[12px] font-semibold break-words line-clamp-2 leading-tight">{name}</div>
           <div className="text-[10px] text-muted-foreground truncate">{country}</div>
         </div>
-        <div className="text-right shrink-0">
+        <div className="text-right shrink-0 hidden @[160px]:block">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
             {dateLabel}
           </div>

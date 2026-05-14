@@ -10,7 +10,8 @@ import { TyroChatButton, TYRO_CHAT_TONE } from "@/components/layout/TyroChatButt
 import { NotificationButton } from "@/components/layout/NotificationButton";
 import { TyroAiDrawer } from "@/components/chat/TyroAiDrawer";
 import { TyroChatDrawer } from "@/components/chat/TyroChatDrawer";
-import { ProjectWebChat, type ProjectContext } from "@/components/chat/ProjectWebChat";
+import { ProjectWebChat, type ProjectContext, type UserContext } from "@/components/chat/ProjectWebChat";
+import { useMsal } from "@azure/msal-react";
 import { useProjects } from "@/hooks/useProjects";
 import { AppSidebar } from "./AppSidebar";
 import { SidebarProvider, useSidebar } from "./sidebar-context";
@@ -47,6 +48,12 @@ function ShellInner() {
   const title =
     PAGE_TITLES[location.pathname] ||
     (location.pathname.startsWith("/projects") ? "Vessel Projects" : "tyrotrade");
+
+  const { accounts, instance } = useMsal();
+  const msalAccount = accounts[0] ?? instance.getActiveAccount() ?? null;
+  const userContext: UserContext | undefined = msalAccount
+    ? { name: msalAccount.name ?? "", email: msalAccount.username ?? "" }
+    : undefined;
 
   const [aiOpen, setAiOpen] = React.useState(false);
   const openAi = React.useCallback(() => setAiOpen(true), []);
@@ -124,6 +131,7 @@ function ShellInner() {
           open={chatOpen}
           onClose={() => setChatOpen(false)}
           projectContext={projectContext}
+          userContext={userContext}
         />
       )}
 
@@ -133,6 +141,7 @@ function ShellInner() {
           open={chatOpen}
           onOpenChange={setChatOpen}
           projectContext={projectContext}
+          userContext={userContext}
         />
       )}
 
@@ -148,10 +157,12 @@ function DesktopChatSlot({
   open,
   onClose,
   projectContext,
+  userContext,
 }: {
   open: boolean;
   onClose: () => void;
   projectContext?: ProjectContext;
+  userContext?: UserContext;
 }) {
   const [hasOpened, setHasOpened] = React.useState(false);
   React.useEffect(() => {
@@ -209,7 +220,7 @@ function DesktopChatSlot({
 
           {/* Chat body */}
           <div className="flex-1 min-h-0 bg-white">
-            <ProjectWebChat projectContext={projectContext} />
+            <ProjectWebChat projectContext={projectContext} userContext={userContext} />
           </div>
         </>
       )}

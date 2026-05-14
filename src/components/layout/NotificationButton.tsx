@@ -172,16 +172,6 @@ export function NotificationButton() {
               >
                 {totalNew > 99 ? "99+" : totalNew}
               </span>
-              {imminent && (
-                <span
-                  aria-hidden
-                  className="absolute -top-0.5 -right-0.5 size-[18px] rounded-full animate-ping pointer-events-none"
-                  style={{
-                    background: accent.solid,
-                    opacity: 0.4,
-                  }}
-                />
-              )}
             </>
           )}
         </Button>

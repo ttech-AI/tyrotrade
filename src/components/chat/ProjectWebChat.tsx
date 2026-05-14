@@ -32,6 +32,11 @@ export interface ProjectContext {
   projectName: string;
 }
 
+export interface UserContext {
+  name: string;
+  email: string;
+}
+
 interface ChatMessage {
   id: string;
   role: "user" | "bot";
@@ -42,6 +47,7 @@ interface ChatMessage {
 
 interface ProjectWebChatProps {
   projectContext?: ProjectContext;
+  userContext?: UserContext;
 }
 
 /**
@@ -68,7 +74,7 @@ export function ProjectWebChat(props: ProjectWebChatProps) {
  * Inner component — safe to call useMsal() here because the outer guard
  * ensures MsalProvider is mounted before this renders.
  */
-function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
+function ProjectWebChatCore({ projectContext, userContext }: ProjectWebChatProps) {
   const { instance, accounts } = useMsal();
 
   // Restore messages only when page session AND project both match.
@@ -101,6 +107,7 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
 
   const clientRef = React.useRef<CopilotStudioClient | null>(null);
   const contextRef = React.useRef(projectContext);
+  const userContextRef = React.useRef(userContext);
   const bottomRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLTextAreaElement>(null);
   const readyRef = React.useRef(false);
@@ -143,6 +150,10 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
   React.useEffect(() => {
     contextRef.current = projectContext;
   }, [projectContext]);
+
+  React.useEffect(() => {
+    userContextRef.current = userContext;
+  }, [userContext]);
 
   // Clear chat history when switching to a different project so the
   // panel shows a fresh conversation scoped to the new project.
@@ -272,6 +283,8 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
         setReady(true);
         setBusy(false);
 
+        const uCtx = userContextRef.current;
+        if (uCtx) await sendUserContext(client, uCtx);
         const ctx = contextRef.current;
         if (ctx) await sendEvent(client, ctx);
       } catch (err) {
@@ -310,12 +323,15 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
     ]);
     setBusy(true);
 
-    // Silently prepend project context so the bot can resolve "bu proje" /
-    // "bu gemi" references without the user having to repeat the ID.
+    // Silently prepend user + project context so the bot knows who is
+    // asking and which project is active without the user repeating it.
+    const uCtx = userContextRef.current;
     const ctx = contextRef.current;
-    const enrichedText = ctx
-      ? `[Aktif Proje: ${ctx.projectId} - ${ctx.projectName}]\n${text}`
-      : text;
+    const userLine = uCtx ? `[Kullanıcı: ${uCtx.name} <${uCtx.email}>]\n` : "";
+    const projectLine = ctx
+      ? `[Aktif Proje: ${ctx.projectId} - ${ctx.projectName}]\n`
+      : "[Aktif Proje: yok]\n";
+    const enrichedText = `${userLine}${projectLine}${text}`;
 
     try {
       const activity = { type: "message", text: enrichedText } as Activity;
@@ -401,10 +417,13 @@ function ProjectWebChatCore({ projectContext }: ProjectWebChatProps) {
       ];
     });
     setBusy(true);
+    const uCtx = userContextRef.current;
     const ctx = contextRef.current;
-    const enrichedText = ctx
-      ? `[Aktif Proje: ${ctx.projectId} - ${ctx.projectName}]\n${text}`
-      : text;
+    const userLine = uCtx ? `[Kullanıcı: ${uCtx.name} <${uCtx.email}>]\n` : "";
+    const projectLine = ctx
+      ? `[Aktif Proje: ${ctx.projectId} - ${ctx.projectName}]\n`
+      : "[Aktif Proje: yok]\n";
+    const enrichedText = `${userLine}${projectLine}${text}`;
     try {
       const activity = { type: "message", text: enrichedText } as Activity;
       let hadChunks = false;
@@ -638,6 +657,21 @@ function isStreamingChunk(activity: Activity): boolean {
   return !!entities?.some(
     (e) => e.type === "streaminfo" && e.streamType === "streaming"
   );
+}
+
+/** Send a setUserContext event activity so the bot knows who is speaking. */
+async function sendUserContext(
+  client: CopilotStudioClient,
+  ctx: UserContext
+): Promise<void> {
+  const activity = {
+    type: "event",
+    name: "setUserContext",
+    value: { userName: ctx.name, userEmail: ctx.email },
+  } as Activity;
+  for await (const _ of client.sendActivityStreaming(activity)) {
+    // noop — consume generator so the HTTP request completes
+  }
 }
 
 /** Send a setProjectContext event activity; ignore any bot response. */

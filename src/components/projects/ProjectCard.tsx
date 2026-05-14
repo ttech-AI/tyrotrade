@@ -71,7 +71,6 @@ const FALLBACK_TONE = {
 };
 
 export function ProjectCard({ project, selected, onClick, onQuickAsk }: ProjectCardProps) {
-  const [hovered, setHovered] = React.useState(false);
   const accent = useThemeAccent();
   const totalKg = project.lines.reduce((s, l) => s + l.quantityKg, 0);
   // Use vessel voyage status when present; fall back to project Open/Closed.
@@ -81,17 +80,13 @@ export function ProjectCard({ project, selected, onClick, onQuickAsk }: ProjectC
   const dp = project.vesselPlan?.dischargePort.name;
 
   return (
-    <div
-      className="relative"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
+    <div className="relative group">
     <button
       type="button"
       onClick={onClick}
       aria-current={selected ? "true" : undefined}
       className={cn(
-        "group relative w-full min-w-0 max-w-full text-left rounded-xl px-3 py-2.5 transition-all overflow-hidden",
+        "group relative w-full min-w-0 max-w-full text-left rounded-xl px-3 py-2.5 transition-colors overflow-hidden",
         "border outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
         selected
           ? "border-transparent"
@@ -177,12 +172,12 @@ export function ProjectCard({ project, selected, onClick, onQuickAsk }: ProjectC
 
     </button>
 
-    {onQuickAsk && hovered && (
+    {onQuickAsk && (
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onQuickAsk(e, project); }}
         aria-label="TYRO Chat'te sor"
-        className="absolute top-1.5 right-1.5 size-6 rounded-lg grid place-items-center text-white shadow-md transition-all hover:scale-110 active:scale-95"
+        className="absolute top-1.5 right-1.5 size-6 rounded-lg grid place-items-center text-white shadow-md transition-transform opacity-0 group-hover:opacity-100 hover:scale-110 active:scale-95"
         style={{
           background: TYRO_CHAT_TONE.gradient,
           boxShadow: `0 3px 8px -2px ${TYRO_CHAT_TONE.ring}`,

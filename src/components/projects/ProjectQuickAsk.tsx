@@ -76,7 +76,7 @@ export function ProjectQuickAsk({ project, anchor, onClose, onSelectProject }: P
       ref={popoverRef}
       style={{ position: "fixed", left: pos.left, top: pos.top, zIndex: 9999 }}
       className={cn(
-        "w-72 rounded-2xl overflow-hidden",
+        "w-96 rounded-2xl overflow-hidden",
         "bg-white/95 backdrop-blur-xl backdrop-saturate-150",
         "border border-border/50",
         "shadow-[0_16px_48px_-8px_rgba(15,23,42,0.22),0_4px_12px_-4px_rgba(15,23,42,0.08)]"
@@ -87,31 +87,31 @@ export function ProjectQuickAsk({ project, anchor, onClose, onSelectProject }: P
       <div className="h-0.5 w-full" style={{ background: TYRO_CHAT_TONE.gradient }} />
 
       {/* Header */}
-      <div className="px-3 pt-2.5 pb-1.5 flex items-center gap-2">
+      <div className="px-4 pt-3.5 pb-2 flex items-start gap-2.5">
         <span
-          className="size-6 rounded-lg grid place-items-center shrink-0 text-white"
+          className="size-8 rounded-xl grid place-items-center shrink-0 text-white mt-0.5"
           style={{
             background: TYRO_CHAT_TONE.gradient,
             boxShadow: `0 4px 8px -3px ${TYRO_CHAT_TONE.ring}`,
           }}
         >
-          <HugeiconsIcon icon={BubbleChatIcon} size={12} strokeWidth={2} />
+          <HugeiconsIcon icon={BubbleChatIcon} size={15} strokeWidth={2} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold text-slate-700 leading-tight truncate">
+          <p className="text-[13px] font-semibold text-slate-700 leading-snug break-words line-clamp-3">
             {project.projectName}
           </p>
-          <p className="text-[10px] text-muted-foreground leading-tight truncate">
+          <p className="text-[11px] text-muted-foreground leading-tight truncate mt-0.5">
             {project.projectNo}
           </p>
         </div>
       </div>
 
       {/* Input row */}
-      <div className="px-2 pb-2.5">
+      <div className="px-3 pb-3.5">
         <div
           className={cn(
-            "flex items-center gap-1.5 rounded-xl border border-border/50 bg-slate-50/80 px-2.5 py-1.5",
+            "flex items-center gap-2 rounded-xl border border-border/50 bg-slate-50/80 px-3 py-2",
             "focus-within:border-[#6366f1]/40 focus-within:shadow-[0_0_0_2px_rgba(99,102,241,0.10)]",
             "transition-all duration-150"
           )}
@@ -125,22 +125,22 @@ export function ProjectQuickAsk({ project, anchor, onClose, onSelectProject }: P
               if (e.key === "Enter") { e.preventDefault(); handleSubmit(); }
             }}
             placeholder="Bu proje hakkında sorun…"
-            className="flex-1 bg-transparent text-[12.5px] outline-none placeholder:text-muted-foreground/50 min-w-0"
+            className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/50 min-w-0"
           />
           <button
             type="button"
             onClick={handleSubmit}
             disabled={!question.trim()}
-            className="size-6 rounded-lg grid place-items-center shrink-0 text-white transition-all hover:scale-105 active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
+            className="size-7 rounded-lg grid place-items-center shrink-0 text-white transition-all hover:scale-105 active:scale-95 disabled:opacity-30 disabled:pointer-events-none"
             style={{
               background: TYRO_CHAT_TONE.gradient,
               boxShadow: `0 3px 8px -2px ${TYRO_CHAT_TONE.ring}`,
             }}
           >
-            <ArrowUp className="size-3" />
+            <ArrowUp className="size-3.5" />
           </button>
         </div>
-        <p className="text-[10px] text-muted-foreground/60 mt-1 px-0.5">
+        <p className="text-[11px] text-muted-foreground/60 mt-1.5 px-0.5">
           Enter → TYRO Chat'te yanıtla
         </p>
       </div>

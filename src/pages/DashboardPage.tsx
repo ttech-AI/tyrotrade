@@ -54,6 +54,7 @@ import {
 } from "@/lib/filters/projectFilters";
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
+import { useMsal } from "@azure/msal-react";
 import {
   Tooltip,
   TooltipContent,
@@ -78,7 +79,13 @@ import type { Project } from "@/lib/dataverse/entities";
 const DASHBOARD_SHIP_PLAN_DEFAULT = true;
 
 export function DashboardPage() {
-  const now = new Date();
+  // Stable `now` reference for the lifetime of the page mount. Time-based
+  // selectors (stage classification, period filters) all read this; freezing
+  // it prevents downstream memos from invalidating on every render.
+  const now = React.useMemo(() => new Date(), []);
+  const { accounts, instance } = useMsal();
+  const account = accounts[0] ?? instance.getActiveAccount() ?? null;
+  const firstName = account?.name?.trim().split(/\s+/)[0] ?? null;
   const [filters, setFilters] = React.useState<ProjectFilterState>(() =>
     makeEmptyFilters({ includeWithoutShipPlan: DASHBOARD_SHIP_PLAN_DEFAULT })
   );
@@ -118,7 +125,10 @@ export function DashboardPage() {
   );
   const totalProjects = projects.length;
 
-  const buckets = aggregatePipelineBuckets(projects, now);
+  const buckets = React.useMemo(
+    () => aggregatePipelineBuckets(projects, now),
+    [projects, now]
+  );
   const inTransit = buckets.inTransit;
   const loading = buckets.loading;
   const atDischarge = buckets.atDischarge;
@@ -183,7 +193,7 @@ export function DashboardPage() {
                 }).format(now)}
               </div>
               <h2 className="text-xl font-semibold tracking-tight">
-                {greeting}, Cenk
+                {greeting}{firstName ? `, ${firstName}` : ""}
               </h2>
               {/* Subtitle: FY context + pipeline state breakdown (loading /
                   in-transit / at-discharge counts), active filter chip, and
