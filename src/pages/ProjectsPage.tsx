@@ -81,12 +81,25 @@ export function ProjectsPage() {
     }
   }, [projectId, selectedId]);
 
-  // When the projects array first arrives (cache hydration after mount), pick
-  // the first project as the default selection so the right-rail isn't empty.
-  // Also push the selection into the URL so TopBar's useMatch resolves it and
-  // chat context is available immediately on first visit.
+  // When the filtered `projects` list changes, ensure the selection
+  // always points at a visible project. Three triggers fold into one
+  // effect:
+  //  - Initial cache hydration → `selectedId` is null → pick first
+  //  - Filter change that excluded the previously-selected project →
+  //    selection auto-jumps to the new first
+  //  - Direct URL navigation to /projects with a stale `projectId` in
+  //    the URL that no longer matches a visible row → first visible
+  //    wins so the right rail never lands on an empty state
+  //
+  // Push the new selection into the URL too so the TopBar's
+  // `useMatch` resolves it and any chat / KPI deep-link context is
+  // available immediately on first paint.
   React.useEffect(() => {
-    if (!selectedId && projects.length > 0) {
+    if (projects.length === 0) return;
+    const stillVisible =
+      selectedId !== null &&
+      projects.some((p) => p.projectNo === selectedId);
+    if (!stillVisible) {
       const firstId = projects[0].projectNo;
       setSelectedId(firstId);
       navigate(`/projects/${firstId}`, { replace: true });
