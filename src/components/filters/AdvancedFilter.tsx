@@ -426,55 +426,20 @@ export function AdvancedFilter({
               stays on `ProjectFilterState` for backwards compat but the
               user never toggles it. */}
 
-          {/* 1. Sefer Durumu — chip */}
-          {options.voyageStatuses.length > 0 && (
-            <ChipSection
-              title="Sefer Durumu"
-              count={filters.voyageStatuses.size}
-              options={options.voyageStatuses}
-              selected={filters.voyageStatuses}
-              onToggle={(v) =>
-                onChange({
-                  ...filters,
-                  voyageStatuses: toggleSet(filters.voyageStatuses, v),
-                })
-              }
-            />
-          )}
+          {/* Section order (user-specified):
+                1. Segment
+                2. Sefer Durumu
+                3. Ana Trader + Trader
+                4. Kalkış Limanı + Varış Limanı
+                5. Durum + Teslimat Koşulu
+                6. Şirket / Gemi / Tedarikçi / Müşteri / Proje Grubu
+                7. Proje No (still the catchall fuzzy search at the end)
+              All sections render as a search-multiselect combobox now
+              — previously Sefer Durumu / Durum / Teslimat Koşulu were
+              chip toggles which became impractical once the user wanted
+              quick filter via typing instead of clicking through chips. */}
 
-          {/* 2. Durum — chip */}
-          {options.statuses.length > 0 && (
-            <ChipSection
-              title="Durum"
-              count={filters.statuses.size}
-              options={options.statuses}
-              selected={filters.statuses}
-              onToggle={(v) =>
-                onChange({
-                  ...filters,
-                  statuses: toggleSet(filters.statuses, v),
-                })
-              }
-            />
-          )}
-
-          {/* 3. Teslimat Koşulu — chip */}
-          {options.incoterms.length > 0 && (
-            <ChipSection
-              title="Teslimat Koşulu"
-              count={filters.incoterms.size}
-              options={options.incoterms}
-              selected={filters.incoterms}
-              onToggle={(v) =>
-                onChange({
-                  ...filters,
-                  incoterms: toggleSet(filters.incoterms, v),
-                })
-              }
-            />
-          )}
-
-          {/* 4. Segment — combobox */}
+          {/* 1. Segment */}
           {options.segments.length > 0 && (
             <ComboboxSection
               title="Segment"
@@ -487,28 +452,22 @@ export function AdvancedFilter({
             />
           )}
 
-          {/* 4b. Proje No — combobox with rich {value, label, keywords}
-              options so the user can type either a project code, a
-              fragment of the name, vessel name, segment, or group and
-              hit the right rows. Search is fuzzy via cmdk. */}
-          {options.projects.length > 0 && (
+          {/* 2. Sefer Durumu — converted from chip toggle to combobox */}
+          {options.voyageStatuses.length > 0 && (
             <ComboboxSection
-              title="Proje No"
-              count={filters.projectNos.size}
-              options={options.projects}
-              selected={filters.projectNos}
-              onChange={(next) => onChange({ ...filters, projectNos: next })}
-              placeholder="Tüm projeler"
-              searchPlaceholder="Proje no, ad, gemi, segment ara…"
+              title="Sefer Durumu"
+              count={filters.voyageStatuses.size}
+              options={options.voyageStatuses}
+              selected={filters.voyageStatuses}
+              onChange={(next) =>
+                onChange({ ...filters, voyageStatuses: next })
+              }
+              placeholder="Tüm sefer durumları"
               accent={accent}
             />
           )}
 
-          {/* 5a. Ana Trader — combobox (lead/desk owner per project,
-              `mserp_maintraderid`). Surfaced ahead of the operational
-              `traders` set because portfolio-level reporting (e.g.
-              "show me all of TRD-FTB's deals") starts from the desk
-              leader, not the executor. */}
+          {/* 3a. Ana Trader (lead/desk owner — `mserp_maintraderid`) */}
           {options.mainTraders.length > 0 && (
             <ComboboxSection
               title="Ana Trader"
@@ -521,8 +480,7 @@ export function AdvancedFilter({
             />
           )}
 
-          {/* 5b. Trader — combobox (per-project executor,
-              `mserp_traderid`). */}
+          {/* 3b. Trader (per-project executor — `mserp_traderid`) */}
           {options.traders.length > 0 && (
             <ComboboxSection
               title="Trader"
@@ -535,7 +493,63 @@ export function AdvancedFilter({
             />
           )}
 
-          {/* 6. Şirket — combobox */}
+          {/* 4a. Kalkış Limanı — combobox */}
+          {options.loadingPorts.length > 0 && (
+            <ComboboxSection
+              title="Kalkış Limanı"
+              count={filters.loadingPorts.size}
+              options={options.loadingPorts}
+              selected={filters.loadingPorts}
+              onChange={(next) => onChange({ ...filters, loadingPorts: next })}
+              placeholder="Tüm kalkış limanları"
+              searchPlaceholder="Liman ara…"
+              accent={accent}
+            />
+          )}
+
+          {/* 4b. Varış Limanı — combobox */}
+          {options.dischargePorts.length > 0 && (
+            <ComboboxSection
+              title="Varış Limanı"
+              count={filters.dischargePorts.size}
+              options={options.dischargePorts}
+              selected={filters.dischargePorts}
+              onChange={(next) =>
+                onChange({ ...filters, dischargePorts: next })
+              }
+              placeholder="Tüm varış limanları"
+              searchPlaceholder="Liman ara…"
+              accent={accent}
+            />
+          )}
+
+          {/* 5a. Durum — combobox */}
+          {options.statuses.length > 0 && (
+            <ComboboxSection
+              title="Durum"
+              count={filters.statuses.size}
+              options={options.statuses}
+              selected={filters.statuses}
+              onChange={(next) => onChange({ ...filters, statuses: next })}
+              placeholder="Tüm durumlar"
+              accent={accent}
+            />
+          )}
+
+          {/* 5b. Teslimat Koşulu — combobox */}
+          {options.incoterms.length > 0 && (
+            <ComboboxSection
+              title="Teslimat Koşulu"
+              count={filters.incoterms.size}
+              options={options.incoterms}
+              selected={filters.incoterms}
+              onChange={(next) => onChange({ ...filters, incoterms: next })}
+              placeholder="Tüm teslimat koşulları"
+              accent={accent}
+            />
+          )}
+
+          {/* 6a. Şirket */}
           {options.companies.length > 0 && (
             <ComboboxSection
               title="Şirket"
@@ -548,7 +562,7 @@ export function AdvancedFilter({
             />
           )}
 
-          {/* 7. Gemi — combobox */}
+          {/* 6b. Gemi */}
           {options.vessels.length > 0 && (
             <ComboboxSection
               title="Gemi"
@@ -562,7 +576,7 @@ export function AdvancedFilter({
             />
           )}
 
-          {/* 8. Tedarikçi — combobox */}
+          {/* 6c. Tedarikçi */}
           {options.suppliers.length > 0 && (
             <ComboboxSection
               title="Tedarikçi"
@@ -576,7 +590,7 @@ export function AdvancedFilter({
             />
           )}
 
-          {/* 9. Müşteri / Alıcı — combobox */}
+          {/* 6d. Müşteri / Alıcı */}
           {options.buyers.length > 0 && (
             <ComboboxSection
               title="Müşteri / Alıcı"
@@ -590,7 +604,7 @@ export function AdvancedFilter({
             />
           )}
 
-          {/* 10. Proje Grubu — combobox */}
+          {/* 6e. Proje Grubu */}
           {options.groups.length > 0 && (
             <ComboboxSection
               title="Proje Grubu"
@@ -599,6 +613,22 @@ export function AdvancedFilter({
               selected={filters.groups}
               onChange={(next) => onChange({ ...filters, groups: next })}
               placeholder="Tüm gruplar"
+              accent={accent}
+            />
+          )}
+
+          {/* 7. Proje No — fuzzy combobox over projectNo + name +
+              vessel + segment + group keywords. Stays at the bottom
+              as the catchall lookup. */}
+          {options.projects.length > 0 && (
+            <ComboboxSection
+              title="Proje No"
+              count={filters.projectNos.size}
+              options={options.projects}
+              selected={filters.projectNos}
+              onChange={(next) => onChange({ ...filters, projectNos: next })}
+              placeholder="Tüm projeler"
+              searchPlaceholder="Proje no, ad, gemi, segment ara…"
               accent={accent}
             />
           )}
@@ -655,12 +685,8 @@ export function AdvancedFilter({
 
 /* ─────────── Helpers ─────────── */
 
-function toggleSet(set: Set<string>, value: string): Set<string> {
-  const next = new Set(set);
-  if (next.has(value)) next.delete(value);
-  else next.add(value);
-  return next;
-}
+// `toggleSet` removed — every section now uses MultiSelectCombobox which
+// emits the full next Set; we no longer need a per-value toggler.
 
 const CHIP_CLASS = cn(
   "h-7 rounded-full text-[11.5px] px-2.5 font-medium",
@@ -676,7 +702,11 @@ const CHIP_CLASS = cn(
 
 function SectionHeader({ title, count }: { title: string; count: number }) {
   return (
-    <div className="flex items-center justify-between text-[10.5px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+    // Darker ink + slightly heavier weight so section labels (Segment,
+    // Sefer Durumu, Trader, …) read clearly above each combobox. The
+    // previous `text-muted-foreground` (~slate-500) washed out against
+    // the popover bg and made the labels feel "system noise".
+    <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.12em] text-foreground/80">
       <span>{title}</span>
       {count > 0 && (
         <span
@@ -773,46 +803,10 @@ function PeriodSection({
   );
 }
 
-function ChipSection({
-  title,
-  count,
-  options,
-  selected,
-  onToggle,
-}: {
-  title: string;
-  count: number;
-  options: string[];
-  selected: Set<string>;
-  onToggle: (v: string) => void;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <SectionHeader title={title} count={count} />
-      <ToggleGroup
-        type="multiple"
-        value={[...selected]}
-        onValueChange={(arr) => {
-          // ToggleGroup multi mode replaces the entire array each
-          // change — diff against `selected` to find what toggled.
-          const arrSet = new Set(arr);
-          for (const v of arrSet) if (!selected.has(v)) onToggle(v);
-          for (const v of selected) if (!arrSet.has(v)) onToggle(v);
-        }}
-        variant="outline"
-        size="sm"
-        spacing={4}
-        className="flex-wrap"
-      >
-        {options.map((v) => (
-          <ToggleGroupItem key={v} value={v} className={CHIP_CLASS}>
-            {v}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
-    </div>
-  );
-}
+// `ChipSection` removed — all multi-select sections (Sefer Durumu,
+// Durum, Teslimat Koşulu) converted to ComboboxSection with search.
+// Chip toggling stayed on the PeriodSection only because period is
+// 5 fixed buckets, not an open set.
 
 function ComboboxSection({
   title,

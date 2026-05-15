@@ -48,6 +48,12 @@ export interface ProjectFilterState {
   suppliers: Set<string>;
   buyers: Set<string>;
   vessels: Set<string>;
+  /** Loading port names (`mserp_tryloadingport`) — multiselect.
+   *  Matched against the project's `vesselPlan.loadingPort.name`. */
+  loadingPorts: Set<string>;
+  /** Discharge port names (`mserp_trydischargeport`) — multiselect.
+   *  Matched against the project's `vesselPlan.dischargePort.name`. */
+  dischargePorts: Set<string>;
   /** Specific project codes (PRJ.../TRK...). Lets the user narrow
    *  down to a hand-picked list when they know exactly which projects
    *  they care about. Independent of route-driven `selectedId` —
@@ -96,6 +102,8 @@ export function makeEmptyFilters(
     suppliers: new Set(),
     buyers: new Set(),
     vessels: new Set(),
+    loadingPorts: new Set(),
+    dischargePorts: new Set(),
     projectNos: new Set(),
     includeWithoutShipPlan: opts.includeWithoutShipPlan ?? true,
   };
@@ -176,6 +184,14 @@ export function applyProjectFilter(
       const ves = (p.vesselPlan?.vesselName ?? "").trim();
       if (!f.vessels.has(ves)) return false;
     }
+    if (f.loadingPorts.size > 0) {
+      const lp = (p.vesselPlan?.loadingPort?.name ?? "").trim();
+      if (!f.loadingPorts.has(lp)) return false;
+    }
+    if (f.dischargePorts.size > 0) {
+      const dp = (p.vesselPlan?.dischargePort?.name ?? "").trim();
+      if (!f.dischargePorts.has(dp)) return false;
+    }
     if (f.projectNos.size > 0 && !f.projectNos.has(p.projectNo)) return false;
     return true;
   });
@@ -206,6 +222,8 @@ export function projectFilterCount(
     f.suppliers.size +
     f.buyers.size +
     f.vessels.size +
+    f.loadingPorts.size +
+    f.dischargePorts.size +
     f.projectNos.size +
     (f.includeWithoutShipPlan === shipPlanDefault ? 0 : 1) +
     (periodActive ? 1 : 0)
@@ -226,6 +244,8 @@ export interface AvailableOptions {
   suppliers: string[];
   buyers: string[];
   vessels: string[];
+  loadingPorts: string[];
+  dischargePorts: string[];
   /** Project options carry the full {value, label, keywords} shape so
    *  the combobox can show "PRJ000123 — 55KMT BRZ SOY" as the label
    *  while storing only the projectNo in the selection Set, and
@@ -263,6 +283,8 @@ export function extractAvailableOptions(
   const sup = new Set<string>();
   const buy = new Set<string>();
   const ves = new Set<string>();
+  const lp = new Set<string>();
+  const dp = new Set<string>();
   // Seed voyage statuses with the canonical 6 so chips always appear,
   // even if a status currently has zero matching projects.
   for (const cs of CANONICAL_VOYAGE_STATUSES) vs.add(cs);
@@ -281,6 +303,10 @@ export function extractAvailableOptions(
     if (buyer) buy.add(buyer);
     const vessel = p.vesselPlan?.vesselName?.trim();
     if (vessel && vessel !== "—") ves.add(vessel);
+    const loadingPort = p.vesselPlan?.loadingPort?.name?.trim();
+    if (loadingPort && loadingPort !== "—") lp.add(loadingPort);
+    const dischargePort = p.vesselPlan?.dischargePort?.name?.trim();
+    if (dischargePort && dischargePort !== "—") dp.add(dischargePort);
   }
   // Project options — sorted by projectNo descending (newest IDs
   // surface first; F&O assigns these monotonically). Keywords mix
@@ -326,6 +352,8 @@ export function extractAvailableOptions(
     suppliers: [...sup].sort(),
     buyers: [...buy].sort(),
     vessels: [...ves].sort(),
+    loadingPorts: [...lp].sort(),
+    dischargePorts: [...dp].sort(),
     projects: projectOptions,
   };
 }
