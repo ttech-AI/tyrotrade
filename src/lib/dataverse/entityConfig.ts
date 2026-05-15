@@ -32,6 +32,24 @@ export const INSPECTOR_ENTITIES: InspectorEntityConfig[] = [
     hint: "Teslimat şekli 'Gemi' + segment dolu projeler çekilir.",
   },
   {
+    key: "sub-projects",
+    label: "Alt Projeler",
+    description:
+      "Alt-proje tablosu (mserp_trysubprojectentities) — projeleri sefer/dönem bazlı leg'lere bölen alt kayıtlar",
+    entitySet: "mserp_trysubprojectentities",
+    hint:
+      "Yalnızca cache'te zaten olan projelerin alt satırları çekilir (mserp_projid IN [...]).",
+  },
+  {
+    key: "sub-project-details",
+    label: "Alt Proje Satırları",
+    description:
+      "Alt-proje detay satırları (mserp_trysubprojectdetailsentities) — her leg'in itinerary'si",
+    entitySet: "mserp_trysubprojectdetailsentities",
+    hint:
+      "Yalnızca cache'teki alt-proje ID'lerine bağlı satırlar çekilir (mserp_subprojectid IN [...]).",
+  },
+  {
     key: "project-ship",
     label: "Proje-Gemi Planı",
     description:

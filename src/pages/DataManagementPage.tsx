@@ -36,6 +36,8 @@ import { useProjects } from "@/hooks/useProjects";
 import {
   PROJECT_COLUMNS,
   PROJECT_LINE_COLUMNS,
+  SUB_PROJECT_COLUMNS,
+  SUB_PROJECT_DETAIL_COLUMNS,
   SHIP_COLUMNS,
   SHIP_DISPLAY_COLUMNS,
   EXPENSE_COLUMNS,
@@ -50,6 +52,12 @@ import { useProjectExpenseLines } from "@/hooks/useProjectExpenseLines";
 
 const ENTITY_SETS = {
   projects: "mserp_etgtryprojecttableentities",
+  // Sub-project rows — projeyi sefer/dönem leg'lerine bölen alt
+  // satırlar. FK = `mserp_projid`. Scope: cache'teki projeler.
+  subProject: "mserp_trysubprojectentities",
+  // Sub-project detail rows — alt-projenin itinerary/leg satırları.
+  // FK = `mserp_subprojectid`. Scope: cache'teki alt-projeler.
+  subProjectDetail: "mserp_trysubprojectdetailsentities",
   ship: "mserp_tryaiprojectshiprelationentities",
   lines: "mserp_tryaiprojectlineentities",
   // Switched April 2026 from `mserp_tryaiotherexpenseprojectlineentities`
@@ -84,7 +92,7 @@ const ENTITY_SETS = {
 
 /* ─────────── Page ─────────── */
 
-type TopTabKey = "projects" | "budget";
+type TopTabKey = "projects" | "sub-projects" | "budget";
 type ChildTabKey =
   | "lines"
   | "ship"
@@ -141,6 +149,11 @@ export function DataManagementPage() {
   const [selectedProjId, setSelectedProjId] = React.useState<string | null>(
     null
   );
+  // Same idea for Alt Projeler: clicking a row in the sub-project
+  // master table filters the bottom detail panel by this ID.
+  const [selectedSubProjectId, setSelectedSubProjectId] = React.useState<
+    string | null
+  >(null);
 
   // 🔒 5 entity hooks — read-only, manual trigger via "Verileri Güncelle".
   // Projects scope: dlvmode=Gemi + segment ne null. Mirrors
@@ -166,6 +179,21 @@ export function DataManagementPage() {
   const lines = useEntityRows<Record<string, unknown>>({
     entitySet: ENTITY_SETS.lines,
     query: { $select: PROJECT_LINE_COLUMNS.join(","), $count: true },
+  });
+  // Alt-proje rows — read from the cache populated by the refresh
+  // chain's "Alt Projeler" step (scoped to active projids). Same
+  // shape as the master `projects` table, surfaced as its own top
+  // tab next to "Projeler".
+  const subProjects = useEntityRows<Record<string, unknown>>({
+    entitySet: ENTITY_SETS.subProject,
+    query: { $select: SUB_PROJECT_COLUMNS.join(","), $count: true },
+  });
+  // Alt-proje DETAY satırları — alt-projenin itinerary/leg
+  // satırları. FK = `mserp_subprojectid`. Refresh chain reads the
+  // sub-project cache, fetches matching detail rows, writes here.
+  const subProjectDetails = useEntityRows<Record<string, unknown>>({
+    entitySet: ENTITY_SETS.subProjectDetail,
+    query: { $select: SUB_PROJECT_DETAIL_COLUMNS.join(","), $count: true },
   });
   const expense = useEntityRows<Record<string, unknown>>({
     entitySet: ENTITY_SETS.expense,
@@ -329,6 +357,63 @@ export function DataManagementPage() {
             { $select: PROJECT_LINE_COLUMNS.join(","), $count: true }
           );
           writeCache(ENTITY_SETS.lines, {
+            fetchedAt: new Date().toISOString(),
+            value: result.value,
+            totalCount: result.totalCount,
+          });
+        },
+      },
+      {
+        label: "Alt Projeler",
+        refetch: async () => {
+          const client = getDataverseClient();
+          const projids = readProjids();
+          const result = await listAllByInChunked<Record<string, unknown>>(
+            client,
+            ENTITY_SETS.subProject,
+            "mserp_projid",
+            projids,
+            { $select: SUB_PROJECT_COLUMNS.join(","), $count: true }
+          );
+          writeCache(ENTITY_SETS.subProject, {
+            fetchedAt: new Date().toISOString(),
+            value: result.value,
+            totalCount: result.totalCount,
+          });
+        },
+      },
+      {
+        label: "Alt Proje Satırları",
+        refetch: async () => {
+          // Reads the freshly-written sub-project cache to know
+          // which IDs are in scope, then fetches detail rows with
+          // `IN(mserp_subprojectid, [...])`.
+          const client = getDataverseClient();
+          const cached = readCache<Record<string, unknown>>(
+            ENTITY_SETS.subProject
+          );
+          const subIds = (cached?.value ?? [])
+            .map((r) => r.mserp_subprojectid as string | undefined)
+            .filter((s): s is string => !!s);
+          if (subIds.length === 0) {
+            writeCache(ENTITY_SETS.subProjectDetail, {
+              fetchedAt: new Date().toISOString(),
+              value: [],
+              totalCount: 0,
+            });
+            return;
+          }
+          const result = await listAllByInChunked<Record<string, unknown>>(
+            client,
+            ENTITY_SETS.subProjectDetail,
+            "mserp_subprojectid",
+            subIds,
+            {
+              $select: SUB_PROJECT_DETAIL_COLUMNS.join(","),
+              $count: true,
+            }
+          );
+          writeCache(ENTITY_SETS.subProjectDetail, {
             fetchedAt: new Date().toISOString(),
             value: result.value,
             totalCount: result.totalCount,
@@ -701,6 +786,38 @@ export function DataManagementPage() {
       : projectRows;
   }, [sales.rows, selectedProjId]);
 
+  // Alt-proje rows narrowed to the visible (advanced-filtered)
+  // projects so the "Alt Projeler" tab respects the same chip
+  // selection the "Projeler" tab uses. Search query also applies
+  // — substring match across every field via `matchesSearch`.
+  const scopedSubProjects = React.useMemo(() => {
+    let rows = subProjects.rows.filter((r) =>
+      allowedProjectNos.has(String(r["mserp_projid"] ?? ""))
+    );
+    if (searchQuery.trim()) rows = rows.filter(matchesSearch);
+    return rows;
+  }, [subProjects.rows, allowedProjectNos, searchQuery, matchesSearch]);
+
+  // Alt-proje detay satırları — selected sub-project'e göre
+  // filtrelenir. Hiç seçim yoksa empty döner (kullanıcı üstten
+  // bir alt-proje seçmeli — same pattern as Projeler child tabs).
+  const childSubProjectDetails = React.useMemo(() => {
+    if (!selectedSubProjectId) return [];
+    return subProjectDetails.rows.filter(
+      (r) => r["mserp_subprojectid"] === selectedSubProjectId
+    );
+  }, [subProjectDetails.rows, selectedSubProjectId]);
+
+  // Index of the selected sub-project row inside scopedSubProjects
+  // (for the master table's `selectedIndex` highlight prop).
+  const selectedSubProjectIndex = React.useMemo(() => {
+    if (!selectedSubProjectId) return undefined;
+    const idx = scopedSubProjects.findIndex(
+      (r) => r["mserp_subprojectid"] === selectedSubProjectId
+    );
+    return idx >= 0 ? idx : undefined;
+  }, [scopedSubProjects, selectedSubProjectId]);
+
   // Budget rows filtered to selected project's segment (when applicable).
   // Computed at page level so the tab badge can show the filtered count.
   const filteredBudgetRows = React.useMemo(() => {
@@ -710,12 +827,18 @@ export function DataManagementPage() {
     return budget.rows.filter((r) => r.mserp_segment === selectedSegment);
   }, [budget.rows, selectedProjId, selectedSegment]);
 
-  // Top tabs — counts reflect active filter (visible projects + filtered budget)
+  // Top tabs — counts reflect active filter (visible projects +
+  // filtered budget + scoped sub-projects).
   const topTabs: TabItem[] = [
     {
       key: "projects",
       label: "Projeler",
       count: visibleProjects.length || projects.rows.length || undefined,
+    },
+    {
+      key: "sub-projects",
+      label: "Alt Projeler",
+      count: scopedSubProjects.length || subProjects.rows.length || undefined,
     },
     {
       key: "budget",
@@ -785,7 +908,7 @@ export function DataManagementPage() {
         </GlassPanel>
 
         {/* ── Top body: master table ── */}
-        {topTab === "projects" ? (
+        {topTab === "projects" && (
           <GlassPanel tone="default" className="rounded-2xl overflow-hidden">
             <CacheBanner
               fetchedAt={projects.fetchedAt}
@@ -824,7 +947,80 @@ export function DataManagementPage() {
               maxHeight="34vh"
             />
           </GlassPanel>
-        ) : (
+        )}
+        {topTab === "sub-projects" && (
+          <>
+            <GlassPanel tone="default" className="rounded-2xl overflow-hidden">
+              <CacheBanner
+                fetchedAt={subProjects.fetchedAt}
+                isFetching={subProjects.isFetching}
+                loaded={subProjects.loaded}
+                count={scopedSubProjects.length}
+                totalCount={
+                  subProjects.rows.length !== scopedSubProjects.length
+                    ? subProjects.rows.length
+                    : subProjects.totalCount
+                }
+                error={subProjects.error}
+              />
+              <EntityRowsTable
+                rows={scopedSubProjects}
+                columns={[...SUB_PROJECT_COLUMNS]}
+                onRowClick={(row) => {
+                  const id = row.mserp_subprojectid as string | undefined;
+                  setSelectedSubProjectId((prev) =>
+                    prev === id ? null : id ?? null
+                  );
+                }}
+                selectedIndex={selectedSubProjectIndex}
+                emptyText={
+                  subProjects.rows.length === 0
+                    ? "Henüz çekilmedi — üstten Verileri Güncelle"
+                    : "Filtreyle eşleşen alt proje yok"
+                }
+                maxHeight="34vh"
+              />
+            </GlassPanel>
+            {/* Child panel — alt-proje detay satırları, selected
+                sub-project'e göre filtrelenir. */}
+            <GlassPanel tone="default" className="rounded-2xl overflow-hidden">
+              <div className="px-3 py-2 border-b border-foreground/[0.04]">
+                <TabStrip
+                  tabs={[
+                    {
+                      key: "details",
+                      label: "Alt Proje Satırları",
+                      count: childSubProjectDetails.length,
+                    },
+                  ]}
+                  activeKey="details"
+                  onChange={() => {}}
+                />
+              </div>
+              <CacheBanner
+                fetchedAt={subProjectDetails.fetchedAt}
+                isFetching={subProjectDetails.isFetching}
+                loaded={subProjectDetails.loaded}
+                count={childSubProjectDetails.length}
+                totalCount={subProjectDetails.totalCount}
+                error={subProjectDetails.error}
+              />
+              <EntityRowsTable
+                rows={childSubProjectDetails}
+                columns={[...SUB_PROJECT_DETAIL_COLUMNS]}
+                emptyText={
+                  !selectedSubProjectId
+                    ? "Üstten bir alt-proje seç"
+                    : subProjectDetails.rows.length === 0
+                      ? "Henüz çekilmedi — üstten Verileri Güncelle"
+                      : "Bu alt-projeye ait detay satırı yok"
+                }
+                maxHeight="40vh"
+              />
+            </GlassPanel>
+          </>
+        )}
+        {topTab === "budget" && (
           <BudgetsMaster
             query={budget}
             filteredRows={filteredBudgetRows}

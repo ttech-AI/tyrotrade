@@ -54,6 +54,69 @@ export const PROJECT_COLUMNS = [
   "mserp_vendaccount",
 ] as const;
 
+/** mserp_trysubprojectentities — Sub-project table.
+ *
+ *  Each row is a sub-leg of a parent project (linked via `mserp_projid`).
+ *  Used to break a single project into multiple delivery / shipment
+ *  legs that share the parent's commercial setup but differ on dates,
+ *  ports, or trade-type (e.g. KASIM AYI ÇIKIŞLI YÜKLER as line 2 of
+ *  PRJ000001368). Fetched scoped to the already-cached project IDs
+ *  (IN filter on `mserp_projid`) so we only carry sub-rows whose
+ *  parent is in the in-scope project set.
+ *
+ *  Columns ordered by inspector relevance — PK first, then parent
+ *  FK, then the textual description, then per-leg attributes.
+ */
+export const SUB_PROJECT_COLUMNS = [
+  "mserp_subprojectid",
+  "mserp_projid",
+  "mserp_trylinenum",
+  "mserp_description",
+  "mserp_tryexpenseprojecttype",
+  "mserp_dlvmodeid",
+  "mserp_dlvtermid",
+  "mserp_startdate",
+  "mserp_enddate",
+  "mserp_vendaccount",
+  "mserp_custaccount",
+  "mserp_segmentid",
+  "mserp_subsegmentid",
+  "mserp_inventsiteid",
+  "mserp_etgcustchainbranchcode",
+  "mserp_etgtmsrouteid",
+  "mserp_portreceipt",
+  "mserp_portissue",
+] as const;
+
+/** mserp_trysubprojectdetailsentities — Sub-project detail rows
+ *  (sub-table of `mserp_trysubprojectentities`). Each row is one
+ *  delivery leg / itinerary within a parent sub-project. FK =
+ *  `mserp_subprojectid` (parent sub-project). Same column shape
+ *  as the parent table — just the PK swaps in
+ *  `mserp_subprojectdetailsid`. Fetched scoped to the sub-project
+ *  IDs already cached one level up.
+ */
+export const SUB_PROJECT_DETAIL_COLUMNS = [
+  "mserp_subprojectdetailsid",
+  "mserp_subprojectid",
+  "mserp_trylinenum",
+  "mserp_description",
+  "mserp_tryexpenseprojecttype",
+  "mserp_dlvmodeid",
+  "mserp_dlvtermid",
+  "mserp_startdate",
+  "mserp_enddate",
+  "mserp_vendaccount",
+  "mserp_custaccount",
+  "mserp_segmentid",
+  "mserp_subsegmentid",
+  "mserp_inventsiteid",
+  "mserp_etgcustchainbranchcode",
+  "mserp_etgtmsrouteid",
+  "mserp_portreceipt",
+  "mserp_portissue",
+] as const;
+
 /** mserp_tryaiprojectlineentities — Project line items */
 export const PROJECT_LINE_COLUMNS = [
   "mserp_projid",

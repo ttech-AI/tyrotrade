@@ -8,6 +8,8 @@ import {
 import {
   PROJECT_COLUMNS,
   PROJECT_LINE_COLUMNS,
+  SUB_PROJECT_COLUMNS,
+  SUB_PROJECT_DETAIL_COLUMNS,
   SHIP_COLUMNS,
   EXPENSE_COLUMNS,
   // ACTUAL_EXPENSE_COLUMNS intentionally not imported — actualExpense
@@ -55,6 +57,15 @@ export function describeProjectFilter(): string {
 
 const ENTITY_SETS = {
   projects: "mserp_etgtryprojecttableentities",
+  /** Alt-proje tablosu — projeleri sefer/dönem bazlı leg'lere bölen
+   *  alt satırlar. FK = `mserp_projid` (parent project header).
+   *  Tipik kullanım: PRJ000001368 → satır 1, 2, 3 (her ayın yükü). */
+  subProject: "mserp_trysubprojectentities",
+  /** Alt-proje detay satırları — her alt-projenin itinerary'sini
+   *  tutan en aşağıdaki seviye. FK = `mserp_subprojectid` (parent
+   *  alt-proje). Tipik kullanım: HASATA-4 → satır 1, 2, 3 (her
+   *  durağın taşıma kaydı). */
+  subProjectDetail: "mserp_trysubprojectdetailsentities",
   ship: "mserp_tryaiprojectshiprelationentities",
   lines: "mserp_tryaiprojectlineentities",
   expense: "mserp_tryaiotherexpenseentities",
@@ -470,6 +481,71 @@ export async function refreshAllEntities(
           }
         );
         writeCache(ENTITY_SETS.lines, {
+          fetchedAt: new Date().toISOString(),
+          value: result.value,
+          totalCount: result.totalCount,
+        });
+      },
+    },
+    {
+      label: "Alt Projeler",
+      run: async () => {
+        // Sub-project rows scoped to the already-cached project IDs.
+        // FK = `mserp_projid` (parent project header). Many parents
+        // have zero sub-rows — that's normal; the IN filter just
+        // narrows the response to the in-scope projects.
+        const projids = readProjids();
+        const result = await listAllByInChunked<Record<string, unknown>>(
+          client,
+          ENTITY_SETS.subProject,
+          "mserp_projid",
+          projids,
+          {
+            $select: SUB_PROJECT_COLUMNS.join(","),
+            $count: true,
+          }
+        );
+        writeCache(ENTITY_SETS.subProject, {
+          fetchedAt: new Date().toISOString(),
+          value: result.value,
+          totalCount: result.totalCount,
+        });
+      },
+    },
+    {
+      label: "Alt Proje Satırları",
+      run: async () => {
+        // Detail rows scoped to the sub-project IDs we just wrote.
+        // FK = `mserp_subprojectid`. Reads the freshly-written
+        // sub-project cache to know which IDs are in scope.
+        const cached = readCache<Record<string, unknown>>(
+          ENTITY_SETS.subProject
+        );
+        const subProjIds = (cached?.value ?? [])
+          .map((r) => r.mserp_subprojectid as string | undefined)
+          .filter((s): s is string => !!s);
+        if (subProjIds.length === 0) {
+          // No sub-projects in scope → nothing to fetch. Write an
+          // empty cache so the inspector reflects "0 rows" instead
+          // of dangling stale data from a previous refresh.
+          writeCache(ENTITY_SETS.subProjectDetail, {
+            fetchedAt: new Date().toISOString(),
+            value: [],
+            totalCount: 0,
+          });
+          return;
+        }
+        const result = await listAllByInChunked<Record<string, unknown>>(
+          client,
+          ENTITY_SETS.subProjectDetail,
+          "mserp_subprojectid",
+          subProjIds,
+          {
+            $select: SUB_PROJECT_DETAIL_COLUMNS.join(","),
+            $count: true,
+          }
+        );
+        writeCache(ENTITY_SETS.subProjectDetail, {
           fetchedAt: new Date().toISOString(),
           value: result.value,
           totalCount: result.totalCount,
