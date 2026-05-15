@@ -3,7 +3,6 @@ import { ArrowRight, Route } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { BubbleChatIcon } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
-import { formatTons } from "@/lib/format";
 import { type Project } from "@/lib/dataverse/entities";
 import { useThemeAccent } from "@/components/layout/theme-accent";
 import { TYRO_CHAT_TONE } from "@/components/layout/TyroChatButton";
@@ -72,7 +71,6 @@ const FALLBACK_TONE = {
 
 export function ProjectCard({ project, selected, onClick, onQuickAsk }: ProjectCardProps) {
   const accent = useThemeAccent();
-  const totalKg = project.lines.reduce((s, l) => s + l.quantityKg, 0);
   // Use vessel voyage status when present; fall back to project Open/Closed.
   const status = project.vesselPlan?.vesselStatus ?? project.status;
   const tone = STATUS_TONE[status] ?? FALLBACK_TONE;
@@ -148,7 +146,8 @@ export function ProjectCard({ project, selected, onClick, onQuickAsk }: ProjectC
         {project.projectName}
       </h3>
 
-      {/* Row 3 — route + tonage */}
+      {/* Row 3 — route (tonnage removed; the trailing slot now hosts
+          the hover-only TYRO Chat ikon, see button below). */}
       <div className="relative mt-1.5 flex items-center gap-1.5 min-w-0 text-[11.5px] text-muted-foreground">
         <Route
           className="size-3 shrink-0 opacity-60 text-muted-foreground"
@@ -158,9 +157,9 @@ export function ProjectCard({ project, selected, onClick, onQuickAsk }: ProjectC
         <span className="truncate min-w-0">{lp}</span>
         <ArrowRight className="size-3 shrink-0 opacity-50" />
         <span className="truncate min-w-0">{dp}</span>
-        <span className="ml-auto font-medium text-foreground/85 tabular-nums shrink-0">
-          {formatTons(totalKg)}t
-        </span>
+        {/* Reserved trailing slot — size matches the chat ikon so the
+            route text never reflows on hover. */}
+        <span className="ml-auto size-6 shrink-0" aria-hidden />
       </div>
 
       {/* Status caption — only shown when selected */}
@@ -177,7 +176,11 @@ export function ProjectCard({ project, selected, onClick, onQuickAsk }: ProjectC
         type="button"
         onClick={(e) => { e.stopPropagation(); onQuickAsk(e, project); }}
         aria-label="TYRO Chat'te sor"
-        className="absolute top-1.5 right-1.5 size-6 rounded-lg grid place-items-center text-white shadow-md transition-transform opacity-0 group-hover:opacity-100 hover:scale-110 active:scale-95"
+        // Positioned at the route row's trailing edge — replaces the
+        // tonnage display the user retired. Hover-only so the card
+        // stays calm by default but the chat affordance is one
+        // pixel away when the user mouses in.
+        className="absolute bottom-2 right-2 size-6 rounded-lg grid place-items-center text-white shadow-md transition-transform opacity-0 group-hover:opacity-100 hover:scale-110 active:scale-95"
         style={{
           background: TYRO_CHAT_TONE.gradient,
           boxShadow: `0 3px 8px -2px ${TYRO_CHAT_TONE.ring}`,
