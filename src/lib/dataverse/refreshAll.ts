@@ -424,6 +424,46 @@ function readAllScopedProjids(): string[] {
 }
 
 /**
+ * Maximum number of HTTP requests in flight at once when fanning out
+ * a chunked fetch. Browser HTTP/2 allows ~100 concurrent streams per
+ * origin, but Dataverse virtual entities have their own rate-limiter
+ * + throttle. Hard fan-out of all 20+ chunks at once was triggering
+ * 429s; each 429 triggers a retry chain (1s, 2s, 3s backoff × 3),
+ * which inflated total step time and looked like a hang. Cap at 6 to
+ * stay under Dataverse's concurrency tolerance while still amortising
+ * away from pure-sequential.
+ */
+const MAX_CONCURRENT_CHUNKS = 6;
+
+/**
+ * Run an array of async tasks with a bounded concurrency. Generic
+ * worker-pool: every task is a thunk that produces a Promise; we keep
+ * `concurrency` workers pulling the next thunk until the queue is
+ * empty. Order of results matches input order so callers can splice
+ * them straight into a concatenated result array.
+ */
+async function runWithConcurrency<T>(
+  factories: Array<() => Promise<T>>,
+  concurrency: number
+): Promise<T[]> {
+  const results: T[] = new Array(factories.length);
+  let next = 0;
+  async function worker(): Promise<void> {
+    while (true) {
+      const i = next++;
+      if (i >= factories.length) return;
+      results[i] = await factories[i]();
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, factories.length) }, () =>
+      worker()
+    )
+  );
+  return results;
+}
+
+/**
  * Run `client.listAll` once per chunk of project IDs and concatenate
  * the results. Drops a request URL of ~10KB+ down to ~2.5KB per call,
  * which keeps Dataverse + any proxy in the path happy. Returns the
@@ -449,27 +489,27 @@ export async function listAllByInChunked<T>(
     // Empty list → no fetch (server would otherwise scan the entire entity).
     return { value: [], totalCount: 0 };
   }
-  // Build all chunk requests up front, then fire them in PARALLEL via
-  // Promise.all. Sequential `await` in a loop made the
-  // realised-expense rollup take ~2-3 minutes (~110 fetches × ~1-2s
-  // each); parallel execution lets the browser pool ride at HTTP/2
-  // concurrency and finish in ~10-20s. Chunks are independent (each
-  // covers a disjoint slice of `projids`) so order doesn't matter.
-  const requests: Promise<{ value: T[]; totalCount?: number }>[] = [];
+  // Build chunk factory thunks, then run them with bounded
+  // concurrency. Pure Promise.all over 20+ requests triggered
+  // Dataverse rate-limiting (429 + retry chain) which inflated the
+  // refresh into a perceived hang. `runWithConcurrency` caps at
+  // `MAX_CONCURRENT_CHUNKS` so the server-side queue stays calm.
+  const factories: Array<() => Promise<{ value: T[]; totalCount?: number }>> =
+    [];
   for (let i = 0; i < projids.length; i += chunkSize) {
     const chunk = projids.slice(i, i + chunkSize);
     const inClause = buildInFilter(field, chunk);
     const $filter = extraFilter
       ? `${inClause} and (${extraFilter})`
       : inClause;
-    requests.push(
+    factories.push(() =>
       client.listAll<T>(entitySet, {
         ...baseQuery,
         $filter,
       })
     );
   }
-  const results = await Promise.all(requests);
+  const results = await runWithConcurrency(factories, MAX_CONCURRENT_CHUNKS);
   const all: T[] = [];
   let totalCount: number | undefined;
   for (const result of results) {
@@ -497,14 +537,18 @@ export async function applyByInChunked<T>(
   chunkSize: number = PROJID_CHUNK_SIZE
 ): Promise<{ value: T[] }> {
   if (projids.length === 0) return { value: [] };
-  const requests: Promise<{ value: T[] }>[] = [];
+  // Bounded concurrency — see `listAllByInChunked` for rationale.
+  // Aggregate queries hit the same Dataverse rate-limiter as raw
+  // fetches; firing 20+ at once on the F&O virtual entity tripped
+  // the throttle and triggered retry chains that looked like a hang.
+  const factories: Array<() => Promise<{ value: T[] }>> = [];
   for (let i = 0; i < projids.length; i += chunkSize) {
     const chunk = projids.slice(i, i + chunkSize);
     const inClause = buildInFilter(field, chunk);
     const apply = buildApply(inClause);
-    requests.push(client.list<T>(entitySet, { $apply: apply }));
+    factories.push(() => client.list<T>(entitySet, { $apply: apply }));
   }
-  const results = await Promise.all(requests);
+  const results = await runWithConcurrency(factories, MAX_CONCURRENT_CHUNKS);
   const all: T[] = [];
   for (const result of results) {
     all.push(...result.value);
