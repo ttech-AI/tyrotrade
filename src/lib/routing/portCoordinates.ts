@@ -1202,6 +1202,62 @@ export const PORT_RECORDS: Record<string, PortRecord> = {
     lat: 37.331,
     aliases: ["sevilla", "seville"],
   },
+
+  // ── 2026-05 unresolved port batch #2 ──────────────────────────────────────
+  // Surfaced by the same `useRealProjects` warning after sub-projects
+  // landed in the project union. "Aalborg,Antwerp" is a composite
+  // discharge string — `lookupPort` strips at the comma and reads the
+  // first segment, so only `aalborg` needs a canonical entry (Antwerp
+  // is already in the dictionary above).
+  aalborg: {
+    name: "Aalborg",
+    country: "Denmark",
+    lon: 9.9217,
+    lat: 57.0488,
+    aliases: ["aalborg", "alborg"],
+  },
+  kingabdullahport: {
+    // King Abdullah Port — deep-water container/bulk terminal on the
+    // Red Sea ~100km north of Jeddah, opened 2013. Coords anchor on
+    // the breakwater entrance.
+    name: "King Abdullah Port",
+    country: "Saudi Arabia",
+    lon: 39.0833,
+    lat: 22.4833,
+    aliases: ["kingabdullahport", "kingabdullah", "kap", "rabigh"],
+  },
+  liverpool: {
+    // Liverpool / Port of Liverpool — Mersey estuary, west coast UK.
+    // F&O data sometimes spells it "Liverpool (UK)" so the
+    // paren-strip path catches that variant.
+    name: "Liverpool",
+    country: "United Kingdom",
+    lon: -3.0036,
+    lat: 53.4084,
+    aliases: ["liverpool", "liverpooluk"],
+  },
+  newport: {
+    // Newport, Wales — Bristol Channel bulk port. The US (Kentucky /
+    // Rhode Island) variants don't appear in Tiryaki data, so we map
+    // bare "Newport" directly to the Welsh port. If a US variant ever
+    // surfaces, add a separate canonical key + disambiguation hint.
+    name: "Newport",
+    country: "United Kingdom",
+    lon: -2.9988,
+    lat: 51.5481,
+    aliases: ["newport", "newportwales", "newportuk"],
+  },
+  stockton: {
+    // Port of Stockton — inland deep-water port on the San Joaquin
+    // River, California. Vessels enter via the San Francisco Bay
+    // Delta. F&O data tags it "Stockton (US)" — paren-strip handles
+    // the suffix.
+    name: "Stockton",
+    country: "USA",
+    lon: -121.2908,
+    lat: 37.9577,
+    aliases: ["stockton", "stocktonus", "stocktonca"],
+  },
 };
 
 /** Normalisation: lowercase → strip Turkish diacritics → strip non-alphanumerics.
