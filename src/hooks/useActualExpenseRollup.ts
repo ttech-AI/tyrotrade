@@ -124,13 +124,26 @@ export function useActualExpenseRollup(): UseActualExpenseRollupReturn {
       const client = getDataverseClient();
       // Re-read the active project IDs at fetch time (the projects
       // cache may have been refreshed in the background between
-      // mounts).
+      // mounts). Include sub-project IDs in the same union — voyage
+      // legs book their own realised-expense rows under the same
+      // FK columns the rollup pipeline scans, so omitting them would
+      // silently undercount the Trade Cost report.
       const projidCache = readCache<Record<string, unknown>>(
         "mserp_etgtryprojecttableentities"
       );
-      const projids = (projidCache?.value ?? [])
-        .map((p) => p.mserp_projid as string | undefined)
-        .filter((s): s is string => !!s);
+      const subProjidCache = readCache<Record<string, unknown>>(
+        "mserp_trysubprojectentities"
+      );
+      const idSet = new Set<string>();
+      for (const r of projidCache?.value ?? []) {
+        const id = r.mserp_projid as string | undefined;
+        if (id) idSet.add(id);
+      }
+      for (const r of subProjidCache?.value ?? []) {
+        const id = r.mserp_subprojectid as string | undefined;
+        if (id) idSet.add(id);
+      }
+      const projids = [...idSet];
 
       const rollup = await fetchActualExpenseRollupForAllProjects(
         client,

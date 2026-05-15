@@ -47,6 +47,16 @@ export interface ComposeInput {
    *  One row per (projid, currency). When present, projects are enriched
    *  with `salesActualUsd` + `salesActualByCurrency`. */
   salesAggregateRows?: Record<string, unknown>[];
+  /** Optional — sub-project (alt-proje) header rows. When present, every
+   *  parent project that has one or more sub-project rows is HIDDEN from
+   *  the output and replaced by a synthetic `Project` per sub-project.
+   *  The synthetic project inherits segment / trader / currency / etc.
+   *  from the parent and gets its `projectName` from the sub-project's
+   *  `mserp_description`. `lines` stays empty for sub-projects (line
+   *  catalogue belongs to the parent). All other child entities
+   *  (ship-plan, expense, sales) join through the sub-project ID under
+   *  the same FK columns parents use. */
+  subProjectRows?: Record<string, unknown>[];
 }
 
 export interface ComposeWarnings {
@@ -85,7 +95,23 @@ export function composeProjects(input: ComposeInput): ComposeResult {
     expenseRows,
     budgetRows,
     salesAggregateRows,
+    subProjectRows,
   } = input;
+
+  // Sub-project elevation index. Group sub-projects by their parent
+  // `mserp_projid` so we can (a) hide parents that own sub-projects
+  // and (b) emit one synthetic Project per sub-project. Empty when the
+  // sub-project cache hasn't been written yet (mock mode, first-time
+  // refresh, etc.) — composition then degrades gracefully to the old
+  // parent-only behaviour.
+  const subsByParent = new Map<string, Record<string, unknown>[]>();
+  for (const r of subProjectRows ?? []) {
+    const parentId = readString(r, "mserp_projid");
+    if (!parentId) continue;
+    const list = subsByParent.get(parentId);
+    if (list) list.push(r);
+    else subsByParent.set(parentId, [r]);
+  }
 
   // 1. Build per-projid Maps once. O(n + m + k).
   const shipByProjid = new Map<string, Record<string, unknown>>();
@@ -207,14 +233,54 @@ export function composeProjects(input: ComposeInput): ComposeResult {
   let projectsWithoutShipPlan = 0;
   let projectsWithMissingPort = 0;
 
-  const projects: Project[] = projectRows.map((p) => {
-    const projid = readString(p, "mserp_projid");
-    const ship = projid ? shipByProjid.get(projid) : undefined;
-    const linesRaw = projid ? linesByProjid.get(projid) ?? [] : [];
-    const expensesRaw = projid ? expensesByProjid.get(projid) ?? [] : [];
+  /**
+   * Build one Project from either a parent row OR a sub-project row.
+   *
+   * When `sub` is null, this is a regular parent project: `entityId` is
+   * the parent's `mserp_projid`, line catalogue comes from the parent,
+   * and segment/trader/etc. read from the parent row directly.
+   *
+   * When `sub` is non-null, this is an elevated sub-project: `entityId`
+   * is the sub-project's `mserp_subprojectid` (used as the join key for
+   * ALL child entities — ship-plan, expense, sales, purchase — because
+   * the F&O custom layer writes those FKs against sub-project IDs the
+   * same way they target parent IDs). The project name comes from the
+   * sub-project's `mserp_description`. Segment + trader + currency are
+   * INHERITED from the parent — sub-projects don't carry those columns
+   * on their own header. `lines` stays empty because the line catalogue
+   * belongs to the parent; voyage legs (sub-projects) split logistics,
+   * not the order itself.
+   */
+  const buildProject = (
+    parent: Record<string, unknown>,
+    sub: Record<string, unknown> | null
+  ): Project => {
+    const parentProjid = readString(parent, "mserp_projid");
+    const subProjid = sub ? readString(sub, "mserp_subprojectid") : "";
+    // Entity ID used as the FK lookup key into every child Map.
+    const entityId = sub ? subProjid : parentProjid;
+
+    const ship = entityId ? shipByProjid.get(entityId) : undefined;
+    // Lines belong to the parent only. For sub-projects we emit an
+    // empty array so the right-panel "Proje Satırları" card renders a
+    // graceful empty state instead of inheriting the parent catalogue
+    // (which would double-count if the parent surfaced too).
+    const linesRaw = sub
+      ? []
+      : entityId
+      ? linesByProjid.get(entityId) ?? []
+      : [];
+    const expensesRaw = entityId
+      ? expensesByProjid.get(entityId) ?? []
+      : [];
 
     const projectLines = linesRaw.map(toProjectLine);
-    const projectNameForVessel = readString(p, "mserp_projname") ?? "";
+    // Vessel-name title fallback: prefer the sub-project description
+    // when present (often carries the vessel inline, e.g. "MV XIN HAI
+    // TONG 29 / VOYAGE 2"); fall back to the parent's projname.
+    const projectNameForVessel = sub
+      ? readString(sub, "mserp_description") || readString(parent, "mserp_projname") || ""
+      : readString(parent, "mserp_projname") || "";
     const vesselPlan = ship
       ? toVesselPlan(ship, projectNameForVessel)
       : undefined;
@@ -244,11 +310,15 @@ export function composeProjects(input: ComposeInput): ComposeResult {
       projectsWithMissingPort++;
     }
 
-    const currency = normaliseCurrency(readString(p, "mserp_currencycode"));
+    // Currency: sub-projects don't carry their own currency column —
+    // inherit from the parent header.
+    const currency = normaliseCurrency(readString(parent, "mserp_currencycode"));
 
     // Synthetic cargoValueUsd from lines × unitPrice, but only when project
     // currency is USD (no FX conversion in V1). Existing selectors fall back
     // to the same calc when this field is undefined.
+    // Sub-projects have no lines, so this branch only fires for parents
+    // (sub-projects rely on the ship-plan's own cargoValueUsd if set).
     if (vesselPlan && currency === "USD" && projectLines.length > 0) {
       const sum = projectLines.reduce(
         (acc, l) => acc + (l.quantityKg / 1000) * l.unitPrice,
@@ -257,10 +327,15 @@ export function composeProjects(input: ComposeInput): ComposeResult {
       if (sum > 0) vesselPlan.cargoValueUsd = Math.round(sum);
     }
 
-    const segment = readString(p, "mserp_tryprojectsegment") || null;
+    // Segment INHERITED from parent (sub-project header doesn't carry
+    // `mserp_tryprojectsegment` — its own `mserp_segmentid` is a
+    // different attribute).
+    const segment = readString(parent, "mserp_tryprojectsegment") || null;
 
-    // Sales actual enrichment from aggregate cache
-    const salesEntry = projid ? salesByProjid.get(projid) : undefined;
+    // Sales actual enrichment from aggregate cache, keyed by the active
+    // entityId — sub-projects look up their own salesAggregate row;
+    // parents look up theirs.
+    const salesEntry = entityId ? salesByProjid.get(entityId) : undefined;
     const salesActualUsd = salesEntry
       ? Math.round(salesEntry.usd)
       : undefined;
@@ -304,38 +379,87 @@ export function composeProjects(input: ComposeInput): ComposeResult {
       }
     }
 
+    // Project name resolution:
+    //  - Parent project → its own `mserp_projname`
+    //  - Sub-project → its own `mserp_description` (per spec)
+    //    Fall back to the parent's name when description is empty so
+    //    the UI never renders a blank title.
+    const projectName = sub
+      ? readString(sub, "mserp_description") ||
+        readString(parent, "mserp_projname") ||
+        entityId ||
+        "(adsız)"
+      : readString(parent, "mserp_projname") || entityId || "(adsız)";
+
+    // Sub-projects often carry their own `mserp_dlvmodeid` /
+    // `mserp_dlvtermid` (delivery mode/term), `mserp_startdate` /
+    // `mserp_enddate` (operation window) — prefer those when set,
+    // fall back to the parent's value otherwise.
+    const deliveryMode = sub
+      ? normaliseDeliveryModeFromSub(sub) || normaliseDeliveryMode(parent)
+      : normaliseDeliveryMode(parent);
+    const incoterm = sub
+      ? normaliseIncotermFromSub(sub) || normaliseIncoterm(parent)
+      : normaliseIncoterm(parent);
+
+    // projectDate (contract / signing date): parents read
+    // `mserp_contractdate`. Sub-projects don't have a contract date —
+    // use the sub-project's startdate (operation window start) as a
+    // proxy; fall back to the parent's contract date.
+    const projectDate = sub
+      ? isoDate(sub["mserp_startdate"]) ??
+        isoDate(parent["mserp_contractdate"]) ??
+        ""
+      : isoDate(parent["mserp_contractdate"]) ?? "";
+
+    // operationPeriod (execution period): parents read
+    // `mserp_executionperiod`. Sub-projects use enddate (operation
+    // window close) as a closer-to-reality "execution" marker; fall
+    // back to the parent's executionperiod.
+    const operationPeriod = sub
+      ? isoDate(sub["mserp_enddate"]) ?? isoDate(parent["mserp_executionperiod"])
+      : isoDate(parent["mserp_executionperiod"]);
+
     const project: Project = {
-      projectNo: projid || `unknown-${Math.random().toString(36).slice(2, 8)}`,
-      projectName:
-        readString(p, "mserp_projname") || projid || "(adsız)",
-      projectGroup: readString(p, "mserp_projgroupid") || "TAHIL",
-      traderNo: readString(p, "mserp_traderid") || "",
-      mainTraderNo: readString(p, "mserp_maintraderid") || "",
-      customerAccount: readString(p, "mserp_vendaccount") || null,
+      projectNo: entityId || `unknown-${Math.random().toString(36).slice(2, 8)}`,
+      projectName,
+      projectGroup: readString(parent, "mserp_projgroupid") || "TAHIL",
+      // Trader IDs INHERITED from parent — sub-projects don't own
+      // these columns on their own headers.
+      traderNo: readString(parent, "mserp_traderid") || "",
+      mainTraderNo: readString(parent, "mserp_maintraderid") || "",
+      customerAccount: sub
+        ? readString(sub, "mserp_custaccount") ||
+          readString(sub, "mserp_vendaccount") ||
+          readString(parent, "mserp_vendaccount") ||
+          null
+        : readString(parent, "mserp_vendaccount") || null,
       description:
-        getFormattedValue(p, "mserp_vendaccountdescription") ?? null,
+        getFormattedValue(parent, "mserp_vendaccountdescription") ?? null,
       currency,
-      tradeType: readString(p, "mserp_projtradetypeid") || "TICARET",
+      tradeType: readString(parent, "mserp_projtradetypeid") || "TICARET",
       segment,
-      deliveryMode: normaliseDeliveryMode(p),
-      incoterm: normaliseIncoterm(p),
+      deliveryMode,
+      incoterm,
+      // Workflow + status from parent (sub-project header carries no
+      // workflow column; status fields are also parent-owned).
       status:
-        getFormattedValue(p, "mserp_status") ||
-        readString(p, "mserp_status") ||
+        getFormattedValue(parent, "mserp_status") ||
+        readString(parent, "mserp_status") ||
         "Açık",
       workflowStatus:
-        getFormattedValue(p, "mserp_workflowstatus") ||
-        readString(p, "mserp_workflowstatus") ||
+        getFormattedValue(parent, "mserp_workflowstatus") ||
+        readString(parent, "mserp_workflowstatus") ||
         "Gönderilmedi",
-      projectDate: isoDate(p["mserp_contractdate"]) ?? "",
+      projectDate,
       organic: undefined,
       transactionDirection: null,
-      // Operasyon periyodu — F&O `mserp_executionperiod`. When set,
-      // this is the date the dashboard FY filter + period bucketing
-      // + per-row FX conversion key on (vs. signing-date
-      // `projectDate`). Falls back to `projectDate` everywhere via
-      // `selectExecutionDate(p)`.
-      operationPeriod: isoDate(p["mserp_executionperiod"]),
+      // Operasyon periyodu — F&O `mserp_executionperiod` (parent) or
+      // `mserp_enddate` (sub). When set, this is the date the dashboard
+      // FY filter + period bucketing + per-row FX conversion key on
+      // (vs. signing-date `projectDate`). Falls back to `projectDate`
+      // everywhere via `selectExecutionDate(p)`.
+      operationPeriod,
       vesselPlan,
       lines: projectLines,
       costEstimate,
@@ -349,7 +473,29 @@ export function composeProjects(input: ComposeInput): ComposeResult {
     };
 
     return project;
-  });
+  };
+
+  // Two-pass composition:
+  // 1. Iterate parent projectRows. For each parent that has sub-rows,
+  //    emit ONLY the sub-projects (parent hidden). Otherwise emit the
+  //    parent normally.
+  // 2. Sub-rows whose parent isn't in `projectRows` (rare but possible
+  //    when the parent fell out of scope) are dropped — without a
+  //    parent we have no segment / trader / currency to inherit, and
+  //    surfacing an orphan sub-project would look like a phantom
+  //    project to the user.
+  const projects: Project[] = [];
+  for (const parent of projectRows) {
+    const parentId = readString(parent, "mserp_projid");
+    const subs = parentId ? subsByParent.get(parentId) : undefined;
+    if (subs && subs.length > 0) {
+      for (const sub of subs) {
+        projects.push(buildProject(parent, sub));
+      }
+    } else {
+      projects.push(buildProject(parent, null));
+    }
+  }
 
   // Sort by date desc so the most recent projects (which actually have ship
   // plans) bubble to the top — list/auto-select default UX. Old projects
@@ -837,6 +983,23 @@ function normaliseDeliveryMode(p: Record<string, unknown>): DeliveryMode {
   return "Gemi";
 }
 
+/** Sub-project variant — sub-project header uses `mserp_dlvmodeid`
+ *  (note the `id` suffix) instead of the parent's `mserp_dlvmode`.
+ *  Returns null when the column is absent / empty so the caller can
+ *  fall back to the parent's value. */
+function normaliseDeliveryModeFromSub(
+  sub: Record<string, unknown>
+): DeliveryMode | null {
+  const fv =
+    getFormattedValue(sub, "mserp_dlvmodeid") ||
+    readString(sub, "mserp_dlvmodeid");
+  if (!fv) return null;
+  const u = fv.toLowerCase();
+  if (u.includes("kara") || u.includes("road") || u.includes("truck")) return "Kara";
+  if (u.includes("konteyner") || u.includes("container")) return "Konteyner";
+  return "Gemi";
+}
+
 function normaliseCurrency(raw: string): "USD" | "EUR" | "TRY" {
   if (raw === "USD" || raw === "EUR" || raw === "TRY") return raw;
   // Real Dataverse uses ISO codes uppercased — anything else (TL, EURO, etc.)
@@ -858,6 +1021,25 @@ function normaliseIncoterm(p: Record<string, unknown>): Incoterm {
   if (u.includes("EXW")) return "EXW";
   // Tenant-specific codes (e.g. MUS_DP_TES) — Incoterm is `string` union,
   // pass through so the chip shows the raw label.
+  return raw as Incoterm;
+}
+
+/** Sub-project variant — column is `mserp_dlvtermid` (note `id` suffix).
+ *  Returns null when absent so the caller can inherit from parent. */
+function normaliseIncotermFromSub(
+  sub: Record<string, unknown>
+): Incoterm | null {
+  const raw =
+    getFormattedValue(sub, "mserp_dlvtermid") ||
+    readString(sub, "mserp_dlvtermid");
+  if (!raw) return null;
+  const u = raw.toUpperCase();
+  if (u.includes("FOB")) return "FOB";
+  if (u.includes("CIF")) return "CIF";
+  if (u.includes("CFR")) return "CFR";
+  if (u.includes("DAP")) return "DAP";
+  if (u.includes("DDP")) return "DDP";
+  if (u.includes("EXW")) return "EXW";
   return raw as Incoterm;
 }
 

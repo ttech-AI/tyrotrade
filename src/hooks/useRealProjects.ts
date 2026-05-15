@@ -12,6 +12,11 @@ import type { Project } from "@/lib/dataverse/entities";
 
 const ENTITY_SETS = {
   projects: "mserp_etgtryprojecttableentities",
+  /** Sub-project header — voyage legs split out from a parent project.
+   *  When present, the composer HIDES the parent and emits one
+   *  synthetic Project per sub-project (with the parent's segment /
+   *  trader / currency inherited). FK to parent: `mserp_projid`. */
+  subProject: "mserp_trysubprojectentities",
   ship: "mserp_tryaiprojectshiprelationentities",
   lines: "mserp_tryaiprojectlineentities",
   expense: "mserp_tryaiotherexpenseentities",
@@ -59,6 +64,7 @@ export function useRealProjects(): UseRealProjectsReturn {
   // Cheap fingerprints: first 80 chars of the raw localStorage value.
   // Covers fetchedAt + start of array, enough to detect a real refresh.
   const fpProjects = useCacheFingerprint(ENTITY_SETS.projects);
+  const fpSubProject = useCacheFingerprint(ENTITY_SETS.subProject);
   const fpShip = useCacheFingerprint(ENTITY_SETS.ship);
   const fpLines = useCacheFingerprint(ENTITY_SETS.lines);
   const fpExpense = useCacheFingerprint(ENTITY_SETS.expense);
@@ -67,6 +73,9 @@ export function useRealProjects(): UseRealProjectsReturn {
 
   return React.useMemo<UseRealProjectsReturn>(() => {
     const projC = readCache<Record<string, unknown>>(ENTITY_SETS.projects);
+    const subProjC = readCache<Record<string, unknown>>(
+      ENTITY_SETS.subProject
+    );
     const shipC = readCache<Record<string, unknown>>(ENTITY_SETS.ship);
     const linesC = readCache<Record<string, unknown>>(ENTITY_SETS.lines);
     const expC = readCache<Record<string, unknown>>(ENTITY_SETS.expense);
@@ -94,6 +103,9 @@ export function useRealProjects(): UseRealProjectsReturn {
       expenseRows: expC?.value ?? [],
       budgetRows: budgetC?.value ?? [],
       salesAggregateRows: salesAggC?.value ?? [],
+      // Sub-project rows lift parents to voyage-leg granularity.
+      // Missing cache → composer falls back to parent-only output.
+      subProjectRows: subProjC?.value ?? [],
     });
 
     // Surface unresolved ports proactively so they can all be added in
@@ -119,7 +131,7 @@ export function useRealProjects(): UseRealProjectsReturn {
       warnings: composed.warnings,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fpProjects, fpShip, fpLines, fpExpense, fpBudget, fpSalesAgg]);
+  }, [fpProjects, fpSubProject, fpShip, fpLines, fpExpense, fpBudget, fpSalesAgg]);
 }
 
 /**

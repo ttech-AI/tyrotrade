@@ -101,11 +101,27 @@ type ChildTabKey =
   | "actualExpense"
   | "sales"
   | "purchase";
+// Sub-project child tabs — same join surface as parent projects MINUS
+// "lines" (sub-projects don't carry their own line catalogue; that
+// belongs to the parent project). PLUS the "details" tab for the
+// sub-project's own itinerary detail rows from
+// `mserp_trysubprojectdetailsentities`.
+type SubChildTabKey =
+  | "details"
+  | "ship"
+  | "expense"
+  | "actualExpense"
+  | "sales"
+  | "purchase";
 
 
 export function DataManagementPage() {
   const [topTab, setTopTab] = React.useState<TopTabKey>("projects");
   const [childTab, setChildTab] = React.useState<ChildTabKey>("lines");
+  // Sub-project child tab — independent state from the project child
+  // tab so each top-level tab remembers its own pane on switch.
+  const [subChildTab, setSubChildTab] =
+    React.useState<SubChildTabKey>("details");
 
   // Unified Advanced Filter state — same shape as Dashboard / Vessel
   // Projects. Veri Yönetimi defaults to "all projects in" since the
@@ -343,6 +359,30 @@ export function DataManagementPage() {
         .map((p) => p.mserp_projid as string | undefined)
         .filter((s): s is string => !!s);
     };
+    // Union of parent projids + sub-projids — every "child entity by
+    // project FK" step (ship, expense, purchase, sales, monthly sales)
+    // must use this so the rows attached to sub-projects flow through
+    // the same caches. Mirrors `readAllScopedProjids` in refreshAll.ts.
+    // "Proje Satırları" + "Alt Projeler" stay on `readProjids()` (parent
+    // catalogue only; sub-projects don't own their own line list).
+    const readAllScopedProjids = (): string[] => {
+      const projCache = readCache<Record<string, unknown>>(
+        ENTITY_SETS.projects
+      );
+      const subCache = readCache<Record<string, unknown>>(
+        ENTITY_SETS.subProject
+      );
+      const ids = new Set<string>();
+      for (const row of projCache?.value ?? []) {
+        const id = row.mserp_projid as string | undefined;
+        if (id) ids.add(id);
+      }
+      for (const row of subCache?.value ?? []) {
+        const id = row.mserp_subprojectid as string | undefined;
+        if (id) ids.add(id);
+      }
+      return [...ids];
+    };
     return [
       { label: "Projeler", refetch: projects.refetch },
       {
@@ -429,7 +469,10 @@ export function DataManagementPage() {
         label: "Gemi Planı",
         refetch: async () => {
           const client = getDataverseClient();
-          const projids = readProjids();
+          // Union of parent + sub-project IDs — sub-projects own their
+          // own ship-plan rows on this tenant (joined via the same
+          // `mserp_tryshipprojid` FK).
+          const projids = readAllScopedProjids();
           const result = await listAllByInChunked<Record<string, unknown>>(
             client,
             ENTITY_SETS.ship,
@@ -459,7 +502,9 @@ export function DataManagementPage() {
         label: "Tahmini Gider",
         refetch: async () => {
           const client = getDataverseClient();
-          const projids = readProjids();
+          // Union scope: sub-projects book their own expense rows
+          // under `mserp_etgtryprojid` = sub-projectId.
+          const projids = readAllScopedProjids();
           const result = await listAllByInChunked<Record<string, unknown>>(
             client,
             ENTITY_SETS.expense,
@@ -537,7 +582,9 @@ export function DataManagementPage() {
         label: "Satınalma Faturaları",
         refetch: async () => {
           const client = getDataverseClient();
-          const projids = readProjids();
+          // Union scope: vendor-invoice rows for voyage legs target
+          // the sub-project FK on `mserp_purchtable_etgtryprojid`.
+          const projids = readAllScopedProjids();
           const result = await listAllByInChunked<Record<string, unknown>>(
             client,
             ENTITY_SETS.purchase,
@@ -578,8 +625,12 @@ export function DataManagementPage() {
           // strip financing salesids client-side, then re-aggregate
           // on (projid, currency) to match the cache shape downstream
           // consumers expect.
+          //
+          // Union scope: parent + sub-projects so a sub-project's
+          // realised sales total lands in the same per-project cache
+          // keyed by either parent or sub-project FK.
           const client = getDataverseClient();
-          const projids = readProjids();
+          const projids = readAllScopedProjids();
           const result = await applyByInChunked<Record<string, unknown>>(
             client,
             "mserp_tryaicustinvoicetransentities",
@@ -632,7 +683,8 @@ export function DataManagementPage() {
         label: "Proje × Ay Satış",
         refetch: async () => {
           const client = getDataverseClient();
-          const projids = readProjids();
+          // Union scope: same rationale as Satış Toplamları above.
+          const projids = readAllScopedProjids();
           if (projids.length === 0) {
             writeCache("salesByProjectMonth", {
               fetchedAt: new Date().toISOString(),
@@ -878,6 +930,38 @@ export function DataManagementPage() {
     },
   ];
 
+  // Sub-project child tabs — mirrors `childTabs` minus "lines" (sub-
+  // projects don't own a line catalogue) and with "details" added at
+  // the front for the sub-project's own itinerary rows.
+  const subChildTabs: TabItem[] = [
+    {
+      key: "details",
+      label: "Alt Proje Satırları",
+      count: childSubProjectDetails.length,
+    },
+    { key: "ship", label: "Proje-Gemi Planı", count: childShip.length },
+    {
+      key: "expense",
+      label: "Tahmini Gider Satırları",
+      count: childExpense.length,
+    },
+    {
+      key: "actualExpense",
+      label: "Gerçekleşen Gider Satırları",
+      count: childActualExpense.length,
+    },
+    {
+      key: "sales",
+      label: "Proje Satış Satırları",
+      count: childSales.length,
+    },
+    {
+      key: "purchase",
+      label: "Proje Satınalma Satırları",
+      count: childPurchase.length,
+    },
+  ];
+
   return (
     <ScrollArea className="h-full">
       <div className="space-y-3 pb-3">
@@ -973,7 +1057,21 @@ export function DataManagementPage() {
                 columns={[...SUB_PROJECT_COLUMNS]}
                 onRowClick={(row) => {
                   const id = row.mserp_subprojectid as string | undefined;
+                  // Set BOTH selection slots to the sub-project ID:
+                  //  • `selectedSubProjectId` drives the master-table
+                  //    highlight + the "Alt Proje Satırları" tab
+                  //    (filtered by `mserp_subprojectid` FK).
+                  //  • `selectedProjId` reuses the existing per-project
+                  //    hooks (`sales`, `actualExpense`) and the cached
+                  //    child filters (childShip / childExpense /
+                  //    childPurchase) which all join through FKs that
+                  //    accept either a parent projid OR a sub-projid
+                  //    transparently — the F&O custom layer writes both
+                  //    forms into the same FK columns.
                   setSelectedSubProjectId((prev) =>
+                    prev === id ? null : id ?? null
+                  );
+                  setSelectedProjId((prev) =>
                     prev === id ? null : id ?? null
                   );
                 }}
@@ -986,42 +1084,115 @@ export function DataManagementPage() {
                 maxHeight="34vh"
               />
             </GlassPanel>
-            {/* Child panel — alt-proje detay satırları, selected
-                sub-project'e göre filtrelenir. */}
+            {/* Child panel — full tab strip matching Projeler MINUS
+                "lines" (sub-projects don't own a line catalogue) PLUS
+                "details" (alt-proje detay satırları). Every other tab
+                reads through the same per-project hooks + cached
+                memoized filters; the `selectedSubProjectId` value also
+                lands in `selectedProjId` (see the row-click handler
+                above) so the existing FKs (`mserp_tryshipprojid`,
+                `mserp_etgtryprojid`, `mserp_purchtable_etgtryprojid`)
+                resolve transparently. */}
             <GlassPanel tone="default" className="rounded-2xl overflow-hidden">
               <div className="px-3 py-2 border-b border-foreground/[0.04]">
                 <TabStrip
-                  tabs={[
-                    {
-                      key: "details",
-                      label: "Alt Proje Satırları",
-                      count: childSubProjectDetails.length,
-                    },
-                  ]}
-                  activeKey="details"
-                  onChange={() => {}}
+                  tabs={subChildTabs}
+                  activeKey={subChildTab}
+                  onChange={(k) => setSubChildTab(k as SubChildTabKey)}
                 />
               </div>
-              <CacheBanner
-                fetchedAt={subProjectDetails.fetchedAt}
-                isFetching={subProjectDetails.isFetching}
-                loaded={subProjectDetails.loaded}
-                count={childSubProjectDetails.length}
-                totalCount={subProjectDetails.totalCount}
-                error={subProjectDetails.error}
-              />
-              <EntityRowsTable
-                rows={childSubProjectDetails}
-                columns={[...SUB_PROJECT_DETAIL_COLUMNS]}
-                emptyText={
-                  !selectedSubProjectId
-                    ? "Üstten bir alt-proje seç"
-                    : subProjectDetails.rows.length === 0
-                      ? "Henüz çekilmedi — üstten Verileri Güncelle"
-                      : "Bu alt-projeye ait detay satırı yok"
-                }
-                maxHeight="40vh"
-              />
+              {subChildTab === "details" && (
+                <>
+                  <CacheBanner
+                    fetchedAt={subProjectDetails.fetchedAt}
+                    isFetching={subProjectDetails.isFetching}
+                    loaded={subProjectDetails.loaded}
+                    count={childSubProjectDetails.length}
+                    totalCount={subProjectDetails.totalCount}
+                    error={subProjectDetails.error}
+                  />
+                  <EntityRowsTable
+                    rows={childSubProjectDetails}
+                    columns={[...SUB_PROJECT_DETAIL_COLUMNS]}
+                    emptyText={
+                      !selectedSubProjectId
+                        ? "Üstten bir alt-proje seç"
+                        : subProjectDetails.rows.length === 0
+                          ? "Henüz çekilmedi — üstten Verileri Güncelle"
+                          : "Bu alt-projeye ait detay satırı yok"
+                    }
+                    maxHeight="40vh"
+                  />
+                </>
+              )}
+              {subChildTab === "ship" && (
+                <EntityRowsTable
+                  rows={childShip}
+                  priorityColumns={SHIP_DISPLAY_COLUMNS}
+                  emptyText={
+                    selectedSubProjectId
+                      ? "Bu alt-projeye ait gemi planı yok"
+                      : "Üstten bir alt-proje seç"
+                  }
+                  maxHeight="40vh"
+                />
+              )}
+              {subChildTab === "expense" && (
+                <EntityRowsTable
+                  rows={childExpense}
+                  columns={[...EXPENSE_COLUMNS]}
+                  emptyText={
+                    selectedSubProjectId
+                      ? "Bu alt-projeye ait gider satırı yok"
+                      : "Üstten bir alt-proje seç"
+                  }
+                  maxHeight="40vh"
+                />
+              )}
+              {subChildTab === "actualExpense" && (
+                <EntityRowsTable
+                  rows={childActualExpense}
+                  columns={[...EXPENSE_LINE_COLUMNS, "mserp_refexpenseid"]}
+                  emptyText={
+                    selectedSubProjectId
+                      ? actualExpense.error
+                        ? `Hata: ${actualExpense.error}`
+                        : actualExpense.isFetching
+                          ? "Yükleniyor…"
+                          : "Bu alt-projeye ait gerçekleşen gider kaydı yok"
+                      : "Üstten bir alt-proje seç"
+                  }
+                  maxHeight="40vh"
+                />
+              )}
+              {subChildTab === "sales" && (
+                <EntityRowsTable
+                  rows={childSales}
+                  columns={[...SALES_COLUMNS]}
+                  emptyText={
+                    selectedSubProjectId
+                      ? sales.rows.length === 0
+                        ? "Henüz çekilmedi — üstten Güncelle"
+                        : "Bu alt-projeye ait fatura kesilmiş satış satırı yok"
+                      : "Üstten bir alt-proje seç"
+                  }
+                  maxHeight="40vh"
+                />
+              )}
+              {subChildTab === "purchase" && (
+                <EntityRowsTable
+                  rows={childPurchase}
+                  columns={[...PURCHASE_COLUMNS]}
+                  emptyText={
+                    selectedSubProjectId
+                      ? purchase.rows.length === 0
+                        ? "Henüz çekilmedi — üstten Verileri Güncelle"
+                        : "Bu alt-projeye ait satınalma satırı yok"
+                      : "Üstten bir alt-proje seç"
+                  }
+                  maxHeight="40vh"
+                />
+              )}
             </GlassPanel>
           </>
         )}

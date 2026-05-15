@@ -359,6 +359,41 @@ function readProjids(): string[] {
 }
 
 /**
+ * Read the union of parent project IDs AND sub-project IDs from cache.
+ *
+ * Why this exists: sub-project IDs carry the SAME semantic weight as
+ * parent project IDs throughout the rest of the F&O data model. Child
+ * entities (ship-plan, expense, sales, purchase, monthly-sales) use
+ * the same FK columns (`mserp_tryshipprojid`, `mserp_etgtryprojid`,
+ * `mserp_purchtable_etgtryprojid`) to point at EITHER a parent project
+ * or a sub-project. The custom F&O work by consultants on this Tiryaki
+ * tenant treats them as peers — when a project gets split into voyage
+ * legs, the parent header stops being the join target and each sub-project
+ * gets its own ship-plan / expense / sales / purchase / actual cost rows.
+ *
+ * Consequence: every "fetch child rows by project FK" step that wants
+ * the rows currently rendered for sub-projects must use the union. The
+ * "Proje Satırları" step still uses `readProjids()` because per-user
+ * spec sub-project line items should remain EMPTY (parents own the
+ * line catalogue; sub-projects represent split voyages on the same
+ * catalogue, not separate orders).
+ */
+function readAllScopedProjids(): string[] {
+  const projCache = readCache<Record<string, unknown>>(ENTITY_SETS.projects);
+  const subCache = readCache<Record<string, unknown>>(ENTITY_SETS.subProject);
+  const ids = new Set<string>();
+  for (const row of projCache?.value ?? []) {
+    const id = row.mserp_projid as string | undefined;
+    if (id) ids.add(id);
+  }
+  for (const row of subCache?.value ?? []) {
+    const id = row.mserp_subprojectid as string | undefined;
+    if (id) ids.add(id);
+  }
+  return [...ids];
+}
+
+/**
  * Run `client.listAll` once per chunk of project IDs and concatenate
  * the results. Drops a request URL of ~10KB+ down to ~2.5KB per call,
  * which keeps Dataverse + any proxy in the path happy. Returns the
@@ -588,7 +623,12 @@ export async function refreshAllEntities(
         // counterparts. F&O virtual entities resolve these as pairs
         // — separating them caused a "property not found" 400. Don't
         // re-touch the lookup section without re-testing.
-        const projids = readProjids();
+        //
+        // Scope: parent project IDs UNION sub-project IDs — sub-projects
+        // carry their own ship-plan rows in F&O, joined via the same
+        // `mserp_tryshipprojid` FK that parents use. See
+        // `readAllScopedProjids()` for the rationale.
+        const projids = readAllScopedProjids();
         const result = await listAllByInChunked<Record<string, unknown>>(
           client,
           ENTITY_SETS.ship,
@@ -619,7 +659,9 @@ export async function refreshAllEntities(
     {
       label: "Tahmini Gider",
       run: async () => {
-        const projids = readProjids();
+        // Scope: parent + sub-project IDs. The expense entity's
+        // `mserp_etgtryprojid` FK accepts either form on this tenant.
+        const projids = readAllScopedProjids();
         const result = await listAllByInChunked<Record<string, unknown>>(
           client,
           ENTITY_SETS.expense,
@@ -712,7 +754,11 @@ export async function refreshAllEntities(
         // operators is not allowed"). Master cache is written
         // already-filtered so every downstream consumer inherits the
         // exclusion automatically.
-        const projids = readProjids();
+        //
+        // Scope: parent + sub-project IDs. Purchases booked against a
+        // voyage leg target the sub-project ID directly through the
+        // same FK column.
+        const projids = readAllScopedProjids();
         const result = await listAllByInChunked<Record<string, unknown>>(
           client,
           ENTITY_SETS.purchase,
@@ -758,9 +804,11 @@ export async function refreshAllEntities(
     {
       label: "Satış Toplamları",
       run: async () => {
-        // Sales aggregate scopes to the project IDs already pulled in
-        // the first step. Chunked so the `$apply=filter(IN(...))` URL
-        // stays small. Intercompany rows excluded server-side.
+        // Sales aggregate scopes to the parent + sub-project IDs
+        // already pulled (sub-projects carry their own customer invoice
+        // rows under the same `mserp_etgtryprojid` FK). Chunked so the
+        // `$apply=filter(IN(...))` URL stays small. Intercompany rows
+        // excluded server-side.
         //
         // Financing-order rows can't be excluded on the server — F&O
         // rejects `not In(...)`, and the invoice-trans entity has no
@@ -771,7 +819,7 @@ export async function refreshAllEntities(
         // client-side and re-aggregate on (projid, currency) to match
         // the cache shape downstream consumers (composer's
         // salesActualUsd, dashboard rollups) expect.
-        const projids = readProjids();
+        const projids = readAllScopedProjids();
         const result = await applyByInChunked<Record<string, unknown>>(
           client,
           SALES_ENTITY,
@@ -831,7 +879,10 @@ export async function refreshAllEntities(
         // `not In(...)`) — we include `mserp_salesid` in $select so we
         // can drop matches against the cached financing-id Set after
         // each chunk lands.
-        const projids = readProjids();
+        //
+        // Scope: parent + sub-project IDs (same union as Satış Toplamları
+        // — invoices on voyage legs target the sub-project FK).
+        const projids = readAllScopedProjids();
         if (projids.length === 0) {
           writeCache("salesByProjectMonth", {
             fetchedAt: new Date().toISOString(),
