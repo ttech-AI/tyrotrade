@@ -703,13 +703,44 @@ export function DataManagementPage() {
     return new Set(filtered.map((p) => p.projectNo));
   }, [domainProjects, projectFilters]);
 
+  // Inspector-specific projid allow-list: extends `allowedProjectNos`
+  // (composer-elevated set — sub-project IDs when a parent was hidden)
+  // with the PARENT projids of any sub-project that passed the filter.
+  //
+  // Why: Vessel Projects + Dashboard work with the composer's elevated
+  // shape (parent hidden, voyage-leg sub-projects shown). Veri Yönetimi
+  // is a raw-row inspector — the user expects to see the parent row in
+  // the projects table even if it has elevated sub-projects. Without
+  // this widening, `projects.rows.filter(r => allowedProjectNos.has(r.mserp_projid))`
+  // silently drops every parent of an elevated sub-project (e.g.
+  // ORGANIK01 is in the projects cache but composer elevated its
+  // sub-projects to first-class entries, so `mserp_projid="ORGANIK01"`
+  // isn't in `allowedProjectNos`).
+  const allowedParentProjectNos = React.useMemo(() => {
+    const result = new Set(allowedProjectNos);
+    for (const sub of subProjects.rows) {
+      const subId = String(sub.mserp_subprojectid ?? "");
+      if (subId && allowedProjectNos.has(subId)) {
+        const parentId = String(sub.mserp_projid ?? "");
+        if (parentId) result.add(parentId);
+      }
+    }
+    return result;
+  }, [allowedProjectNos, subProjects.rows]);
+
   const visibleProjects = React.useMemo(() => {
     let filtered = projects.rows.filter((r) =>
-      allowedProjectNos.has(String(r.mserp_projid ?? ""))
+      allowedParentProjectNos.has(String(r.mserp_projid ?? ""))
     );
     if (searchQuery.trim()) filtered = filtered.filter(matchesSearch);
     return sortRows(filtered, projectSort);
-  }, [projects.rows, allowedProjectNos, projectSort, searchQuery, matchesSearch]);
+  }, [
+    projects.rows,
+    allowedParentProjectNos,
+    projectSort,
+    searchQuery,
+    matchesSearch,
+  ]);
 
   // `selectedProject` + `selectedSegment` lifted to the data-fetching
   // section above so the budget on-demand hook can key on segment.

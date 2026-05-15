@@ -421,6 +421,11 @@ export function composeProjects(input: ComposeInput): ComposeResult {
   //    parent we have no segment / trader / currency to inherit, and
   //    surfacing an orphan sub-project would look like a phantom
   //    project to the user.
+  //
+  // The parent-hiding rule is intentional: Vessel Projects + Dashboard
+  // operate on voyage-leg granularity. Veri Yönetimi inspector wants
+  // parent rows too — it handles that downstream by accepting raw
+  // parent rows whose elevated sub-projects passed the filter.
   const projects: Project[] = [];
   for (const parent of projectRows) {
     const parentId = readString(parent, "mserp_projid");
