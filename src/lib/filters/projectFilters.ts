@@ -109,8 +109,22 @@ export function applyProjectFilter(
   f: ProjectFilterState,
   now: Date = new Date()
 ): Project[] {
+  // Period filter — applied to NON-exception projects only. Exception
+  // projects (PROJECT_ID_EXCEPTIONS — e.g. ORGANIK01) are brought into
+  // scope explicitly and typically don't have a contract date inside
+  // the current FY. Re-include them after the period cull so the
+  // implicit "current FY" default doesn't silently drop them.
   const periodFiltered = applyPeriodFilter(projects, f.period, f.fyKey, now);
-  return periodFiltered.filter((p) => {
+  const seenIds = new Set(periodFiltered.map((p) => p.projectNo));
+  const exceptionsDropped = projects.filter(
+    (p) => PROJECT_ID_EXCEPTION_SET.has(p.projectNo) && !seenIds.has(p.projectNo)
+  );
+  const merged =
+    exceptionsDropped.length > 0
+      ? [...periodFiltered, ...exceptionsDropped]
+      : periodFiltered;
+
+  return merged.filter((p) => {
     // Whitelisted exception projects (PROJECT_ID_EXCEPTIONS — e.g.
     // ORGANIK01) bypass the ship-plan gate. They were brought into
     // scope precisely BECAUSE they sit outside the sea-mode +
