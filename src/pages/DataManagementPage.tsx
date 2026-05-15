@@ -130,10 +130,12 @@ export function DataManagementPage() {
     React.useState<SubChildTabKey>("details");
 
   // Unified Advanced Filter state — same shape as Dashboard / Vessel
-  // Projects. Veri Yönetimi defaults to "all projects in" since the
-  // page is for raw-row inspection, not operational triage.
+  // Projects. Veri Yönetimi defaults to "all projects in" (no
+  // ship-plan gate, no period cull) since the page is for raw-row
+  // inspection — operators expect to see the entire fetched scope by
+  // default and narrow down with explicit filter chips.
   const [projectFilters, setProjectFilters] = React.useState<ProjectFilterState>(
-    () => makeEmptyFilters({ includeWithoutShipPlan: true })
+    () => makeEmptyFilters({ includeWithoutShipPlan: true, period: "all" })
   );
   // Free-text search applied across the projects master table AND
   // the ship-plan child rows. Independent of the categorical
@@ -933,6 +935,7 @@ export function DataManagementPage() {
                 filters={projectFilters}
                 onChange={setProjectFilters}
                 shipPlanDefault={true}
+                periodDefault="all"
                 resultCount={visibleProjects.length}
                 totalCount={projects.rows.length}
                 collapsible
