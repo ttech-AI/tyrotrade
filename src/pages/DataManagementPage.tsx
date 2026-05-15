@@ -961,24 +961,42 @@ export function DataManagementPage() {
                 onChange={(k) => setTopTab(k as TopTabKey)}
               />
             </div>
-            {topTab === "projects" && (
-              <DataInspectorSearch
-                value={searchQuery}
-                onChange={setSearchQuery}
-              />
-            )}
-            {topTab === "projects" && (
-              <AdvancedFilter
-                projects={domainProjects}
-                filters={projectFilters}
-                onChange={setProjectFilters}
-                shipPlanDefault={true}
-                periodDefault="all"
-                resultCount={visibleProjects.length}
-                totalCount={projects.rows.length}
-                collapsible
-              />
-            )}
+            {/* Search + filter every tab — both inputs feed shared state
+                (`searchQuery`, `projectFilters`) that downstream memos
+                consume per-tab:
+                  - "Projeler"   → projects.rows  (via visibleProjects)
+                  - "Alt Projeler" → subProjects.rows (via scopedSubProjects)
+                  - "Tahmini Bütçe (Segment)" → budget.rows filtered by the
+                    selected project's segment (passes search through
+                    `matchesSearch` if applied).
+                Counts surface differently per tab so the AdvancedFilter
+                badge mirrors what the user is looking at. */}
+            <DataInspectorSearch
+              value={searchQuery}
+              onChange={setSearchQuery}
+            />
+            <AdvancedFilter
+              projects={domainProjects}
+              filters={projectFilters}
+              onChange={setProjectFilters}
+              shipPlanDefault={true}
+              periodDefault="all"
+              resultCount={
+                topTab === "sub-projects"
+                  ? scopedSubProjects.length
+                  : topTab === "budget"
+                    ? filteredBudgetRows.length
+                    : visibleProjects.length
+              }
+              totalCount={
+                topTab === "sub-projects"
+                  ? subProjects.rows.length
+                  : topTab === "budget"
+                    ? budget.rows.length
+                    : projects.rows.length
+              }
+              collapsible
+            />
             <RefreshAllButton steps={refreshSteps} />
           </div>
         </GlassPanel>
