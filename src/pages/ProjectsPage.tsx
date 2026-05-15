@@ -112,11 +112,22 @@ export function ProjectsPage() {
     const stillVisible =
       selectedId !== null &&
       projects.some((p) => p.projectNo === selectedId);
-    if (!stillVisible) {
-      const firstId = projects[0].projectNo;
-      setSelectedId(firstId);
-      navigate(`/projects/${firstId}`, { replace: true });
-    }
+    if (stillVisible) return;
+    const firstId = projects[0].projectNo;
+    // Guard against firing the state setter (and the navigate) when
+    // `selectedId` already matches the proposed first ID. That
+    // happened under fast filter-toggle sequences (combobox value
+    // click → setFilters → projects re-derived → effect runs → if
+    // selectedId still === firstId before the re-render finishes,
+    // setSelectedId schedules an identical update that then
+    // re-triggers this same effect with the same inputs — React
+    // collapsed the double-update but the navigate(replace) was
+    // firing twice in the same tick which the router didn't
+    // appreciate (showed up as a white-screen lockup on rapid
+    // toggles).
+    if (firstId === selectedId) return;
+    setSelectedId(firstId);
+    navigate(`/projects/${firstId}`, { replace: true });
   }, [projects, selectedId, navigate]);
 
   // Sync initial selection into URL when projects were already loaded on mount
