@@ -68,7 +68,10 @@ import {
 } from "@/lib/selectors/aggregate";
 import { selectStage } from "@/lib/selectors/project";
 import { useThemeAccent } from "@/components/layout/theme-accent";
-import { getFinancialYear } from "@/lib/dashboard/financialPeriod";
+import {
+  findFyByKey,
+  getFinancialYear,
+} from "@/lib/dashboard/financialPeriod";
 import { cn } from "@/lib/utils";
 import type { Project } from "@/lib/dataverse/entities";
 
@@ -171,8 +174,36 @@ export function DashboardPage() {
   }, [projects, drawerQuery, drawerKpi]);
 
   const greeting = getGreeting();
-  const fy = getFinancialYear(now);
   const lastSyncLabel = fetchedAt ? formatSyncTime(fetchedAt) : null;
+
+  // Subtitle scope label — reflects the active period filter selection
+  // so "X dönem içinde Y proje izleniyor" stays accurate when the user
+  // flips between FY / quarterly / all-time. Returns two pieces: a
+  // bold-rendered scope name (e.g. "25-26" or "Son 90 gün") and the
+  // joining preposition that comes after it ("finansal döneminde",
+  // "izleme penceresinde", "tüm zamanlarda").
+  const periodScope = React.useMemo<{ label: string; preposition: string }>(() => {
+    switch (filters.period) {
+      case "fy": {
+        const fy =
+          (filters.fyKey && findFyByKey(filters.fyKey)) ||
+          getFinancialYear(now);
+        return {
+          label: fy.fullLabel.replace(/^FY\s*/, ""),
+          preposition: "finansal döneminde",
+        };
+      }
+      case "monthly":
+        return { label: "Son 30 gün", preposition: "içinde" };
+      case "quarterly":
+        return { label: "Son 90 gün", preposition: "içinde" };
+      case "yearly":
+        return { label: "Son 1 yıl", preposition: "içinde" };
+      case "all":
+      default:
+        return { label: "Tüm zamanlar", preposition: "kapsamında" };
+    }
+  }, [filters.period, filters.fyKey, now]);
 
   if (isEmpty) {
     return <ProjectsEmptyState />;
@@ -202,9 +233,9 @@ export function DashboardPage() {
                   short and scannable. */}
               <p className="text-sm text-muted-foreground">
                 <span className="font-semibold text-foreground">
-                  {fy.fullLabel.replace(/^FY\s*/, "")}
+                  {periodScope.label}
                 </span>{" "}
-                finansal döneminde{" "}
+                {periodScope.preposition}{" "}
                 <span className="font-semibold text-foreground">
                   {totalProjects} proje
                 </span>{" "}
