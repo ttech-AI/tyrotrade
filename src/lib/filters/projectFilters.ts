@@ -4,7 +4,14 @@ import {
   type PeriodKey,
 } from "@/lib/dashboard/periods";
 import { getCurrentFyKey } from "@/lib/dashboard/financialPeriod";
+import { PROJECT_ID_EXCEPTIONS } from "@/lib/dataverse/refreshAll";
 import type { Project } from "@/lib/dataverse/entities";
+
+/** Pre-built lookup so the per-row hot path in `applyProjectFilter`
+ *  never has to call `.includes()` on the exceptions array. Mirrors
+ *  the source-of-truth list in refreshAll.ts so a single change there
+ *  flows everywhere. */
+const PROJECT_ID_EXCEPTION_SET = new Set(PROJECT_ID_EXCEPTIONS);
 
 /**
  * Unified filter state used by Dashboard, Vessel Projects, and Veri
@@ -104,13 +111,27 @@ export function applyProjectFilter(
 ): Project[] {
   const periodFiltered = applyPeriodFilter(projects, f.period, f.fyKey, now);
   return periodFiltered.filter((p) => {
+    // Whitelisted exception projects (PROJECT_ID_EXCEPTIONS — e.g.
+    // ORGANIK01) bypass the ship-plan gate. They were brought into
+    // scope precisely BECAUSE they sit outside the sea-mode +
+    // non-empty-segment defaults, so they typically have no
+    // vesselPlan. Without this bypass the Vessel Projects page (which
+    // defaults `includeWithoutShipPlan: false`) would silently drop
+    // them and the user can't find them with a free-text search.
+    const isExceptionProject = PROJECT_ID_EXCEPTION_SET.has(p.projectNo);
+
     // "Gemi planı olmayanları dahil et" — checks ONLY whether the
     // project carries a vesselPlan row at all. Vessel name + port
     // coordinates being unresolved is NOT a disqualifier here, since
     // F&O's `mserp_tryai*` virtual entity already filters out rows
     // with empty vessel names — any vesselPlan we have IS a real plan
     // even if the vessel hasn't been named yet.
-    if (!f.includeWithoutShipPlan && !p.vesselPlan) return false;
+    if (
+      !f.includeWithoutShipPlan &&
+      !p.vesselPlan &&
+      !isExceptionProject
+    )
+      return false;
     if (f.voyageStatuses.size > 0) {
       const vs = p.vesselPlan?.vesselStatus ?? "";
       if (!f.voyageStatuses.has(vs)) return false;
