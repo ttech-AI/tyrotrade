@@ -92,6 +92,23 @@ export const TURKEY_TO_EGYPT: Waypoint[] = [
   wp(30.5, 31.7),
 ];
 
+/**
+ * UK / NW Europe Atlantic → Strait of Gibraltar.
+ *
+ * From Bristol Channel / Mersey: westbound out of channel → southbound
+ * down English Channel approach → cross Bay of Biscay diagonally →
+ * hug Atlantic Iberian coast (Portugal) → Cape St Vincent → Gulf of
+ * Cádiz → Strait of Gibraltar. Keeps the line in open water the whole
+ * way, never crosses Spain or France inland.
+ */
+export const UK_TO_GIB: Waypoint[] = [
+  wp(-5.5, 49.5, "Lizard Point / Channel Approach"),
+  wp(-7.0, 46.5, "Bay of Biscay"),
+  wp(-9.5, 42.5, "Finisterre"),
+  wp(-9.5, 37.5, "Cape St Vincent"),
+  GIBRALTAR,
+];
+
 /* ─────────── Reusable transition fragments ─────────── */
 
 /** Bosphorus passage — used when departing/arriving at a Marmara port
@@ -251,6 +268,11 @@ const ITALY_GREECE_PORTS = new Set([
  *  draws inland to the port coordinates. */
 const ATLANTIC_IBERIA_PORTS = new Set(["sevilla"]);
 
+/** UK / NW European Atlantic ports — Bristol Channel + Mersey cluster.
+ *  Reach Mediterranean by going west out of channel, south through Bay
+ *  of Biscay, past Iberia, through Gibraltar. */
+const UK_ATLANTIC_PORTS = new Set(["newport", "liverpool"]);
+
 /** Levant ports — between Türkiye Med and Egypt on the East Med coast. */
 const LEVANT_PORTS = new Set(["beirut", "tripoli_lb", "tartous", "latakia"]);
 
@@ -267,6 +289,7 @@ const isEgypt = (k: string) => EGYPT_PORTS.has(k);
 const isItalyGreece = (k: string) => ITALY_GREECE_PORTS.has(k);
 const isLevant = (k: string) => LEVANT_PORTS.has(k);
 const isAtlanticIberia = (k: string) => ATLANTIC_IBERIA_PORTS.has(k);
+const isUkAtlantic = (k: string) => UK_ATLANTIC_PORTS.has(k);
 
 /** Med → Gibraltar → Gulf of Cádiz approach. Reused by every corridor
  *  that ends in Atlantic Iberia. The final waypoint sits at the
@@ -506,6 +529,53 @@ function pickForward(o: string, d: string): Waypoint[] | null {
   if (isItalyGreece(o) && isItalyGreece(d)) return []; // West/Mid Med direct
   if (isItalyGreece(o) && isAtlanticIberia(d)) {
     return [wp(5.0, 38.0), wp(-2.0, 36.5), ...MED_TO_ATLANTIC_IBERIA];
+  }
+
+  /* ─────────── UK / NW Europe Atlantic → Med / Black Sea / Gulf ─────────── */
+  //
+  // All routes thread out of the British Isles via the English Channel
+  // approach, cross Biscay diagonally, hug Iberia, transit Gibraltar.
+  // From there, the existing Med/East-Med corridors take over.
+
+  if (isUkAtlantic(o) && isUkAtlantic(d)) return []; // same coast
+  if (isUkAtlantic(o) && isAtlanticIberia(d)) {
+    return [...UK_TO_GIB.slice(0, -1), wp(-6.3, 36.78, "Guadalquivir Mouth")];
+  }
+  if (isUkAtlantic(o) && isItalyGreece(d)) {
+    return [...UK_TO_GIB, wp(0.0, 36.5), wp(8.0, 38.0)];
+  }
+  if (isUkAtlantic(o) && isTurkeyMed(d)) {
+    return [...UK_TO_GIB, wp(5.0, 37.5), wp(18.0, 35.5), wp(28.0, 34.5)];
+  }
+  if (isUkAtlantic(o) && isLevant(d)) {
+    return [...UK_TO_GIB, wp(5.0, 37.5), wp(18.0, 34.5), wp(28.0, 34.0), wp(33.0, 34.5)];
+  }
+  if (isUkAtlantic(o) && isEgypt(d)) {
+    return [...UK_TO_GIB, ...MED_TO_SUEZ];
+  }
+  if (isUkAtlantic(o) && isMarmara(d)) {
+    return [
+      ...UK_TO_GIB,
+      wp(5.0, 37.5),
+      wp(18.0, 35.5),
+      AEGEAN_S,
+      DARDANELLES,
+    ];
+  }
+  if (isUkAtlantic(o) && isBlackSea(d)) {
+    // Through Med → Aegean → Dardanelles → Marmara → Bosphorus → Black Sea.
+    // Azov destinations need the Kerch Strait at the tail.
+    const tail = isAzov(d) ? [...KERCH_LEG] : [];
+    return [
+      ...UK_TO_GIB,
+      wp(5.0, 37.5),
+      wp(18.0, 35.5),
+      ...[...BS_TO_AEGEAN].reverse(),
+      ...tail,
+    ];
+  }
+  if (isUkAtlantic(o) && isUmmQasr(d)) {
+    return [...UK_TO_GIB, ...MED_TO_SUEZ, ...SUEZ_TO_GULF];
   }
 
   return null;
