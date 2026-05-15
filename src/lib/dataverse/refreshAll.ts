@@ -39,20 +39,44 @@ import {
  * 🔒 READ-ONLY — only GET via `client.list` / `client.listAll`.
  */
 
+/** Projid-specific exceptions: projects we ALWAYS include even when
+ *  they fail the default scope (e.g. internal projects whose
+ *  delivery mode isn't "Gemi" but still need P&L visibility).
+ *  Extend this list to whitelist additional project IDs. Typed as
+ *  `readonly string[]` (not `as const`) so the empty-check below
+ *  remains valid when the list shrinks back to zero. */
+export const PROJECT_ID_EXCEPTIONS: readonly string[] = ["ORGANIK01"];
+
 /** Server-side filter for the Projects header fetch — sea-mode
- *  projects with a non-empty segment. Single source of truth for both
- *  the auto-refresh chain and the Veri Yönetimi inspector tab. */
-const PROJECTS_FILTER =
-  "mserp_dlvmode eq 'Gemi' and mserp_tryprojectsegment ne null";
+ *  projects with a non-empty segment, OR any project whose
+ *  `mserp_projid` is in `PROJECT_ID_EXCEPTIONS`. Single source of
+ *  truth for the auto-refresh chain, the Veri Yönetimi inspector
+ *  tab, and the entity-config inspector default. Exported so all
+ *  three consumers stay in lock-step. */
+export const PROJECTS_FILTER = (() => {
+  const base =
+    "(mserp_dlvmode eq 'Gemi' and mserp_tryprojectsegment ne null)";
+  if (PROJECT_ID_EXCEPTIONS.length === 0) return base;
+  const orChain = PROJECT_ID_EXCEPTIONS.map(
+    (id) => `mserp_projid eq '${id}'`
+  ).join(" or ");
+  return `${base} or ${orChain}`;
+})();
 
 /** Human-readable summary of the active project scope — surfaced in
  *  the RefreshAllButton tooltip so users know exactly which slice of
  *  F&O they're pulling. */
 export function describeProjectFilter(): string {
-  return [
+  const lines = [
     "• Teslimat şekli (mserp_dlvmode) = Gemi",
     "• Segment (mserp_tryprojectsegment) dolu (boş olmayan)",
-  ].join("\n");
+  ];
+  if (PROJECT_ID_EXCEPTIONS.length > 0) {
+    lines.push(
+      `• İstisna: ${PROJECT_ID_EXCEPTIONS.join(", ")} her halükarda dahil`
+    );
+  }
+  return lines.join("\n");
 }
 
 const ENTITY_SETS = {
@@ -491,9 +515,11 @@ export async function refreshAllEntities(
       label: "Alt Projeler",
       run: async () => {
         // Sub-project rows scoped to the already-cached project IDs.
-        // FK = `mserp_projid` (parent project header). Many parents
-        // have zero sub-rows — that's normal; the IN filter just
-        // narrows the response to the in-scope projects.
+        // FK = `mserp_projid` (parent project header). Plus an
+        // extra server-side filter on `mserp_dlvmodeid eq 'Gemi'`
+        // to mirror the parent project scope — non-sea sub-projects
+        // shouldn't make it into the cache. Many parents have zero
+        // sub-rows; the IN filter just narrows the response.
         const projids = readProjids();
         const result = await listAllByInChunked<Record<string, unknown>>(
           client,
@@ -503,7 +529,9 @@ export async function refreshAllEntities(
           {
             $select: SUB_PROJECT_COLUMNS.join(","),
             $count: true,
-          }
+          },
+          undefined,
+          "mserp_dlvmodeid eq 'Gemi'"
         );
         writeCache(ENTITY_SETS.subProject, {
           fetchedAt: new Date().toISOString(),

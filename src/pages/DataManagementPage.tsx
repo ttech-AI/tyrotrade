@@ -18,6 +18,7 @@ import {
   getFinancingSalesIdSet,
   listAllByInChunked,
   NON_INTERCOMPANY_FILTER,
+  PROJECTS_FILTER,
 } from "@/lib/dataverse/refreshAll";
 import {
   EntityRowsTable,
@@ -162,7 +163,7 @@ export function DataManagementPage() {
   const projects = useEntityRows<Record<string, unknown>>({
     entitySet: ENTITY_SETS.projects,
     query: {
-      $filter: "mserp_dlvmode eq 'Gemi' and mserp_tryprojectsegment ne null",
+      $filter: PROJECTS_FILTER,
       // Only fetch the columns we display — drops mserp_isorganic and below
       // (sub-contract flags, financial dimensions, payment specs, etc.)
       $select: PROJECT_COLUMNS.join(","),
@@ -373,7 +374,11 @@ export function DataManagementPage() {
             ENTITY_SETS.subProject,
             "mserp_projid",
             projids,
-            { $select: SUB_PROJECT_COLUMNS.join(","), $count: true }
+            { $select: SUB_PROJECT_COLUMNS.join(","), $count: true },
+            undefined,
+            // Extra server-side filter: only sea-mode sub-projects
+            // (mirrors the parent project scope).
+            "mserp_dlvmodeid eq 'Gemi'"
           );
           writeCache(ENTITY_SETS.subProject, {
             fetchedAt: new Date().toISOString(),

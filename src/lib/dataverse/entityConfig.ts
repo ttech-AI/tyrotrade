@@ -6,6 +6,8 @@
  * actual rows and inspecting the response.
  */
 
+import { PROJECTS_FILTER } from "@/lib/dataverse/refreshAll";
+
 export interface InspectorEntityConfig {
   /** Internal key (also used in URL: /data/:key) */
   key: string;
@@ -27,9 +29,13 @@ export const INSPECTOR_ENTITIES: InspectorEntityConfig[] = [
     label: "Projeler",
     description: "Proje header tablosu (mserp_etgtryprojecttableentities)",
     entitySet: "mserp_etgtryprojecttableentities",
-    defaultFilter: () =>
-      "mserp_dlvmode eq 'Gemi' and mserp_tryprojectsegment ne null",
-    hint: "Teslimat şekli 'Gemi' + segment dolu projeler çekilir.",
+    // Same `PROJECTS_FILTER` constant the refresh chain + the
+    // DataManagementPage main projects hook use — single source of
+    // truth so the ORGANIK01 exception (and any future whitelist
+    // additions) propagate everywhere automatically.
+    defaultFilter: () => PROJECTS_FILTER,
+    hint:
+      "Teslimat şekli 'Gemi' + segment dolu projeler ile istisna projid'ler çekilir.",
   },
   {
     key: "sub-projects",
