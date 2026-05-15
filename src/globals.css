@@ -127,6 +127,23 @@
   --chart-5: oklch(0.473 0.137 46.201);
 }
 
+/* Shimmer animation for skeleton placeholders (BudgetSalesCard rows
+ * while on-demand realized hooks are in flight). White gradient sweeps
+ * left-to-right across a muted-grey bar. Keep duration calm (1.2s) so
+ * fast fetches (~200ms) don't look like a frantic strobe. */
+@keyframes row-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.bg-row-shimmer {
+  animation: row-shimmer 1.2s ease-in-out infinite;
+}
+
 @layer base {
   *,
   *::before,

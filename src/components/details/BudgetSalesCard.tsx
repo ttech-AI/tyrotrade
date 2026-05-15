@@ -75,12 +75,15 @@ export function BudgetSalesCard({ project }: Props) {
    * name). Customer invoices DO carry a `mserp_name` per item, so
    * build a code→name map from invoices to enrich the estimate
    * line breakdown — same trick ProfitLossCard uses. */
-  const { invoices } = useProjectInvoices(project.projectNo);
+  const { invoices, isFetching: invoicesFetching } = useProjectInvoices(
+    project.projectNo
+  );
   // Realised purchases — on-demand fetch (master cache retired for
   // quota reasons). Returns rows filtered to this project's FK +
   // financing-order rows already stripped. The useMemo below reads
   // from `purchaseRows` directly instead of `readCache(...)`.
-  const { rows: purchaseRows } = useProjectPurchases(project.projectNo);
+  const { rows: purchaseRows, isFetching: purchasesFetching } =
+    useProjectPurchases(project.projectNo);
   const productNameByCode = React.useMemo(() => {
     const map = new Map<string, string>();
     for (const inv of invoices) {
@@ -236,6 +239,13 @@ export function BudgetSalesCard({ project }: Props) {
   // there. By the time rows reach this component every entry has a
   // sign that's safe to sum.
   const expenseLineQuery = useProjectExpenseLines(project.projectNo);
+  // Loading flag — all three realized-side hooks fetch on
+  // `projectNo` change. While ANY of them is in flight we render
+  // shimmer placeholders on the realized rows (skeleton from option
+  // A) + a soft dim overlay on the headline footer (option B's
+  // gentle "loading" cue).
+  const realizedFetching =
+    invoicesFetching || purchasesFetching || expenseLineQuery.isFetching;
   const gerceklesenExpenseLines = React.useMemo(
     () =>
       expenseLineQuery.rows
@@ -408,6 +418,7 @@ export function BudgetSalesCard({ project }: Props) {
                 sign="positive"
                 disabled={gerceklesenSalesLines.length === 0}
                 faded={gerceklesenSatisUsd === 0}
+                loading={invoicesFetching}
               >
                 {gerceklesenSalesLines.map((l, i) => (
                   <DetailLine
@@ -449,6 +460,7 @@ export function BudgetSalesCard({ project }: Props) {
                 sign="negative"
                 disabled={gerceklesenPurchaseLines.length === 0}
                 faded={gerceklesenAlimUsd === 0}
+                loading={purchasesFetching}
               >
                 {gerceklesenPurchaseLines.map((l, i) => (
                   <DetailLine
@@ -493,6 +505,7 @@ export function BudgetSalesCard({ project }: Props) {
                 sign={isGiderNetCredit ? "positive" : "negative"}
                 disabled={gerceklesenExpenseLines.length === 0}
                 faded={gerceklesenGiderUsd === 0}
+                loading={expenseLineQuery.isFetching}
               >
                 {gerceklesenExpenseLines.map((l, i) => (
                   <DetailLine
@@ -533,12 +546,23 @@ export function BudgetSalesCard({ project }: Props) {
             marginLabel="Gerçekleşen marj"
             value={gerceklesenKZ}
             marginPct={gerceklesenMargin}
+            loading={realizedFetching}
           />
           {/* Variance + achievement bar — Realised vs Forecast K&Z.
               Always rendered (regardless of `open`) so the bottom-line
               comparison is visible at a glance even when the per-section
-              breakdown is collapsed. */}
-          <VarianceFooter tahmini={tahminiKZ} gerceklesen={gerceklesenKZ} />
+              breakdown is collapsed. While any realized hook is in
+              flight we dim+blur the bar so the user doesn't react to a
+              stale variance number from the previous project. */}
+          <div
+            className={cn(
+              "transition-[filter,opacity] duration-200",
+              realizedFetching && "blur-[1.5px] opacity-60 pointer-events-none"
+            )}
+            aria-busy={realizedFetching || undefined}
+          >
+            <VarianceFooter tahmini={tahminiKZ} gerceklesen={gerceklesenKZ} />
+          </div>
         </div>
       </div>
     </GlassPanel>
@@ -769,6 +793,7 @@ function ExpandableRow({
   sign,
   faded = false,
   disabled = false,
+  loading = false,
   children,
 }: {
   label: string;
@@ -778,6 +803,13 @@ function ExpandableRow({
   sign: Tone;
   faded?: boolean;
   disabled?: boolean;
+  /** When true, hides the dollar value + count number and renders a
+   *  shimmer skeleton in their place. Used on the realized side while
+   *  the on-demand hooks are in flight so the user sees "yükleniyor"
+   *  instead of stale numbers from the previous project. Row is also
+   *  un-clickable in this state (the detail children would be empty
+   *  anyway). */
+  loading?: boolean;
   children?: React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(false);
@@ -787,6 +819,7 @@ function ExpandableRow({
       : sign === "negative"
         ? "text-rose-700"
         : "text-foreground";
+  const interactionDisabled = disabled || loading;
   return (
     <div
       className={cn(
@@ -796,37 +829,60 @@ function ExpandableRow({
     >
       <button
         type="button"
-        onClick={() => !disabled && setOpen((v) => !v)}
-        disabled={disabled}
+        onClick={() => !interactionDisabled && setOpen((v) => !v)}
+        disabled={interactionDisabled}
         className={cn(
           "w-full grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-3 py-2 text-[11.5px] items-baseline transition-colors text-left",
-          !disabled && "hover:bg-foreground/[0.025] cursor-pointer",
-          disabled && "cursor-default"
+          !interactionDisabled && "hover:bg-foreground/[0.025] cursor-pointer",
+          interactionDisabled && "cursor-default"
         )}
         aria-expanded={open}
+        aria-busy={loading || undefined}
       >
         <div className="min-w-0 flex items-center gap-1">
           <ChevronDown
             className={cn(
               "size-3 shrink-0 text-muted-foreground transition-transform",
               open && "rotate-180",
-              disabled && "opacity-40"
+              interactionDisabled && "opacity-40"
             )}
           />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="font-medium text-foreground truncate">{label}</div>
-            <div className="text-[10px] text-muted-foreground/80 truncate mt-0.5">
-              {count} {countLabel}
-            </div>
+            {loading ? (
+              // Skeleton sub-label — same height as the count line so
+              // the row doesn't shift when fetch completes.
+              <div
+                className="h-[12px] w-20 rounded bg-foreground/[0.08] mt-1 overflow-hidden relative"
+                aria-hidden
+              >
+                <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent bg-row-shimmer" />
+              </div>
+            ) : (
+              <div className="text-[10px] text-muted-foreground/80 truncate mt-0.5">
+                {count} {countLabel}
+              </div>
+            )}
           </div>
         </div>
-        <div
-          className={cn("text-right tabular-nums font-semibold", valueColor)}
-        >
-          {value}
-        </div>
+        {loading ? (
+          // Skeleton value placeholder — same width band as a typical
+          // currency string so the right-aligned column doesn't jump.
+          <div
+            className="h-[16px] w-24 rounded bg-foreground/[0.08] overflow-hidden relative justify-self-end"
+            aria-hidden
+          >
+            <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent bg-row-shimmer" />
+          </div>
+        ) : (
+          <div
+            className={cn("text-right tabular-nums font-semibold", valueColor)}
+          >
+            {value}
+          </div>
+        )}
       </button>
-      {open && children && (
+      {open && !loading && children && (
         <div className="bg-foreground/[0.025] px-3 pb-2.5 pt-1 border-t border-border/20">
           <div className="space-y-1">{children}</div>
         </div>
@@ -881,6 +937,7 @@ function KZFooterRow({
   value,
   marginPct,
   muted = false,
+  loading = false,
 }: {
   label: string;
   marginLabel: string;
@@ -892,6 +949,11 @@ function KZFooterRow({
    *  Tahmini row so the eye lands on the realised K&Z below it
    *  (which keeps its value-driven emerald/rose colouring). */
   muted?: boolean;
+  /** When true, hides the value + margin pill and renders skeleton
+   *  shimmers in their place. Used on the Gerçekleşen K&Z row while
+   *  any of the realized-side on-demand hooks is in flight — keeps
+   *  the footer block at a stable height + obviously says "loading". */
+  loading?: boolean;
 }) {
   // Margin tone — muted rows always neutral; otherwise derived from
   // the margin %. ±5% is the dead-band that reads as "no signal".
@@ -914,29 +976,50 @@ function KZFooterRow({
         : "neutral";
   const marginPill = MARGIN_PILL_STYLE[marginTone];
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-3 py-2.5 text-[11.5px] bg-foreground/[0.04] items-baseline border-t border-border/40">
+    <div
+      className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-3 py-2.5 text-[11.5px] bg-foreground/[0.04] items-baseline border-t border-border/40"
+      aria-busy={loading || undefined}
+    >
       <div className="min-w-0">
         <div className="font-semibold uppercase tracking-wider text-[10.5px] text-muted-foreground">
           {label}
         </div>
-        {marginPct != null && (
+        {loading ? (
           <span
-            className="inline-flex items-center mt-1 px-2 py-[3px] rounded-md text-[11.5px] font-semibold tabular-nums tracking-tight"
-            style={{ color: marginPill.color, backgroundColor: marginPill.bg }}
+            className="inline-block mt-1 h-[18px] w-32 rounded-md bg-foreground/[0.08] overflow-hidden relative"
+            aria-hidden
           >
-            {marginLabel} %{marginPct.toFixed(1)}
+            <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent bg-row-shimmer" />
           </span>
+        ) : (
+          marginPct != null && (
+            <span
+              className="inline-flex items-center mt-1 px-2 py-[3px] rounded-md text-[11.5px] font-semibold tabular-nums tracking-tight"
+              style={{ color: marginPill.color, backgroundColor: marginPill.bg }}
+            >
+              {marginLabel} %{marginPct.toFixed(1)}
+            </span>
+          )
         )}
       </div>
-      <div
-        className={cn(
-          "text-right tabular-nums text-[13px] font-bold",
-          VALUE_TEXT_CLASS[valueTone]
-        )}
-      >
-        {value >= 0 ? "+" : "−"}
-        {formatCurrency(Math.abs(value), "USD")}
-      </div>
+      {loading ? (
+        <div
+          className="h-[20px] w-28 rounded-md bg-foreground/[0.08] overflow-hidden relative justify-self-end"
+          aria-hidden
+        >
+          <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent bg-row-shimmer" />
+        </div>
+      ) : (
+        <div
+          className={cn(
+            "text-right tabular-nums text-[13px] font-bold",
+            VALUE_TEXT_CLASS[valueTone]
+          )}
+        >
+          {value >= 0 ? "+" : "−"}
+          {formatCurrency(Math.abs(value), "USD")}
+        </div>
+      )}
     </div>
   );
 }
