@@ -31,6 +31,21 @@ type MobileView = "list" | "map" | "details";
 // Kept as a constant for back-compat with `shipPlanDefault` prop.
 const PROJECTS_SHIP_PLAN_DEFAULT = true;
 
+/** Vessel Projects landing-page filter defaults. Sefer Takibi page is
+ *  operationally focused — the user opens it to triage voyages that
+ *  are NOT closed/cancelled. Default scope:
+ *   - Period: "all" (every historical FY pulled in)
+ *   - Sefer Durumu: To Be Nominated + Nominated + Commenced (active
+ *     pipeline only; Completed/Closed/Cancelled hidden until user
+ *     toggles them in)
+ *  User can override at any time via the popover — these are just
+ *  the "fresh visit" starting values. */
+const PROJECTS_DEFAULT_VOYAGE_STATUSES = [
+  "To Be Nominated",
+  "Nominated",
+  "Commenced",
+] as const;
+
 export function ProjectsPage() {
   const { projectId } = useParams<{ projectId?: string }>();
   const navigate = useNavigate();
@@ -43,9 +58,16 @@ export function ProjectsPage() {
   // inside ProjectList's header) can still drive a unified state shape
   // shared with Dashboard / Veri Yönetimi. The page-level layout is
   // unchanged — the trigger sits next to the search input as before.
-  const [filters, setFilters] = React.useState<ProjectFilterState>(() =>
-    makeEmptyFilters({ includeWithoutShipPlan: PROJECTS_SHIP_PLAN_DEFAULT })
-  );
+  const [filters, setFilters] = React.useState<ProjectFilterState>(() => {
+    const base = makeEmptyFilters({
+      includeWithoutShipPlan: PROJECTS_SHIP_PLAN_DEFAULT,
+      period: "all",
+    });
+    return {
+      ...base,
+      voyageStatuses: new Set(PROJECTS_DEFAULT_VOYAGE_STATUSES),
+    };
+  });
 
   // Deep-link from the dashboard KPI drawer (or any other page) — when
   // we land here with `state.focusProjectNo`, swap the filter into a
@@ -153,6 +175,9 @@ export function ProjectsPage() {
       filters={filters}
       onChange={setFilters}
       shipPlanDefault={PROJECTS_SHIP_PLAN_DEFAULT}
+      // Page defaults to "all" period — match here so the active-
+      // filter badge doesn't count the period chip as user-selected.
+      periodDefault="all"
       resultCount={projects.length}
       totalCount={rawProjects.length}
       iconOnly
