@@ -114,9 +114,35 @@ export function makeEmptyFilters(
  *  toggle is the cheapest no-op. */
 export function applyProjectFilter(
   projects: Project[],
-  f: ProjectFilterState,
+  fInput: ProjectFilterState,
   now: Date = new Date()
 ): Project[] {
+  // Defensive — any Set field that's somehow missing/undefined (a
+  // partial state shape from a stale tab, an in-flight migration, an
+  // older hot-reloaded chunk, …) is filled with an empty Set so the
+  // per-row predicate's `.size` / `.has` calls never throw. Crash
+  // mode was "white screen on combobox click" because
+  // `f.loadingPorts.size` blew up when filter shape was behind the
+  // new typings.
+  const EMPTY = new Set<string>();
+  const f: ProjectFilterState = {
+    ...fInput,
+    statuses: fInput.statuses ?? EMPTY,
+    groups: fInput.groups ?? EMPTY,
+    incoterms: fInput.incoterms ?? EMPTY,
+    segments: fInput.segments ?? EMPTY,
+    voyageStatuses: fInput.voyageStatuses ?? EMPTY,
+    traders: fInput.traders ?? EMPTY,
+    mainTraders: fInput.mainTraders ?? EMPTY,
+    companies: fInput.companies ?? EMPTY,
+    suppliers: fInput.suppliers ?? EMPTY,
+    buyers: fInput.buyers ?? EMPTY,
+    vessels: fInput.vessels ?? EMPTY,
+    loadingPorts: fInput.loadingPorts ?? EMPTY,
+    dischargePorts: fInput.dischargePorts ?? EMPTY,
+    projectNos: fInput.projectNos ?? EMPTY,
+  };
+
   // Period filter — applied to NON-exception projects only. Exception
   // projects (PROJECT_ID_EXCEPTIONS — e.g. ORGANIK01) are brought into
   // scope explicitly and typically don't have a contract date inside
@@ -210,21 +236,24 @@ export function projectFilterCount(
   const periodActive =
     f.period !== periodDefault ||
     (f.period === "fy" && f.fyKey !== null && f.fyKey !== getCurrentFyKey());
+  // Same defensive `.size ?? 0` pattern as `applyProjectFilter` —
+  // any field that's somehow undefined on `f` (stale shape) shouldn't
+  // crash the badge render.
   return (
-    f.statuses.size +
-    f.groups.size +
-    f.incoterms.size +
-    f.segments.size +
-    f.voyageStatuses.size +
-    f.traders.size +
-    f.mainTraders.size +
-    f.companies.size +
-    f.suppliers.size +
-    f.buyers.size +
-    f.vessels.size +
-    f.loadingPorts.size +
-    f.dischargePorts.size +
-    f.projectNos.size +
+    (f.statuses?.size ?? 0) +
+    (f.groups?.size ?? 0) +
+    (f.incoterms?.size ?? 0) +
+    (f.segments?.size ?? 0) +
+    (f.voyageStatuses?.size ?? 0) +
+    (f.traders?.size ?? 0) +
+    (f.mainTraders?.size ?? 0) +
+    (f.companies?.size ?? 0) +
+    (f.suppliers?.size ?? 0) +
+    (f.buyers?.size ?? 0) +
+    (f.vessels?.size ?? 0) +
+    (f.loadingPorts?.size ?? 0) +
+    (f.dischargePorts?.size ?? 0) +
+    (f.projectNos?.size ?? 0) +
     (f.includeWithoutShipPlan === shipPlanDefault ? 0 : 1) +
     (periodActive ? 1 : 0)
   );

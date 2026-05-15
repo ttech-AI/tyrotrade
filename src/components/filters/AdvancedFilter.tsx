@@ -157,6 +157,8 @@ export function AdvancedFilter({
       suppliers: new Set(),
       buyers: new Set(),
       vessels: new Set(),
+      loadingPorts: new Set(),
+      dischargePorts: new Set(),
       projectNos: new Set(),
       includeWithoutShipPlan: shipPlanDefault,
     });
