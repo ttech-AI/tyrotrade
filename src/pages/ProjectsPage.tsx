@@ -94,38 +94,17 @@ export function ProjectsPage() {
     }
   }, [projectId, selectedId]);
 
-  // When the filtered `projects` list changes, ensure the selection
-  // always points at a visible project. Three triggers fold into one
-  // effect:
-  //  - Initial cache hydration → `selectedId` is null → pick first
-  //  - Filter change that excluded the previously-selected project →
-  //    selection auto-jumps to the new first
-  //  - Direct URL navigation to /projects with a stale `projectId` in
-  //    the URL that no longer matches a visible row → first visible
-  //    wins so the right rail never lands on an empty state
-  //
-  // Push the new selection into the URL too so the TopBar's
-  // `useMatch` resolves it and any chat / KPI deep-link context is
-  // available immediately on first paint.
+  // Initial selection: when `selectedId` is null AND projects arrive
+  // (cache hydration after mount), pick the first project. Stops there
+  // — does NOT re-fire on filter changes that exclude the current
+  // selection, because that path tripped React error #185 ("Maximum
+  // update depth exceeded") under fast combobox toggles. The previous
+  // selection survives a filter change; if the user wants the next
+  // visible row, they click it explicitly.
   React.useEffect(() => {
+    if (selectedId !== null) return;
     if (projects.length === 0) return;
-    const stillVisible =
-      selectedId !== null &&
-      projects.some((p) => p.projectNo === selectedId);
-    if (stillVisible) return;
     const firstId = projects[0].projectNo;
-    // Guard against firing the state setter (and the navigate) when
-    // `selectedId` already matches the proposed first ID. That
-    // happened under fast filter-toggle sequences (combobox value
-    // click → setFilters → projects re-derived → effect runs → if
-    // selectedId still === firstId before the re-render finishes,
-    // setSelectedId schedules an identical update that then
-    // re-triggers this same effect with the same inputs — React
-    // collapsed the double-update but the navigate(replace) was
-    // firing twice in the same tick which the router didn't
-    // appreciate (showed up as a white-screen lockup on rapid
-    // toggles).
-    if (firstId === selectedId) return;
     setSelectedId(firstId);
     navigate(`/projects/${firstId}`, { replace: true });
   }, [projects, selectedId, navigate]);
