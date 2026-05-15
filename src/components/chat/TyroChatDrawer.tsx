@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  BubbleChatIcon,
   Robot01Icon,
   Tick02Icon,
 } from "@hugeicons/core-free-icons";
@@ -83,7 +82,11 @@ export function TyroChatDrawer({
               boxShadow: `0 4px 12px -4px ${TYRO_CHAT_TONE.ring}, inset 0 1px 0 0 rgba(255,255,255,0.25)`,
             }}
           >
-            <HugeiconsIcon icon={BubbleChatIcon} size={18} strokeWidth={1.75} />
+            {/* Match the topbar TyroChatButton's `Robot01Icon` so the
+                drawer header reads as "the same brand mark, just
+                expanded" instead of swapping to a different glyph
+                once the drawer opens. */}
+            <HugeiconsIcon icon={Robot01Icon} size={18} strokeWidth={1.75} />
           </span>
           <div className="min-w-0 flex-1">
             <SheetTitle className="text-[16px] font-semibold tracking-tight leading-tight">
