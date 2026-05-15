@@ -43,39 +43,30 @@ export function ProjectList({
     y: number;
   } | null>(null);
 
+  // Sort already applied by ProjectsPage (segment ASC + projectNo
+  // DESC) so `projects[0]` there matches `visible[0]` here — the
+  // page-level auto-select effect depends on this parity. Here we
+  // only do free-text search narrowing; order is preserved.
   const visible = React.useMemo(() => {
     const q = query.trim().toLowerCase();
-    const filtered = !q
-      ? projects
-      : projects.filter((p) => {
-          const haystack = [
-            p.projectNo,
-            p.projectName,
-            p.projectGroup,
-            p.vesselPlan?.vesselName,
-            p.vesselPlan?.loadingPort.name,
-            p.vesselPlan?.dischargePort.name,
-            p.vesselPlan?.supplier,
-            p.vesselPlan?.buyer,
-            p.segment,
-            ...p.lines.map((l) => l.productName),
-          ]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase();
-          return haystack.includes(q);
-        });
-    // Sort: segment ASC (empty/null bucketed last), then projectNo DESC
-    // (newest project numbers first within each segment).
-    return [...filtered].sort((a, b) => {
-      const segA = (a.segment ?? "").trim();
-      const segB = (b.segment ?? "").trim();
-      // Bucket missing segment after all real segments
-      if (segA === "" && segB !== "") return 1;
-      if (segA !== "" && segB === "") return -1;
-      if (segA !== segB) return segA.localeCompare(segB, "tr");
-      // Same segment → projectNo descending (string compare reversed)
-      return b.projectNo.localeCompare(a.projectNo);
+    if (!q) return projects;
+    return projects.filter((p) => {
+      const haystack = [
+        p.projectNo,
+        p.projectName,
+        p.projectGroup,
+        p.vesselPlan?.vesselName,
+        p.vesselPlan?.loadingPort.name,
+        p.vesselPlan?.dischargePort.name,
+        p.vesselPlan?.supplier,
+        p.vesselPlan?.buyer,
+        p.segment,
+        ...p.lines.map((l) => l.productName),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
     });
   }, [projects, query]);
 

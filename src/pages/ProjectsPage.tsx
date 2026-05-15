@@ -65,12 +65,25 @@ export function ProjectsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
 
-  const projects = React.useMemo(
-    () => applyProjectFilter(rawProjects, filters, now),
+  // Filtered + sorted in the same shape ProjectList renders so that
+  // `projects[0]` (used by the auto-select effect below) always points
+  // at the row the user sees on top of the left rail. Sort: segment
+  // ASC (empty bucketed last) → projectNo DESC inside each segment.
+  // The free-text search filter still lives inside ProjectList (it
+  // narrows `projects` further without changing the order).
+  const projects = React.useMemo(() => {
+    const filtered = applyProjectFilter(rawProjects, filters, now);
+    return [...filtered].sort((a, b) => {
+      const segA = (a.segment ?? "").trim();
+      const segB = (b.segment ?? "").trim();
+      if (segA === "" && segB !== "") return 1;
+      if (segA !== "" && segB === "") return -1;
+      if (segA !== segB) return segA.localeCompare(segB, "tr");
+      return b.projectNo.localeCompare(a.projectNo);
+    });
     // `now` recomputes per render but is string-equal stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rawProjects, filters]
-  );
+  }, [rawProjects, filters]);
 
   const initialId = projectId ?? projects[0]?.projectNo ?? null;
   const [selectedId, setSelectedId] = React.useState<string | null>(initialId);
