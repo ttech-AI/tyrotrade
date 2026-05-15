@@ -582,9 +582,12 @@ export function DataManagementPage() {
         label: "Satınalma Faturaları",
         refetch: async () => {
           const client = getDataverseClient();
-          // Union scope: vendor-invoice rows for voyage legs target
-          // the sub-project FK on `mserp_purchtable_etgtryprojid`.
-          const projids = readAllScopedProjids();
+          // PARENT-only scope: union with sub-project IDs would blow
+          // past the localStorage 5MB quota on this tenant (purchase
+          // entity has 5-10 invoice rows per project × ~4x ID growth
+          // from sub-projects). Sub-project realised purchases fall
+          // back to an on-demand fetch when needed.
+          const projids = readProjids();
           const result = await listAllByInChunked<Record<string, unknown>>(
             client,
             ENTITY_SETS.purchase,
@@ -693,24 +696,34 @@ export function DataManagementPage() {
             });
             return;
           }
-          const all: Record<string, unknown>[] = [];
-          let totalCount: number | undefined;
+          // Chunks fire in PARALLEL — sub-projects ~3-4x the ID count
+          // makes the sequential variant of this loop run ~70s instead
+          // of ~15s. Promise.all amortises the chunk count over the
+          // browser's HTTP/2 connection pool.
           const financingSet = getFinancingSalesIdSet();
+          const requests: Promise<{ value: Record<string, unknown>[]; totalCount?: number }>[] = [];
           for (let i = 0; i < projids.length; i += 100) {
             const chunk = projids.slice(i, i + 100);
             const inClause = `Microsoft.Dynamics.CRM.In(PropertyName='mserp_etgtryprojid',PropertyValues=[${chunk
               .map((p) => `'${p}'`)
               .join(",")}])`;
             const $filter = `${inClause} and mserp_currencycode eq 'USD' and (${NON_INTERCOMPANY_FILTER})`;
-            const result = await client.listAll<Record<string, unknown>>(
-              "mserp_tryaicustinvoicetransentities",
-              {
-                $filter,
-                $select:
-                  "mserp_etgtryprojid,mserp_invoicedate,mserp_lineamount,mserp_salesid",
-                $count: true,
-              }
+            requests.push(
+              client.listAll<Record<string, unknown>>(
+                "mserp_tryaicustinvoicetransentities",
+                {
+                  $filter,
+                  $select:
+                    "mserp_etgtryprojid,mserp_invoicedate,mserp_lineamount,mserp_salesid",
+                  $count: true,
+                }
+              )
             );
+          }
+          const results = await Promise.all(requests);
+          const all: Record<string, unknown>[] = [];
+          let totalCount: number | undefined;
+          for (const result of results) {
             for (const row of result.value) {
               if (financingSet.size > 0) {
                 const salesid = String(row.mserp_salesid ?? "");

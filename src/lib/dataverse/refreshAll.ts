@@ -755,10 +755,15 @@ export async function refreshAllEntities(
         // already-filtered so every downstream consumer inherits the
         // exclusion automatically.
         //
-        // Scope: parent + sub-project IDs. Purchases booked against a
-        // voyage leg target the sub-project ID directly through the
-        // same FK column.
-        const projids = readAllScopedProjids();
+        // Scope: PARENT projids only — even though sub-projects also
+        // book vendor invoices against the same FK, including them in
+        // this master cache blew past the localStorage 5MB quota on
+        // tenants with many sub-projects (~3-4x ID growth multiplied
+        // by per-project row count). Per-sub-project realised purchase
+        // is fetched on-demand by the BudgetSalesCard / Veri Yönetimi
+        // Alt Projeler tab if needed (TODO: add a per-sub-project
+        // hook mirroring `useProjectExpenseLines`'s pattern).
+        const projids = readProjids();
         const result = await listAllByInChunked<Record<string, unknown>>(
           client,
           ENTITY_SETS.purchase,
@@ -882,6 +887,14 @@ export async function refreshAllEntities(
         //
         // Scope: parent + sub-project IDs (same union as Satış Toplamları
         // — invoices on voyage legs target the sub-project FK).
+        //
+        // Chunks fire in PARALLEL via Promise.all — sub-projects added
+        // ~3-4x more IDs to the IN list, taking the sequential variant
+        // of this loop from ~15s to ~70s+ (3-4 chunks → 13 chunks).
+        // Parallelism brings it back to ~10-15s (browser HTTP/2 pool
+        // amortises the larger chunk count). Chunks are independent
+        // (each covers a disjoint slice of projids), so order doesn't
+        // matter; we just concat the row arrays at the end.
         const projids = readAllScopedProjids();
         if (projids.length === 0) {
           writeCache("salesByProjectMonth", {
@@ -892,21 +905,24 @@ export async function refreshAllEntities(
           return;
         }
         const financingSet = getFinancingSalesIdSet();
-        const all: Record<string, unknown>[] = [];
-        let totalCount: number | undefined;
+        const requests: Promise<{ value: Record<string, unknown>[]; totalCount?: number }>[] = [];
         for (let i = 0; i < projids.length; i += 100) {
           const chunk = projids.slice(i, i + 100);
           const inClause = buildInFilter("mserp_etgtryprojid", chunk);
           const $filter = `${inClause} and mserp_currencycode eq 'USD' and (${NON_INTERCOMPANY_FILTER})`;
-          const result = await client.listAll<Record<string, unknown>>(
-            SALES_ENTITY,
-            {
+          requests.push(
+            client.listAll<Record<string, unknown>>(SALES_ENTITY, {
               $filter,
               $select:
                 "mserp_etgtryprojid,mserp_invoicedate,mserp_lineamount,mserp_salesid",
               $count: true,
-            }
+            })
           );
+        }
+        const results = await Promise.all(requests);
+        const all: Record<string, unknown>[] = [];
+        let totalCount: number | undefined;
+        for (const result of results) {
           for (const row of result.value) {
             if (financingSet.size > 0) {
               const salesid = String(row.mserp_salesid ?? "");
