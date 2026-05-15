@@ -902,75 +902,16 @@ export async function refreshAllEntities(
         });
       },
     },
-    {
-      label: "Proje × Ay Satış",
-      run: async () => {
-        // Per-project per-currency raw rows for the monthly USD timeline.
-        // We can't push the `currencycode eq 'USD'` term into the chunked
-        // helper's $filter directly because it builds the IN clause and
-        // returns it as the entire $filter — so we layer the currency
-        // gate by chunking ourselves and AND-ing the IN clause with it.
-        // Financing-order rows excluded CLIENT-SIDE (F&O rejects
-        // `not In(...)`) — we include `mserp_salesid` in $select so we
-        // can drop matches against the cached financing-id Set after
-        // each chunk lands.
-        //
-        // Scope: parent + sub-project IDs (same union as Satış Toplamları
-        // — invoices on voyage legs target the sub-project FK).
-        //
-        // Chunks fire in PARALLEL via Promise.all — sub-projects added
-        // ~3-4x more IDs to the IN list, taking the sequential variant
-        // of this loop from ~15s to ~70s+ (3-4 chunks → 13 chunks).
-        // Parallelism brings it back to ~10-15s (browser HTTP/2 pool
-        // amortises the larger chunk count). Chunks are independent
-        // (each covers a disjoint slice of projids), so order doesn't
-        // matter; we just concat the row arrays at the end.
-        const projids = readAllScopedProjids();
-        if (projids.length === 0) {
-          writeCache("salesByProjectMonth", {
-            fetchedAt: new Date().toISOString(),
-            value: [],
-            totalCount: 0,
-          });
-          return;
-        }
-        const financingSet = getFinancingSalesIdSet();
-        const requests: Promise<{ value: Record<string, unknown>[]; totalCount?: number }>[] = [];
-        for (let i = 0; i < projids.length; i += 100) {
-          const chunk = projids.slice(i, i + 100);
-          const inClause = buildInFilter("mserp_etgtryprojid", chunk);
-          const $filter = `${inClause} and mserp_currencycode eq 'USD' and (${NON_INTERCOMPANY_FILTER})`;
-          requests.push(
-            client.listAll<Record<string, unknown>>(SALES_ENTITY, {
-              $filter,
-              $select:
-                "mserp_etgtryprojid,mserp_invoicedate,mserp_lineamount,mserp_salesid",
-              $count: true,
-            })
-          );
-        }
-        const results = await Promise.all(requests);
-        const all: Record<string, unknown>[] = [];
-        let totalCount: number | undefined;
-        for (const result of results) {
-          for (const row of result.value) {
-            if (financingSet.size > 0) {
-              const salesid = String(row.mserp_salesid ?? "");
-              if (financingSet.has(salesid)) continue;
-            }
-            all.push(row);
-          }
-          if (typeof result.totalCount === "number") {
-            totalCount = (totalCount ?? 0) + result.totalCount;
-          }
-        }
-        writeCache("salesByProjectMonth", {
-          fetchedAt: new Date().toISOString(),
-          value: all,
-          totalCount,
-        });
-      },
-    },
+    // NOTE: "Proje × Ay Satış" intentionally REMOVED from the refresh
+    // chain. The `salesByProjectMonth` cache it produced was written
+    // every refresh but NEVER read by any consumer — pure dead weight
+    // pulling tens of thousands of raw invoice rows for nothing. The
+    // step took 60-90s after sub-project elevation (10+ parallel
+    // chunks × heavy paginated `listAll`), making the whole refresh
+    // feel hung. If a future dashboard surface ever needs a monthly
+    // sales trend, add it as a server-side groupby aggregate
+    // (`$apply=groupby((projid, year(date), month(date)), aggregate(...))`)
+    // instead of pulling raw rows.
     // NOTE: "Gerçekleşen Gider Toplamları" intentionally OUT of the
     // refresh chain. The 4-stage rollup pipeline (inventdimb + dist +
     // expense-line + refmap) ran 1+ minute even with parallel chunks

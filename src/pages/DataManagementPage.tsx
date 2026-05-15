@@ -287,49 +287,32 @@ export function DataManagementPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProjId]);
 
-  // Diagnostic: log row counts + first-row keys for the two recently
-  // added entities so we can spot FK mismatches or empty-result fetches
-  // without users digging through localStorage. Console-only; no UI.
+  // Diagnostic: log row counts for the on-demand per-project hooks
+  // ONCE per selectedProjId change. Skipped entirely when no project
+  // is selected (otherwise stale `fetchedAt` from a previous session
+  // triggers a misleading "Fetch çalıştı ama 0 satır" warning on
+  // initial mount). Console-only; no UI.
   React.useEffect(() => {
+    if (!selectedProjId) return;
     const probe = (
       label: string,
       rows: Record<string, unknown>[],
-      fetchedAt: string | null,
-      expectedFkField: string
+      fetchedAt: string | null
     ) => {
       if (rows.length > 0) {
-        const first = rows[0];
-        const keys = Object.keys(first);
-        const fkValue = first[expectedFkField];
         console.log(
-          `[${label}] ${rows.length} satır cache'te. ` +
-            `İlk satırın "${expectedFkField}" değeri: ${JSON.stringify(fkValue)}. ` +
-            `Tüm alanlar:`,
-          keys
+          `[${label}] ${selectedProjId}: ${rows.length} satır yüklendi.`
         );
       } else if (fetchedAt) {
-        console.warn(
-          `[${label}] Fetch çalıştı (${fetchedAt}) ama 0 satır döndü — ` +
-            `bu projeler için bu entity'de kayıt olmayabilir veya FK eşleşmiyor.`
+        console.log(
+          `[${label}] ${selectedProjId}: 0 satır — bu projede bu entity'de kayıt yok.`
         );
       }
     };
-    probe(
-      "Gerçekleşen Gider",
-      actualExpense.rows,
-      actualExpense.fetchedAt,
-      // Expense-line entity has no project FK — the dist entity
-      // filtered upstream. The probe just surfaces row count + the
-      // expense voucher number on the first row for sanity.
-      "mserp_expensenum"
-    );
-    probe(
-      "Proje Satınalma",
-      purchase.rows,
-      purchase.fetchedAt,
-      "mserp_purchtable_etgtryprojid"
-    );
+    probe("Gerçekleşen Gider", actualExpense.rows, actualExpense.fetchedAt);
+    probe("Proje Satınalma", purchase.rows, purchase.fetchedAt);
   }, [
+    selectedProjId,
     actualExpense.rows,
     actualExpense.fetchedAt,
     purchase.rows,
@@ -699,69 +682,11 @@ export function DataManagementPage() {
           });
         },
       },
-      {
-        // Raw USD invoice rows for the monthly timeline. Currency gate
-        // is AND-ed with each chunk's IN clause inside the loop because
-        // the chunked helpers don't compose extra filter terms.
-        label: "Proje × Ay Satış",
-        refetch: async () => {
-          const client = getDataverseClient();
-          // Union scope: same rationale as Satış Toplamları above.
-          const projids = readAllScopedProjids();
-          if (projids.length === 0) {
-            writeCache("salesByProjectMonth", {
-              fetchedAt: new Date().toISOString(),
-              value: [],
-              totalCount: 0,
-            });
-            return;
-          }
-          // Chunks fire in PARALLEL — sub-projects ~3-4x the ID count
-          // makes the sequential variant of this loop run ~70s instead
-          // of ~15s. Promise.all amortises the chunk count over the
-          // browser's HTTP/2 connection pool.
-          const financingSet = getFinancingSalesIdSet();
-          const requests: Promise<{ value: Record<string, unknown>[]; totalCount?: number }>[] = [];
-          for (let i = 0; i < projids.length; i += 100) {
-            const chunk = projids.slice(i, i + 100);
-            const inClause = `Microsoft.Dynamics.CRM.In(PropertyName='mserp_etgtryprojid',PropertyValues=[${chunk
-              .map((p) => `'${p}'`)
-              .join(",")}])`;
-            const $filter = `${inClause} and mserp_currencycode eq 'USD' and (${NON_INTERCOMPANY_FILTER})`;
-            requests.push(
-              client.listAll<Record<string, unknown>>(
-                "mserp_tryaicustinvoicetransentities",
-                {
-                  $filter,
-                  $select:
-                    "mserp_etgtryprojid,mserp_invoicedate,mserp_lineamount,mserp_salesid",
-                  $count: true,
-                }
-              )
-            );
-          }
-          const results = await Promise.all(requests);
-          const all: Record<string, unknown>[] = [];
-          let totalCount: number | undefined;
-          for (const result of results) {
-            for (const row of result.value) {
-              if (financingSet.size > 0) {
-                const salesid = String(row.mserp_salesid ?? "");
-                if (financingSet.has(salesid)) continue;
-              }
-              all.push(row);
-            }
-            if (typeof result.totalCount === "number") {
-              totalCount = (totalCount ?? 0) + result.totalCount;
-            }
-          }
-          writeCache("salesByProjectMonth", {
-            fetchedAt: new Date().toISOString(),
-            value: all,
-            totalCount,
-          });
-        },
-      },
+      // NOTE: "Proje × Ay Satış" REMOVED — see refreshAll.ts for
+      // rationale. Cache was never read by any consumer; step took
+      // 60-90s after sub-project elevation. If we ever need monthly
+      // trends, add a server-side groupby aggregate instead of pulling
+      // raw rows.
       // NOTE: "Gerçekleşen Gider Toplamları" intentionally OUT of the
       // bulk refresh — see refreshAll.ts for rationale. P&L Cost page
       // lazy-loads it on mount.
