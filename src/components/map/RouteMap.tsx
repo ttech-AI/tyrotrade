@@ -11,6 +11,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import {
   Anchor,
   MapPin,
+  MapPinOff,
   Ship as ShipIcon,
   Compass,
   Plus,
@@ -99,6 +100,27 @@ const STAGE_TONE: Record<string, { bg: string; text: string; border: string }> =
   },
 };
 const FALLBACK_STAGE_TONE = STAGE_TONE["in-transit"];
+
+/** A Port is "defined" when it has a usable name AND non-zero
+ *  coordinates. The composer's `fallbackPort` helper produces
+ *  `{name: "—", country: "—", lat: 0, lon: 0}` when the F&O ship row
+ *  has no loading/discharge port string OR the string didn't resolve
+ *  through the port dictionary. Drawing a route through (0, 0)
+ *  produces a nonsense line off West Africa — gate the map render on
+ *  this check and surface a "port info eksik" empty state instead. */
+function isPortDefined(p: {
+  name?: string;
+  lat?: number;
+  lon?: number;
+} | null | undefined): boolean {
+  if (!p) return false;
+  const hasName = typeof p.name === "string" && p.name.trim().length > 0 && p.name !== "—";
+  const hasCoords =
+    typeof p.lat === "number" &&
+    typeof p.lon === "number" &&
+    (p.lat !== 0 || p.lon !== 0);
+  return hasName && hasCoords;
+}
 
 /** Stage-specific glyph for the status chip. Picks the icon that
  *  best signals the voyage's current operational mode at a glance:
@@ -274,11 +296,27 @@ export function RouteMap({ project }: RouteMapProps) {
   const dp = project?.vesselPlan?.dischargePort;
   const ms = project?.vesselPlan?.milestones;
 
+  // Port-validity check — gate the map render on the loading AND
+  // discharge ports both being defined. Composer's fallback ports
+  // produce (0,0) coords + "—" sentinel name; drawing a route from
+  // those produces a wrong line. See `isPortDefined` definition above.
+  const lpDefined = isPortDefined(project?.vesselPlan?.loadingPort);
+  const dpDefined = isPortDefined(project?.vesselPlan?.dischargePort);
+  const portsDefined = lpDefined && dpDefined;
+  const missingPortKind: "both" | "loading" | "discharge" | null =
+    project?.vesselPlan && !portsDefined
+      ? !lpDefined && !dpDefined
+        ? "both"
+        : !lpDefined
+          ? "loading"
+          : "discharge"
+      : null;
+
   return (
     <TooltipProvider delayDuration={200} disableHoverableContent>
       <div className="relative h-full rounded-3xl overflow-hidden glass">
         <div className="absolute inset-0 z-[1]">
-          {project && geom ? (
+          {project && geom && portsDefined ? (
             <Map
               ref={mapRef}
               mapStyle={DEFAULT_STYLE}
@@ -407,9 +445,18 @@ export function RouteMap({ project }: RouteMapProps) {
                   ? "no-selection"
                   : !project.vesselPlan
                     ? "no-vessel-plan"
-                    : "no-route"
+                    : missingPortKind
+                      ? "missing-port"
+                      : "no-route"
               }
               projectNo={project?.projectNo}
+              missingPortKind={missingPortKind}
+              loadingPortName={
+                project?.vesselPlan?.loadingPort?.name
+              }
+              dischargePortName={
+                project?.vesselPlan?.dischargePort?.name
+              }
             />
           )}
         </div>
@@ -785,10 +832,31 @@ function DurationPills({ project }: { project: Project }) {
 function EmptyState({
   kind,
   projectNo,
+  missingPortKind,
+  loadingPortName,
+  dischargePortName,
 }: {
-  kind: "no-selection" | "no-vessel-plan" | "no-route";
+  kind: "no-selection" | "no-vessel-plan" | "no-route" | "missing-port";
   projectNo?: string;
+  /** When `kind === "missing-port"`, which side is missing — both,
+   *  loading, or discharge. Drives the visual port-slot layout below. */
+  missingPortKind?: "both" | "loading" | "discharge" | null;
+  loadingPortName?: string;
+  dischargePortName?: string;
 }) {
+  // Dedicated rich layout for the missing-port case — operators see
+  // exactly which side of the journey is missing, with a clear "veri
+  // girilmeli" cue instead of a misleading map.
+  if (kind === "missing-port") {
+    return (
+      <MissingPortEmptyState
+        kind={missingPortKind ?? "both"}
+        loadingPortName={loadingPortName}
+        dischargePortName={dischargePortName}
+        projectNo={projectNo}
+      />
+    );
+  }
   const message =
     kind === "no-selection"
       ? "Bir proje seçin"
@@ -815,6 +883,132 @@ function EmptyState({
           <p className="text-[10px] font-mono text-muted-foreground/60 mt-2">
             {projectNo}
           </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Missing-port empty state — visual layout shows two port "slots"
+ * (loading → discharge) with the missing side(s) drawn as an empty
+ * outlined card with `MapPinOff` icon. Defined sides render the
+ * actual port name. A subtle amber tint reads as "veri girişi
+ * eksik", not a system error.
+ */
+function MissingPortEmptyState({
+  kind,
+  loadingPortName,
+  dischargePortName,
+  projectNo,
+}: {
+  kind: "both" | "loading" | "discharge";
+  loadingPortName?: string;
+  dischargePortName?: string;
+  projectNo?: string;
+}) {
+  const loadingMissing = kind === "both" || kind === "loading";
+  const dischargeMissing = kind === "both" || kind === "discharge";
+  const headline =
+    kind === "both"
+      ? "Yükleme ve varış limanları girilmemiş"
+      : kind === "loading"
+        ? "Yükleme limanı girilmemiş"
+        : "Varış limanı girilmemiş";
+  return (
+    <div className="h-full grid place-items-center px-6">
+      <div className="w-full max-w-md text-center">
+        <div className="inline-flex items-center justify-center size-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 mb-3">
+          <MapPinOff
+            className="size-6 text-amber-700"
+            strokeWidth={1.75}
+          />
+        </div>
+        <p className="text-sm font-semibold text-foreground">{headline}</p>
+        <p className="text-[11.5px] text-muted-foreground mt-1.5 leading-relaxed">
+          Rota çizilemiyor — Dataverse'de gemi planındaki liman alanları
+          boş. Bilgi tamamlanınca harita otomatik güncellenir.
+        </p>
+
+        {/* Port slots — loading on the left, discharge on the right.
+            Each slot shows the defined port name with anchor icon, or
+            an "—" placeholder + MapPinOff when missing. */}
+        <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-stretch gap-2">
+          <PortSlot
+            label="Yükleme"
+            name={loadingPortName}
+            missing={loadingMissing}
+          />
+          <div className="flex items-center justify-center text-muted-foreground/40 text-[11px]">
+            <span className="-mx-1">→</span>
+          </div>
+          <PortSlot
+            label="Varış"
+            name={dischargePortName}
+            missing={dischargeMissing}
+          />
+        </div>
+
+        {projectNo && (
+          <p className="text-[10px] font-mono text-muted-foreground/60 mt-4">
+            {projectNo}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** One port "slot" — label on top, then either the port name (defined)
+ *  or a MapPinOff placeholder (missing). Used in pairs by
+ *  `MissingPortEmptyState`. */
+function PortSlot({
+  label,
+  name,
+  missing,
+}: {
+  label: string;
+  name?: string;
+  missing: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-xl border px-3 py-2.5 text-left",
+        missing
+          ? "border-amber-500/30 bg-amber-500/[0.04]"
+          : "border-foreground/15 bg-foreground/[0.025]"
+      )}
+    >
+      <div
+        className={cn(
+          "text-[9.5px] font-semibold uppercase tracking-wider mb-1",
+          missing ? "text-amber-700/80" : "text-muted-foreground"
+        )}
+      >
+        {label}
+      </div>
+      <div className="flex items-center gap-1.5">
+        {missing ? (
+          <>
+            <MapPinOff
+              className="size-3.5 text-amber-700/70 shrink-0"
+              strokeWidth={2}
+            />
+            <span className="text-[12px] text-amber-700/85 font-medium italic">
+              Girilmemiş
+            </span>
+          </>
+        ) : (
+          <>
+            <MapPin
+              className="size-3.5 text-foreground/60 shrink-0"
+              strokeWidth={2}
+            />
+            <span className="text-[12px] text-foreground/85 truncate">
+              {name && name.length > 0 ? name : "—"}
+            </span>
+          </>
         )}
       </div>
     </div>
