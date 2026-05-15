@@ -826,13 +826,20 @@ export function DataManagementPage() {
   // projects so the "Alt Projeler" tab respects the same chip
   // selection the "Projeler" tab uses. Search query also applies
   // — substring match across every field via `matchesSearch`.
+  //
+  // Filter on `allowedParentProjectNos` (which carries raw parent
+  // projids) instead of `allowedProjectNos` (composer-elevated set).
+  // Same reason as `visibleProjects` above: a parent like ORGANIK01
+  // sits in the projects cache but composer hid it behind its elevated
+  // sub-projects. Sub-project rows' FK is `mserp_projid` (the parent),
+  // so we need the parent's projid in the allow set for them to pass.
   const scopedSubProjects = React.useMemo(() => {
     let rows = subProjects.rows.filter((r) =>
-      allowedProjectNos.has(String(r["mserp_projid"] ?? ""))
+      allowedParentProjectNos.has(String(r["mserp_projid"] ?? ""))
     );
     if (searchQuery.trim()) rows = rows.filter(matchesSearch);
     return rows;
-  }, [subProjects.rows, allowedProjectNos, searchQuery, matchesSearch]);
+  }, [subProjects.rows, allowedParentProjectNos, searchQuery, matchesSearch]);
 
   // Alt-proje detay satırları — selected sub-project'e göre
   // filtrelenir. Hiç seçim yoksa empty döner (kullanıcı üstten
