@@ -25,9 +25,11 @@ import { cn } from "@/lib/utils";
 
 type MobileView = "list" | "map" | "details";
 
-// Vessel Projects default = ship-plan-only (operationally-scoped).
-// Dashboard uses the opposite default.
-const PROJECTS_SHIP_PLAN_DEFAULT = false;
+// Ship-plan filter retired from the UI — all pages now include
+// projects without vessel plans by default (Karayolu projects,
+// exception IDs like ORGANIK01, etc. used to silently disappear).
+// Kept as a constant for back-compat with `shipPlanDefault` prop.
+const PROJECTS_SHIP_PLAN_DEFAULT = true;
 
 export function ProjectsPage() {
   const { projectId } = useParams<{ projectId?: string }>();

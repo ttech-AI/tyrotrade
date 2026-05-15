@@ -419,32 +419,12 @@ export function AdvancedFilter({
             }
           />
 
-          {/* Ship-plan inclusion toggle */}
-          <label className="flex items-start gap-2.5 cursor-pointer group">
-            <input
-              type="checkbox"
-              checked={filters.includeWithoutShipPlan}
-              onChange={(e) =>
-                onChange({
-                  ...filters,
-                  includeWithoutShipPlan: e.target.checked,
-                })
-              }
-              className="mt-0.5 size-4 rounded border-border cursor-pointer"
-              style={{ accentColor: accent.solid }}
-            />
-            <div className="min-w-0 flex-1">
-              <div className="text-[12px] font-semibold leading-tight">
-                Gemi planı olmayanları da dahil et
-              </div>
-              <div className="text-[11px] text-muted-foreground mt-0.5 leading-tight">
-                Varsayılan:{" "}
-                {shipPlanDefault
-                  ? "tüm projeler dahil"
-                  : "yalnızca gemi planı olan projeler"}
-              </div>
-            </div>
-          </label>
+          {/* Ship-plan inclusion toggle REMOVED — `includeWithoutShipPlan`
+              is hard-locked to `true` at every page's `makeEmptyFilters`
+              call so projects without vessel plans (Karayolu, exception
+              IDs like ORGANIK01, etc.) always pass through. The field
+              stays on `ProjectFilterState` for backwards compat but the
+              user never toggles it. */}
 
           {/* 1. Sefer Durumu — chip */}
           {options.voyageStatuses.length > 0 && (
