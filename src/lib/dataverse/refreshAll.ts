@@ -12,14 +12,13 @@ import {
   SUB_PROJECT_DETAIL_COLUMNS,
   SHIP_COLUMNS,
   EXPENSE_COLUMNS,
-  // ACTUAL_EXPENSE_COLUMNS intentionally not imported — actualExpense
-  // is fetched per-project on-demand from the inspector hook (see
-  // DataManagementPage's `actualExpense` useEntityRows query). The
-  // global refresh chain skips it to keep the localStorage cache
-  // under quota.
-  PURCHASE_COLUMNS,
+  // PURCHASE_COLUMNS + ACTUAL_EXPENSE_COLUMNS + BUDGET_COLUMNS
+  // intentionally not imported — all three are fetched per-selected-
+  // project on-demand from `useProjectPurchases`,
+  // `useProjectExpenseLines`, and `useSegmentBudget(segment)`
+  // respectively. The bulk refresh chain skips them to keep the
+  // localStorage cache under quota.
   VESSEL_TABLE_COLUMNS,
-  BUDGET_COLUMNS,
 } from "@/lib/dataverse/columnOrder";
 
 /**
@@ -115,7 +114,6 @@ const ENTITY_SETS = {
    *  `mserp_vesselname` + `mserp_imonumber`. The ship entity itself
    *  carries only the numeric `mserp_vessel` RecID. */
   vesselTable: "mserp_tryvlxvesseltableentities",
-  budget: "mserp_tryaiprojectbudgetlineentities",
 } as const;
 
 const SALES_ENTITY = "mserp_tryaicustinvoicetransentities";
@@ -135,6 +133,38 @@ export const FINANCING_PURCH_IDS_CACHE = "financingPurchIds";
  *  populated by `fetchActualExpenseRollupForAllProjects` in the
  *  refresh chain. Format: `ActualExpenseRollupRow[]`. */
 export const ACTUAL_EXPENSE_ROLLUP_CACHE = "actualExpenseRollup";
+
+/** Synthetic cache key for the per-(projid, expenseType) aggregated
+ *  estimated expense. Replaces the old `mserp_tryaiotherexpenseentities`
+ *  raw-row master cache — that table grew large enough (with sub-project
+ *  union scope) to threaten localStorage quota.
+ *
+ *  Format: `EstimatedExpenseAggregateRow[]` — one entry per
+ *  (projectNo, expenseTypeCode) pair, carrying the F&O FormattedValue
+ *  label for client-side bucketing + the summed unit-USD-per-ton.
+ *  Composer multiplies by project tons (from vesselPlan) to derive
+ *  bucket totals (Freight / Insurance / Duties / Other).
+ *
+ *  When raw expense rows are needed (EstimatedExpenseCard line list,
+ *  Veri Yönetimi "Tahmini Gider" tab), they're fetched on-demand per
+ *  selected project via `useProjectEstimatedExpense`. */
+export const ESTIMATED_EXPENSE_AGGREGATE_CACHE =
+  "estimatedExpenseAggregateByProject";
+
+export interface EstimatedExpenseAggregateRow {
+  projectNo: string;
+  /** F&O `mserp_tryexpensetype` numeric code as text. Carried for
+   *  inspector / debugging — bucketing reads `expenseTypeLabel`. */
+  expenseTypeCode: string;
+  /** FormattedValue (e.g. "Navlun", "Sigorta", "Customs", "OPEX").
+   *  Empty string when Dataverse didn't return an FV (rare). */
+  expenseTypeLabel: string;
+  /** Σ `mserp_expamountusdd` over the rows of this group. Per-ton USD;
+   *  composer multiplies by project tons to get bucket totalUsd. */
+  totalUnitUsd: number;
+  /** Source row count — diagnostic only. */
+  rowCount: number;
+}
 
 export interface RefreshProgress {
   /** 1-based step index. */
@@ -657,10 +687,26 @@ export async function refreshAllEntities(
       },
     },
     {
-      label: "Tahmini Gider",
+      label: "Tahmini Gider Toplamı",
       run: async () => {
-        // Scope: parent + sub-project IDs. The expense entity's
-        // `mserp_etgtryprojid` FK accepts either form on this tenant.
+        // Was previously a raw-row fetch into the
+        // `mserp_tryaiotherexpenseentities` cache — that table grew past
+        // the localStorage 5MB quota once sub-project IDs joined the
+        // union. Now we fetch the same rows but aggregate client-side
+        // into a tiny per-(projid, expenseType) summary BEFORE writing
+        // to cache: 3 columns + FormattedValue × ~3000 rows → ~440
+        // projects × 3-5 expense types = ~2000 aggregate entries,
+        // shrinking the cache from ~900 KB to ~150 KB.
+        //
+        // Bucketing (Freight / Insurance / Duties / Other) happens in
+        // the composer based on `expenseTypeLabel` — keeping it
+        // client-side means F&O can rename/add expense types without
+        // refresh-chain changes. Raw line-by-line render
+        // (EstimatedExpenseCard, Veri Yönetimi inspector) is fed by
+        // the on-demand `useProjectEstimatedExpense` hook.
+        //
+        // Scope: parent + sub-project IDs — sub-projects book their
+        // own expense rows under the same FK.
         const projids = readAllScopedProjids();
         const result = await listAllByInChunked<Record<string, unknown>>(
           client,
@@ -672,10 +718,50 @@ export async function refreshAllEntities(
             $count: true,
           }
         );
-        writeCache(ENTITY_SETS.expense, {
+        // Aggregate client-side: Map<`${projid}::${typeCode}`, agg>
+        const agg = new Map<
+          string,
+          {
+            projectNo: string;
+            expenseTypeCode: string;
+            expenseTypeLabel: string;
+            totalUnitUsd: number;
+            rowCount: number;
+          }
+        >();
+        for (const row of result.value) {
+          const projectNo = String(row.mserp_etgtryprojid ?? "").trim();
+          if (!projectNo) continue;
+          const expenseTypeCode = String(
+            row.mserp_tryexpensetype ?? ""
+          ).trim();
+          const expenseTypeLabel = String(
+            row["mserp_tryexpensetype@OData.Community.Display.V1.FormattedValue"] ??
+              expenseTypeCode ??
+              ""
+          ).trim();
+          const unitUsd = Number(row.mserp_expamountusdd);
+          if (!Number.isFinite(unitUsd)) continue;
+          const key = `${projectNo}::${expenseTypeCode}`;
+          const existing = agg.get(key);
+          if (existing) {
+            existing.totalUnitUsd += unitUsd;
+            existing.rowCount += 1;
+          } else {
+            agg.set(key, {
+              projectNo,
+              expenseTypeCode,
+              expenseTypeLabel,
+              totalUnitUsd: unitUsd,
+              rowCount: 1,
+            });
+          }
+        }
+        const rows: EstimatedExpenseAggregateRow[] = [...agg.values()];
+        writeCache(ESTIMATED_EXPENSE_AGGREGATE_CACHE, {
           fetchedAt: new Date().toISOString(),
-          value: result.value,
-          totalCount: result.totalCount,
+          value: rows,
+          totalCount: rows.length,
         });
       },
     },
@@ -735,77 +821,21 @@ export async function refreshAllEntities(
         });
       },
     },
-    {
-      // Renamed from "Gerçekleşen Satınalma" (which now labels the
-      // financing-exclusion step above). This step pulls the actual
-      // realised purchase invoice rows the BudgetSalesCard and the
-      // inspector both read from.
-      label: "Satınalma Faturaları",
-      run: async () => {
-        // Realised project purchases — vendor invoice transactions
-        // joined via the parent purchase table's project FK
-        // (`mserp_purchtable_etgtryprojid`). Narrowed to 12 columns the
-        // inspector renders, chunked the same way as siblings so a
-        // 440-project IN list never blows past the URL limit.
-        // Intercompany rows excluded server-side. Financing-order rows
-        // (mserp_purchid in cached set) excluded CLIENT-SIDE because
-        // F&O virtual entities reject `not In(...)` filters with a
-        // 405 ("Not operator along with the Custom Named Condition
-        // operators is not allowed"). Master cache is written
-        // already-filtered so every downstream consumer inherits the
-        // exclusion automatically.
-        //
-        // Scope: PARENT projids only — even though sub-projects also
-        // book vendor invoices against the same FK, including them in
-        // this master cache blew past the localStorage 5MB quota on
-        // tenants with many sub-projects (~3-4x ID growth multiplied
-        // by per-project row count). Per-sub-project realised purchase
-        // is fetched on-demand by the BudgetSalesCard / Veri Yönetimi
-        // Alt Projeler tab if needed (TODO: add a per-sub-project
-        // hook mirroring `useProjectExpenseLines`'s pattern).
-        const projids = readProjids();
-        const result = await listAllByInChunked<Record<string, unknown>>(
-          client,
-          ENTITY_SETS.purchase,
-          "mserp_purchtable_etgtryprojid",
-          projids,
-          {
-            $select: PURCHASE_COLUMNS.join(","),
-            $count: true,
-          },
-          undefined,
-          NON_INTERCOMPANY_FILTER
-        );
-        const financingSet = getFinancingPurchIdSet();
-        const filtered = financingSet.size > 0
-          ? result.value.filter(
-              (r) => !financingSet.has(String(r.mserp_purchid ?? ""))
-            )
-          : result.value;
-        writeCache(ENTITY_SETS.purchase, {
-          fetchedAt: new Date().toISOString(),
-          value: filtered,
-          totalCount: result.totalCount,
-        });
-      },
-    },
-    {
-      label: "Tahmini Bütçe",
-      run: async () => {
-        const result = await client.listAll<Record<string, unknown>>(
-          ENTITY_SETS.budget,
-          {
-            $select: BUDGET_COLUMNS.join(","),
-            $count: true,
-          }
-        );
-        writeCache(ENTITY_SETS.budget, {
-          fetchedAt: new Date().toISOString(),
-          value: result.value,
-          totalCount: result.totalCount,
-        });
-      },
-    },
+    // NOTE: "Satınalma Faturaları" intentionally OUT of the bulk
+    // refresh. The master `mserp_tryaivendinvoicetransentities` cache
+    // grew past the localStorage 5MB quota once sub-project IDs joined
+    // the FK union scope. Now fetched per-selected-project on-demand
+    // via `useProjectPurchases(projectNo)` — same lazy pattern as
+    // `useProjectInvoices` (sales). Veri Yönetimi → "Satınalma
+    // Faturaları" tab + BudgetSalesCard ("Alım" side) both bind to
+    // that hook.
+    // NOTE: "Tahmini Bütçe (Segment)" intentionally OUT of the bulk
+    // refresh. The entity is whole-tenant in scope (every segment ×
+    // year × month combination) — fetching it for every refresh wastes
+    // bandwidth + cache when only the SELECTED project's segment is
+    // ever rendered (Veri Yönetimi "Tahmini Bütçe (Segment)" tab).
+    // Now fetched on-demand by `useSegmentBudget(segment)` when the
+    // user clicks a project.
     {
       label: "Satış Toplamları",
       run: async () => {

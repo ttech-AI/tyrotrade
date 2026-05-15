@@ -22,9 +22,9 @@ import {
   selectExecutionDate,
 } from "@/lib/selectors/project";
 import { toUsdAtDate } from "@/lib/finance/fxRates";
-import { readCache } from "@/lib/storage/entityCache";
 import { useProjectInvoices } from "@/hooks/useProjectInvoices";
 import { useProjectExpenseLines } from "@/hooks/useProjectExpenseLines";
+import { useProjectPurchases } from "@/hooks/useProjectPurchases";
 import { cn } from "@/lib/utils";
 import type { Project } from "@/lib/dataverse/entities";
 
@@ -32,7 +32,6 @@ interface Props {
   project: Project;
 }
 
-const PURCHASE_ENTITY_SET = "mserp_tryaivendinvoicetransentities";
 
 /**
  * "Realized P&L" — full sales × purchase × expense P&L resolution
@@ -77,6 +76,11 @@ export function BudgetSalesCard({ project }: Props) {
    * build a code→name map from invoices to enrich the estimate
    * line breakdown — same trick ProfitLossCard uses. */
   const { invoices } = useProjectInvoices(project.projectNo);
+  // Realised purchases — on-demand fetch (master cache retired for
+  // quota reasons). Returns rows filtered to this project's FK +
+  // financing-order rows already stripped. The useMemo below reads
+  // from `purchaseRows` directly instead of `readCache(...)`.
+  const { rows: purchaseRows } = useProjectPurchases(project.projectNo);
   const productNameByCode = React.useMemo(() => {
     const map = new Map<string, string>();
     for (const inv of invoices) {
@@ -183,14 +187,14 @@ export function BudgetSalesCard({ project }: Props) {
     0
   );
 
-  // Purchase — read cached vendor invoice rows scoped to the
-  // selected project, same FX treatment as sales.
+  // Realised purchases — fed by `useProjectPurchases` (on-demand
+  // fetch via `purchaseRows`). Rows already scoped to this project's
+  // FK + financing-order rows stripped, so we just map → format here.
+  // FX-to-USD at each row's `mserp_invoicedate` (same treatment as
+  // realised sales).
   const gerceklesenPurchaseLines = React.useMemo(() => {
     if (!project.projectNo) return [];
-    const cached = readCache<Record<string, unknown>>(PURCHASE_ENTITY_SET);
-    const all = cached?.value ?? [];
-    return all
-      .filter((r) => r["mserp_purchtable_etgtryprojid"] === project.projectNo)
+    return purchaseRows
       .map((r) => {
         const amount = Number(r["mserp_lineamount"]);
         if (!Number.isFinite(amount) || amount === 0) return null;
@@ -212,7 +216,7 @@ export function BudgetSalesCard({ project }: Props) {
       })
       .filter((l): l is NonNullable<typeof l> => l !== null)
       .sort((a, b) => Math.abs(b.totalUsd) - Math.abs(a.totalUsd));
-  }, [project.projectNo]);
+  }, [project.projectNo, purchaseRows]);
   const gerceklesenAlimUsd = gerceklesenPurchaseLines.reduce(
     (s, l) => s + l.totalUsd,
     0

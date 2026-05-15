@@ -40,8 +40,19 @@ export interface ComposeInput {
   projectRows: Record<string, unknown>[];
   shipRows: Record<string, unknown>[];
   lineRows: Record<string, unknown>[];
-  expenseRows: Record<string, unknown>[];
-  budgetRows: Record<string, unknown>[];
+  /** Per-(projectNo, expenseType) aggregate rows from the refresh-chain
+   *  "Tahmini Gider Toplamı" step. One entry per group, carrying the
+   *  FormattedValue label so client-side bucketing (Freight / Insurance
+   *  / Duties / Other) still works after the raw-row master cache was
+   *  retired for quota reasons. Composer multiplies each row's
+   *  `totalUnitUsd` by the project's tons (from vesselPlan) to derive
+   *  the `CostEstimateLine.totalUsd` rendered by EstimatedExpenseCard /
+   *  BudgetSalesCard / the dashboard P&L tile.
+   *
+   *  Shape: `{ projectNo, expenseTypeCode, expenseTypeLabel,
+   *  totalUnitUsd, rowCount }` — see `EstimatedExpenseAggregateRow` in
+   *  `refreshAll.ts`. Untyped here so composer stays framework-agnostic. */
+  expenseAggregateRows: Record<string, unknown>[];
   /** Optional — per-project per-currency invoiced totals from the
    *  `$apply=groupby(...)/aggregate(lineamount with sum as total)` query.
    *  One row per (projid, currency). When present, projects are enriched
@@ -92,8 +103,7 @@ export function composeProjects(input: ComposeInput): ComposeResult {
     projectRows,
     shipRows,
     lineRows,
-    expenseRows,
-    budgetRows,
+    expenseAggregateRows,
     salesAggregateRows,
     subProjectRows,
   } = input;
@@ -129,12 +139,14 @@ export function composeProjects(input: ComposeInput): ComposeResult {
     else linesByProjid.set(id, [r]);
   }
 
-  // FK on the new `mserp_tryaiotherexpenseentities` entity is
-  // `mserp_etgtryprojid` (the legacy project-line variant used
-  // `mserp_tryplanprojectid`).
+  // Pre-aggregated per-(projectNo, expenseType) rows from the
+  // "Tahmini Gider Toplamı" refresh step. Each entry already carries
+  // the sum of `mserp_expamountusdd` for its group + the FormattedValue
+  // label for client-side bucketing — composer just looks up the right
+  // entries by projectNo and multiplies by project tons.
   const expensesByProjid = new Map<string, Record<string, unknown>[]>();
-  for (const r of expenseRows) {
-    const id = readString(r, "mserp_etgtryprojid");
+  for (const r of expenseAggregateRows) {
+    const id = readString(r, "projectNo");
     if (!id) continue;
     const list = expensesByProjid.get(id);
     if (list) list.push(r);
@@ -164,71 +176,17 @@ export function composeProjects(input: ComposeInput): ComposeResult {
     entry.count += cnt;
   }
 
-  // Segment budget rollup: budget rows summed per (segment, year) AND per
-  // (segment, year, month).
-  //
-  // `mserp_year` is actually an ISO date column (period-end, e.g.
-  // "2023-08-31T00:00:00Z") — not a numeric year. Extract calendar
-  // year+month. Skip rows with an unparseable date.
-  const budgetBySegment = new Map<
-    string,
-    Map<number, { amount: number; qty: number }>
-  >();
-  const budgetBySegmentMonth = new Map<
-    string,
-    Map<string, { year: number; month: number; amount: number; qty: number }>
-  >();
-  for (const r of budgetRows) {
-    const seg = readString(r, "mserp_segment");
-    if (!seg) continue;
-    const yearRaw = r["mserp_year"];
-    let year: number | null = null;
-    let month: number | null = null;
-    if (typeof yearRaw === "string") {
-      const m = yearRaw.match(/^(\d{4})-(\d{2})/);
-      if (m) {
-        year = parseInt(m[1], 10);
-        month = parseInt(m[2], 10);
-      }
-    } else if (typeof yearRaw === "number" && Number.isFinite(yearRaw)) {
-      year = yearRaw;
-    }
-    if (!year) continue;
-
-    const amount = num(r["mserp_amount"]);
-    const qty = num(r["mserp_qty"]);
-
-    // Year rollup
-    let segMap = budgetBySegment.get(seg);
-    if (!segMap) {
-      segMap = new Map();
-      budgetBySegment.set(seg, segMap);
-    }
-    let yr = segMap.get(year);
-    if (!yr) {
-      yr = { amount: 0, qty: 0 };
-      segMap.set(year, yr);
-    }
-    yr.amount += amount;
-    yr.qty += qty;
-
-    // Month rollup (only when we could extract a month)
-    if (month) {
-      const key = `${year}-${String(month).padStart(2, "0")}`;
-      let monthMap = budgetBySegmentMonth.get(seg);
-      if (!monthMap) {
-        monthMap = new Map();
-        budgetBySegmentMonth.set(seg, monthMap);
-      }
-      let mEntry = monthMap.get(key);
-      if (!mEntry) {
-        mEntry = { year, month, amount: 0, qty: 0 };
-        monthMap.set(key, mEntry);
-      }
-      mEntry.amount += amount;
-      mEntry.qty += qty;
-    }
-  }
+  // Segment budget rollup intentionally REMOVED from composer — the
+  // master `mserp_tryaiprojectbudgetlineentities` cache was retired
+  // after sub-projects elevated cache size past the localStorage
+  // quota threshold. The Veri Yönetimi "Tahmini Bütçe (Segment)" tab
+  // now fetches budget rows on-demand for the SELECTED project's
+  // segment only (`useSegmentBudget(segment)` hook). No active consumer
+  // reads `project.segmentBudgets` / `project.segmentBudgetsByMonth`
+  // anymore — the deprecated `BudgetVsActualCard.tsx` isn't mounted in
+  // any page. Project type fields are left in `entities.ts` as
+  // `optional / undefined` so the typing surface stays stable for
+  // anyone who may yet import them.
 
   let projectsWithoutShipPlan = 0;
   let projectsWithMissingPort = 0;
@@ -349,35 +307,14 @@ export function composeProjects(input: ComposeInput): ComposeResult {
       : undefined;
     const salesActualInvoiceCount = salesEntry?.count;
 
-    // Segment budget rollup for this project's segment (if any)
-    let segmentBudgets: SegmentBudgetYearSummary[] | undefined;
-    let segmentBudgetsByMonth: SegmentBudgetMonthSummary[] | undefined;
-    if (segment) {
-      const segMap = budgetBySegment.get(segment);
-      if (segMap && segMap.size > 0) {
-        segmentBudgets = [...segMap.entries()]
-          .map(([year, data]) => ({
-            year,
-            totalAmount: Math.round(data.amount),
-            totalQty: Math.round(data.qty),
-          }))
-          .sort((a, b) => b.year - a.year);
-      }
-      const monthMap = budgetBySegmentMonth.get(segment);
-      if (monthMap && monthMap.size > 0) {
-        segmentBudgetsByMonth = [...monthMap.values()]
-          .map((m) => ({
-            year: m.year,
-            month: m.month,
-            totalAmount: Math.round(m.amount),
-            totalQty: Math.round(m.qty),
-          }))
-          .sort(
-            (a, b) =>
-              b.year * 100 + b.month - (a.year * 100 + a.month)
-          );
-      }
-    }
+    // segmentBudgets / segmentBudgetsByMonth — deliberately left
+    // undefined. See the explanatory comment above the (removed)
+    // budget rollup block for why these fields are no longer populated
+    // at compose time (on-demand `useSegmentBudget(segment)` covers the
+    // single live consumer instead).
+    const segmentBudgets: SegmentBudgetYearSummary[] | undefined = undefined;
+    const segmentBudgetsByMonth: SegmentBudgetMonthSummary[] | undefined =
+      undefined;
 
     // Project name resolution:
     //  - Parent project → its own `mserp_projname`
@@ -885,37 +822,35 @@ function computeProjectTons(
 /* ─────────── Expenses → CostEstimateLine[] (per-line totals) ─────────── */
 
 function toCostEstimateLines(
-  rows: Record<string, unknown>[],
+  aggregateRows: Record<string, unknown>[],
   tons: number
 ): CostEstimateLine[] {
-  // Group by `mserp_tryexpensetype` — the F&O "Yan masraf türü" code
-  // (e.g. "721002"). Prefer the FormattedValue annotation when Dataverse
-  // attaches one (friendly category like "Operasyonel giderler"), falling
-  // back to the raw code, then "Diğer" if both are empty. Multiple raw
-  // rows sharing the same group key get summed.
-  const grouped = new Map<
-    string,
-    { unitPriceUsd: number; code: string | undefined }
-  >();
-  for (const r of rows) {
-    const code = readString(r, "mserp_tryexpensetype").trim();
-    const friendly = getFormattedValue(r, "mserp_tryexpensetype")?.trim();
-    const name = (friendly || code || "Diğer").trim();
-    const unitPriceUsd = num(r["mserp_expamountusdd"]);
-    const existing = grouped.get(name);
-    if (existing) {
-      existing.unitPriceUsd += unitPriceUsd;
-    } else {
-      grouped.set(name, { unitPriceUsd, code: code || undefined });
-    }
+  // Aggregate rows come pre-grouped from the "Tahmini Gider Toplamı"
+  // refresh step (one entry per projectNo × expenseTypeCode), so this
+  // function is a flat map instead of a grouping loop.
+  //
+  // Shape (from `EstimatedExpenseAggregateRow` in refreshAll.ts):
+  //   { projectNo, expenseTypeCode, expenseTypeLabel, totalUnitUsd, rowCount }
+  //
+  // `name` falls back through label → code → "Diğer" exactly the same
+  // way the old raw-row variant did, so the downstream bucketing logic
+  // in `toCostEstimate` keeps matching FREIGHT_REFS / INSURANCE_REFS /
+  // DUTIES_REFS unchanged.
+  const lines: CostEstimateLine[] = [];
+  for (const r of aggregateRows) {
+    const code = readString(r, "expenseTypeCode").trim();
+    const label = readString(r, "expenseTypeLabel").trim();
+    const name = (label || code || "Diğer").trim();
+    const unitPriceUsd = num(r["totalUnitUsd"]);
+    lines.push({
+      name,
+      code: code || undefined,
+      unitPriceUsd,
+      tons,
+      totalUsd: unitPriceUsd * tons,
+    });
   }
-  return [...grouped.entries()].map(([name, agg]) => ({
-    name,
-    code: agg.code,
-    unitPriceUsd: agg.unitPriceUsd,
-    tons,
-    totalUsd: agg.unitPriceUsd * tons,
-  }));
+  return lines;
 }
 
 /* ─────────── CostEstimateLine[] → CostEstimate (rolled up) ─────────── */

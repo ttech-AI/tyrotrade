@@ -19,8 +19,12 @@ const ENTITY_SETS = {
   subProject: "mserp_trysubprojectentities",
   ship: "mserp_tryaiprojectshiprelationentities",
   lines: "mserp_tryaiprojectlineentities",
-  expense: "mserp_tryaiotherexpenseentities",
-  budget: "mserp_tryaiprojectbudgetlineentities",
+  /** Synthetic key — NOT a real Dataverse entity set. Holds the
+   *  per-(projectNo, expenseType) aggregate from the "Tahmini Gider
+   *  Toplamı" refresh step. Replaces the old
+   *  `mserp_tryaiotherexpenseentities` raw-row cache (retired after
+   *  sub-project union pushed it past the localStorage quota). */
+  estimatedExpenseAggregate: "estimatedExpenseAggregateByProject",
   /** Synthetic key — NOT a real Dataverse entity set. Holds the per-project
    *  `$apply=groupby+aggregate(lineamount with sum)` result so KingProjects
    *  ranking and the BudgetVsActual card don't have to fetch raw invoices
@@ -36,8 +40,9 @@ export interface UseRealProjectsReturn {
     projects: string | null;
     ship: string | null;
     lines: string | null;
-    expense: string | null;
-    budget: string | null;
+    /** Tahmini Gider aggregate cache timestamp (replaces the old raw
+     *  expense cache that was retired for quota reasons). */
+    estimatedExpense: string | null;
   };
   warnings: ComposeWarnings | null;
 }
@@ -67,8 +72,9 @@ export function useRealProjects(): UseRealProjectsReturn {
   const fpSubProject = useCacheFingerprint(ENTITY_SETS.subProject);
   const fpShip = useCacheFingerprint(ENTITY_SETS.ship);
   const fpLines = useCacheFingerprint(ENTITY_SETS.lines);
-  const fpExpense = useCacheFingerprint(ENTITY_SETS.expense);
-  const fpBudget = useCacheFingerprint(ENTITY_SETS.budget);
+  const fpExpenseAgg = useCacheFingerprint(
+    ENTITY_SETS.estimatedExpenseAggregate
+  );
   const fpSalesAgg = useCacheFingerprint(ENTITY_SETS.salesAggregate);
 
   return React.useMemo<UseRealProjectsReturn>(() => {
@@ -78,8 +84,9 @@ export function useRealProjects(): UseRealProjectsReturn {
     );
     const shipC = readCache<Record<string, unknown>>(ENTITY_SETS.ship);
     const linesC = readCache<Record<string, unknown>>(ENTITY_SETS.lines);
-    const expC = readCache<Record<string, unknown>>(ENTITY_SETS.expense);
-    const budgetC = readCache<Record<string, unknown>>(ENTITY_SETS.budget);
+    const expAggC = readCache<Record<string, unknown>>(
+      ENTITY_SETS.estimatedExpenseAggregate
+    );
     const salesAggC = readCache<Record<string, unknown>>(
       ENTITY_SETS.salesAggregate
     );
@@ -88,8 +95,7 @@ export function useRealProjects(): UseRealProjectsReturn {
       projects: projC?.fetchedAt ?? null,
       ship: shipC?.fetchedAt ?? null,
       lines: linesC?.fetchedAt ?? null,
-      expense: expC?.fetchedAt ?? null,
-      budget: budgetC?.fetchedAt ?? null,
+      estimatedExpense: expAggC?.fetchedAt ?? null,
     };
 
     if (!projC || projC.value.length === 0) {
@@ -100,8 +106,7 @@ export function useRealProjects(): UseRealProjectsReturn {
       projectRows: projC.value,
       shipRows: shipC?.value ?? [],
       lineRows: linesC?.value ?? [],
-      expenseRows: expC?.value ?? [],
-      budgetRows: budgetC?.value ?? [],
+      expenseAggregateRows: expAggC?.value ?? [],
       salesAggregateRows: salesAggC?.value ?? [],
       // Sub-project rows lift parents to voyage-leg granularity.
       // Missing cache → composer falls back to parent-only output.
@@ -131,7 +136,7 @@ export function useRealProjects(): UseRealProjectsReturn {
       warnings: composed.warnings,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fpProjects, fpSubProject, fpShip, fpLines, fpExpense, fpBudget, fpSalesAgg]);
+  }, [fpProjects, fpSubProject, fpShip, fpLines, fpExpenseAgg, fpSalesAgg]);
 }
 
 /**
