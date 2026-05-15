@@ -2,7 +2,7 @@ import * as React from "react";
 import { Outlet, useLocation, useMatch } from "react-router-dom";
 import { Menu, Ship, Database, Search, Settings, X } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Home01Icon, HotPriceIcon, BubbleChatIcon } from "@hugeicons/core-free-icons";
+import { Home01Icon, HotPriceIcon, Robot01Icon } from "@hugeicons/core-free-icons";
 import { GlassPanel } from "@/components/glass/GlassPanel";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -198,7 +198,12 @@ function DesktopChatSlot({
                 boxShadow: `0 4px 12px -4px ${TYRO_CHAT_TONE.ring}, inset 0 1px 0 0 rgba(255,255,255,0.25)`,
               }}
             >
-              <HugeiconsIcon icon={BubbleChatIcon} size={18} strokeWidth={1.75} />
+              {/* Match the topbar TyroChatButton's icon (Robot01) so
+                  the desktop chat panel header reads as "same glyph
+                  expanded", not a different bubble that just happens
+                  to share the gradient. Mobile drawer
+                  (`TyroChatDrawer.tsx`) does the same. */}
+              <HugeiconsIcon icon={Robot01Icon} size={18} strokeWidth={1.75} />
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-[16px] font-semibold tracking-tight leading-tight">
