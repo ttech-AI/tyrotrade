@@ -55,6 +55,7 @@ export function TyroChatDrawer({
 
   const [chatKey, setChatKey] = React.useState(0);
   const clearChat = React.useCallback(() => {
+    sessionStorage.removeItem("tyro:chat:session");
     setChatKey((k) => k + 1);
     setOverlayVisible(false);
   }, []);
