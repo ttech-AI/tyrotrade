@@ -29,7 +29,7 @@ export interface UserSettings {
  *  module constant so the Settings page can reset to it and so the
  *  drawer falls back gracefully if the user clears the override. */
 export const DEFAULT_COPILOT_CHAT_URL =
-  "https://copilotstudio.microsoft.com/environments/Default-9efa3bdf-67ad-47e3-8dfb-d1df79a6d7fa/bots/crfc1_agentokBCAt/webchat?__version__=2";
+  ((import.meta.env.VITE_COPILOT_CHAT_URL as string | undefined) ?? "").trim();
 
 /** Encoded development fallback for the Gemini key. Stored as base64
  *  so GitHub's secret-scan doesn't trip on the literal GCP-shaped

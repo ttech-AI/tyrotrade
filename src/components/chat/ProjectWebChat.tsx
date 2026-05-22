@@ -21,10 +21,9 @@ import { cn } from "@/lib/utils";
 const PAGE_SESSION_ID = Math.random().toString(36).slice(2);
 
 const COPILOT_SETTINGS = new ConnectionSettings({
-  directConnectUrl:
-    "https://default9efa3bdf67ad47e38dfbd1df79a6d7.fa.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/crfc1_agentokBCAt/conversations?api-version=2022-03-01-preview",
-  environmentId: "Default-9efa3bdf-67ad-47e3-8dfb-d1df79a6d7fa",
-  schemaName: "crfc1_agentokBCAt",
+  directConnectUrl: import.meta.env.VITE_COPILOT_DIRECT_CONNECT_URL as string,
+  environmentId: import.meta.env.VITE_COPILOT_ENVIRONMENT_ID as string,
+  schemaName: import.meta.env.VITE_COPILOT_BOT_SCHEMA as string,
 });
 
 export interface ProjectContext {

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Outlet, useLocation, useMatch } from "react-router-dom";
-import { Menu, Ship, Database, Search, Settings, X } from "lucide-react";
+import { Menu, Ship, Database, Search, Settings, X, Trash2 } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Home01Icon, HotPriceIcon, Robot01Icon } from "@hugeicons/core-free-icons";
 import { GlassPanel } from "@/components/glass/GlassPanel";
@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { TyroChatButton, TYRO_CHAT_TONE } from "@/components/layout/TyroChatButton";
 import { NotificationButton } from "@/components/layout/NotificationButton";
-import { TyroAiDrawer } from "@/components/chat/TyroAiDrawer";
 import { TyroChatDrawer } from "@/components/chat/TyroChatDrawer";
 import { ProjectWebChat, type ProjectContext, type UserContext } from "@/components/chat/ProjectWebChat";
 import { useMsal } from "@azure/msal-react";
@@ -55,9 +54,6 @@ function ShellInner() {
     ? { name: msalAccount.name ?? "", email: msalAccount.username ?? "" }
     : undefined;
 
-  const [aiOpen, setAiOpen] = React.useState(false);
-  const openAi = React.useCallback(() => setAiOpen(true), []);
-
   // Chat state lifted here so desktop panel is a flex sibling (push layout)
   // rather than a portal overlay.
   const [chatOpen, setChatOpen] = React.useState(() => {
@@ -91,7 +87,7 @@ function ShellInner() {
 
   return (
     <div className="h-screen w-screen flex overflow-hidden">
-      {!isMobile && <DesktopSidebarSlot onOpenAi={openAi} />}
+      {!isMobile && <DesktopSidebarSlot />}
 
       {isMobile && (
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -104,11 +100,7 @@ function ShellInner() {
             <AppSidebar
               embedded
               onItemClick={() => setMobileOpen(false)}
-              onOpenAi={() => {
-                openAi();
-                setMobileOpen(false);
-              }}
-            />
+              />
           </SheetContent>
         </Sheet>
       )}
@@ -145,7 +137,6 @@ function ShellInner() {
         />
       )}
 
-      <TyroAiDrawer open={aiOpen} onOpenChange={setAiOpen} />
       <DataverseLoginAutoRefresh />
     </div>
   );
@@ -168,6 +159,9 @@ function DesktopChatSlot({
   React.useEffect(() => {
     if (open) setHasOpened(true);
   }, [open]);
+
+  const [chatKey, setChatKey] = React.useState(0);
+  const clearChat = React.useCallback(() => setChatKey((k) => k + 1), []);
 
   return (
     <div
@@ -215,6 +209,15 @@ function DesktopChatSlot({
             </div>
             <button
               type="button"
+              onClick={clearChat}
+              title="Sohbeti temizle"
+              className="size-8 rounded-lg grid place-items-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+              aria-label="Sohbeti temizle"
+            >
+              <Trash2 className="size-4" />
+            </button>
+            <button
+              type="button"
               onClick={onClose}
               className="size-8 rounded-lg grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
               aria-label="Kapat"
@@ -225,7 +228,7 @@ function DesktopChatSlot({
 
           {/* Chat body */}
           <div className="flex-1 min-h-0 bg-white">
-            <ProjectWebChat projectContext={projectContext} userContext={userContext} />
+            <ProjectWebChat key={chatKey} projectContext={projectContext} userContext={userContext} />
           </div>
         </>
       )}
@@ -235,7 +238,7 @@ function DesktopChatSlot({
 
 /* ─── Desktop sidebar slot ───────────────────────────────────────────────── */
 
-function DesktopSidebarSlot({ onOpenAi }: { onOpenAi: () => void }) {
+function DesktopSidebarSlot() {
   const { expanded, setHovering } = useSidebar();
   const closeTimer = React.useRef<number | null>(null);
 
@@ -267,7 +270,7 @@ function DesktopSidebarSlot({ onOpenAi }: { onOpenAi: () => void }) {
         expanded ? "w-[272px]" : "w-[92px]"
       )}
     >
-      <AppSidebar onOpenAi={onOpenAi} />
+      <AppSidebar />
     </div>
   );
 }

@@ -12,7 +12,6 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Home01Icon,
   HotPriceIcon,
-  AiBrain02Icon,
 } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -74,15 +73,11 @@ const NAV_GROUPS: NavGroup[] = [
 interface AppSidebarProps {
   embedded?: boolean;
   onItemClick?: () => void;
-  /** Opens the TYRO AI drawer. Mounted at ShellInner so the
-   *  drawer overlays the whole app regardless of route. */
-  onOpenAi?: () => void;
 }
 
 export function AppSidebar({
   embedded = false,
   onItemClick,
-  onOpenAi,
 }: AppSidebarProps) {
   const { expanded, pinned, togglePin, theme } = useSidebar();
   const showLabels = embedded || expanded;
@@ -182,32 +177,7 @@ export function AppSidebar({
               {systemGroup.label}
             </div>
           )}
-          {/* Sibling-app + AI shortcuts above the Yardım nav item.
-              They mirror the NavItemLink layout so they sit cleanly
-              in the Sistem group. TYRO AI uses the same brain glyph
-              the drawer header carries (a small emerald-teal accent
-              dot marks it as an AI tool); TYRO Stock uses the
-              origami T logo in its aurora palette so the row reads
-              like a tiny version of the sibling app's brand mark.  */}
-          {onOpenAi && (
-            <SidebarToolItem
-              kind="button"
-              iconNode={
-                <HugeiconsIcon
-                  icon={AiBrain02Icon}
-                  className="size-[18px]"
-                  strokeWidth={2}
-                />
-              }
-              label="TYRO AI"
-              showLabel={showLabels}
-              tooltip="TYRO AI"
-              onClick={() => {
-                onOpenAi();
-                onItemClick?.();
-              }}
-            />
-          )}
+          {/* Sibling-app shortcuts above the Yardım nav item. */}
           <SidebarToolItem
             kind="link"
             href="https://tyrowms.github.io/"

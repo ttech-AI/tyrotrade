@@ -25,13 +25,15 @@ import {
   ArrowUpFromLine,
   Hourglass,
   CircleCheck,
+  RefreshCw,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import lineSliceAlong from "@turf/line-slice-along";
 import along from "@turf/along";
 import bearing from "@turf/bearing";
-import { point } from "@turf/helpers";
+import nearestPointOnLine from "@turf/nearest-point-on-line";
+import { point, lineString } from "@turf/helpers";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowUp01Icon, ArrowDown01Icon } from "@hugeicons/core-free-icons";
 import type { Feature, LineString, Position } from "geojson";
@@ -142,6 +144,17 @@ const STAGE_ICON: Record<string, LucideIcon> = {
   discharged: CircleCheck,
 };
 
+const VESSEL_WORKER = ((import.meta.env.VITE_VESSEL_WORKER_URL as string | undefined) ?? "").replace(/\/$/, "");
+
+interface AisPosition {
+  lat: number;
+  lon: number;
+  sog: number;
+  cog: number;
+  status: string | null;
+  vesselUrl: string;
+}
+
 export function RouteMap({ project }: RouteMapProps) {
   const mapRef = React.useRef<MapRef>(null);
   const [mapReady, setMapReady] = React.useState(false);
@@ -150,9 +163,41 @@ export function RouteMap({ project }: RouteMapProps) {
   // and switching projects re-opens it so the new project's milestone
   // history is the first thing they see on the map.
   const [timelineOpen, setTimelineOpen] = React.useState(true);
+  const [aisPos, setAisPos] = React.useState<AisPosition | null>(null);
+  const [aisFetching, setAisFetching] = React.useState(false);
+  const [aisError, setAisError] = React.useState<string | null>(null);
   const accent = useThemeAccent();
-  const geom = useRouteGeometry(project);
+  const geom = useRouteGeometry(project, aisPos);
   const { progress, stage } = useRouteProgress(project);
+
+  const fetchAisPosition = React.useCallback(async () => {
+    const imo = project?.vesselPlan?.imoNumber;
+    const name = project?.vesselPlan?.vesselName;
+    if (!imo || !name) return;
+    setAisFetching(true);
+    setAisError(null);
+    try {
+      const res = await fetch(
+        `${VESSEL_WORKER}?name=${encodeURIComponent(name)}&imo=${encodeURIComponent(imo)}`
+      );
+      const data = await res.json();
+      if (data.error) {
+        setAisError(data.error);
+      } else {
+        setAisPos({ lat: data.lat, lon: data.lon, sog: data.sog, cog: data.cog, status: data.status, vesselUrl: data.vesselUrl });
+      }
+    } catch {
+      setAisError("Bağlantı hatası");
+    } finally {
+      setAisFetching(false);
+    }
+  }, [project?.vesselPlan?.imoNumber, project?.vesselPlan?.vesselName]);
+
+  // Reset AIS state when project changes — don't auto-fetch
+  React.useEffect(() => {
+    setAisPos(null);
+    setAisError(null);
+  }, [project?.projectNo]);
 
   // Re-open timeline when project changes — fresh project, fresh
   // milestone view.
@@ -213,29 +258,47 @@ export function RouteMap({ project }: RouteMapProps) {
     attrib.classList.add("maplibregl-compact");
   }, [mapReady]);
 
+  // When AIS position is available, snap it to the nearest point on the route
+  // and derive progress from that — overrides the date-based progress estimate.
+  const aisSnapped = React.useMemo(() => {
+    if (!aisPos || !geom) return null;
+    const line = lineString(geom.line.geometry.coordinates);
+    const nearest = nearestPointOnLine(line, point([aisPos.lon, aisPos.lat]), { units: "kilometers" });
+    const distAlongKm = nearest.properties.location ?? 0;
+    const snappedProgress = Math.min(0.999, Math.max(0.001, distAlongKm / geom.totalKm));
+    const snappedPos = nearest.geometry.coordinates as Position;
+    return { progress: snappedProgress, position: snappedPos };
+  }, [aisPos, geom]);
+
+  const effectiveProgress = aisSnapped?.progress ?? progress;
+
   const { completedLine, position, headingDeg } = React.useMemo(() => {
     if (!geom) {
       return { completedLine: null, position: null as Position | null, headingDeg: 0 };
     }
     const { line, totalKm } = geom;
-    const km = Math.max(0.001, totalKm * Math.max(0.0001, Math.min(0.9999, progress)));
+    const km = Math.max(0.001, totalKm * Math.max(0.0001, Math.min(0.9999, effectiveProgress)));
     const completed: Feature<LineString> | null =
-      progress > 0
+      effectiveProgress > 0
         ? (lineSliceAlong(line, 0, km, { units: "kilometers" }) as Feature<LineString>)
         : null;
-    const position = geom.positionAt(progress);
-    let headingDeg = 0;
-    if (completed && completed.geometry.coordinates.length >= 2) {
-      const coords = completed.geometry.coordinates;
-      const last = coords[coords.length - 1];
-      const prev = coords[coords.length - 2];
-      headingDeg = bearing(point(prev), point(last));
-    } else if (line.geometry.coordinates.length >= 2) {
-      const coords = line.geometry.coordinates;
-      headingDeg = bearing(point(coords[0]), point(coords[1]));
+    // If AIS position is available, show marker at raw AIS coords (not snapped).
+    // The completed segment uses the snapped progress for route visualization.
+    const position = aisPos
+      ? [aisPos.lon, aisPos.lat] as Position
+      : geom.positionAt(effectiveProgress);
+    let headingDeg = aisPos?.cog ?? 0;
+    if (!aisPos) {
+      if (completed && completed.geometry.coordinates.length >= 2) {
+        const coords = completed.geometry.coordinates;
+        headingDeg = bearing(point(coords[coords.length - 2]), point(coords[coords.length - 1]));
+      } else if (line.geometry.coordinates.length >= 2) {
+        const coords = line.geometry.coordinates;
+        headingDeg = bearing(point(coords[0]), point(coords[1]));
+      }
     }
     return { completedLine: completed, position, headingDeg };
-  }, [geom, progress]);
+  }, [geom, effectiveProgress, aisSnapped, aisPos]);
 
   /**
    * Direction arrows placed at evenly-spaced intervals along the
@@ -286,11 +349,11 @@ export function RouteMap({ project }: RouteMapProps) {
         lon: here[0],
         lat: here[1],
         bearingDeg: bearing(point(back), point(ahead)),
-        done: t < progress,
+        done: t < effectiveProgress,
       });
     }
     return out;
-  }, [geom, progress]);
+  }, [geom, effectiveProgress]);
 
   const lp = project?.vesselPlan?.loadingPort;
   const dp = project?.vesselPlan?.dischargePort;
@@ -407,7 +470,7 @@ export function RouteMap({ project }: RouteMapProps) {
                 </Marker>
               ))}
 
-              {position && progress > 0.02 && progress < 0.98 && project && (
+              {!aisPos && position && effectiveProgress > 0.02 && effectiveProgress < 0.98 && project && (
                 <Marker
                   longitude={position[0]}
                   latitude={position[1]}
@@ -416,10 +479,26 @@ export function RouteMap({ project }: RouteMapProps) {
                   <div
                     title={`${project.vesselPlan!.vesselName} · ${
                       STAGE_LABEL[stage] ?? stage
-                    } · %${(progress * 100).toFixed(0)}`}
+                    } · %${(effectiveProgress * 100).toFixed(0)}`}
                   >
                     <VesselMarker heading={headingDeg} accent={accent} />
                   </div>
+                </Marker>
+              )}
+
+              {aisPos && project?.vesselPlan && (
+                <Marker
+                  longitude={aisPos.lon}
+                  latitude={aisPos.lat}
+                  anchor="center"
+                >
+                  <AisMarker
+                    heading={aisPos.cog}
+                    sog={aisPos.sog}
+                    status={aisPos.status}
+                    vesselName={project.vesselPlan.vesselName}
+                    vesselUrl={aisPos.vesselUrl}
+                  />
                 </Marker>
               )}
 
@@ -500,7 +579,7 @@ export function RouteMap({ project }: RouteMapProps) {
                         strokeWidth={2.5}
                       />
                       {STAGE_LABEL[stage] ?? stage} · %
-                      {(progress * 100).toFixed(0)}
+                      {(effectiveProgress * 100).toFixed(0)}{aisPos ? " ·  AIS" : ""}
                     </span>
                   );
                 })()}
@@ -553,6 +632,29 @@ export function RouteMap({ project }: RouteMapProps) {
                   </TooltipTrigger>
                   <TooltipContent side="left">Rotaya odakla</TooltipContent>
                 </Tooltip>
+                <div className="h-px bg-border my-0.5" />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={fetchAisPosition}
+                      disabled={aisFetching || !project?.vesselPlan?.imoNumber}
+                      aria-label="Anlık konum al"
+                    >
+                      <RefreshCw className={cn("size-4", aisFetching && "animate-spin")} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">
+                    {!project?.vesselPlan?.imoNumber
+                      ? "IMO numarası yok"
+                      : aisError
+                      ? aisError
+                      : aisPos
+                      ? "Konumu güncelle"
+                      : "Anlık konum al"}
+                  </TooltipContent>
+                </Tooltip>
               </div>
             </GlassPanel>
           </div>
@@ -563,7 +665,7 @@ export function RouteMap({ project }: RouteMapProps) {
             {timelineOpen && (
               <MilestoneStrip
                 ms={project.vesselPlan.milestones}
-                progress={progress}
+                progress={effectiveProgress}
                 onClose={() => setTimelineOpen(false)}
               />
             )}
@@ -1112,6 +1214,41 @@ function VesselMarker({
   );
 }
 
+function AisMarker({
+  heading,
+  sog,
+  status,
+  vesselName,
+  vesselUrl,
+}: {
+  heading: number;
+  sog: number;
+  status: string | null;
+  vesselName: string;
+  vesselUrl: string;
+}) {
+  const title = [vesselName, status, `${sog} kn`].filter(Boolean).join(" · ");
+  return (
+    <div
+      className="relative cursor-pointer"
+      style={{ transform: "translate(-50%, -50%)" }}
+      onClick={() => window.open(vesselUrl, "_blank")}
+      title={title}
+    >
+      <span className="absolute inset-0 -m-3 rounded-full blur-md animate-pulse bg-sky-400/40" />
+      <div
+        className="relative size-9 rounded-full grid place-items-center text-white shadow-lg bg-sky-500 border-2 border-sky-300"
+        style={{ transform: `rotate(${heading}deg)` }}
+      >
+        <ShipIcon className="size-4" style={{ transform: `rotate(${-heading}deg)` }} />
+      </div>
+      <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded px-1 py-0.5 text-[9px] font-semibold bg-sky-500 text-white shadow">
+        AIS
+      </span>
+    </div>
+  );
+}
+
 /** Pick the most recent populated discharge-port milestone for the
  *  varış-limanı chip. Once the vessel passes a stage we want the chip
  *  to reflect that — DP-ETA only stays visible while the voyage is
@@ -1286,7 +1423,7 @@ function MilestoneStrip({ ms, progress, onClose }: MilestoneStripProps) {
             </span>
             <span className="text-[10px] text-muted-foreground">·</span>
             <span className="text-[10px] font-semibold text-emerald-700 tabular-nums">
-              %{pct} yol alındı
+              %{pct} · {STAGE_LABEL[progress >= 1 ? "discharged" : progress >= 0.95 ? "at-discharge-port" : progress > 0.1 ? "in-transit" : progress >= 0.08 ? "loading" : progress >= 0.04 ? "at-loading-port" : "pre-loading"]}
             </span>
           </div>
           <button

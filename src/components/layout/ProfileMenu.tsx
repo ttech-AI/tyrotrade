@@ -23,8 +23,8 @@ interface ProfileMenuProps {
 
 /** Mock-mode + missing-account fallback so the avatar always has SOME
  *  identity to render. Real auth fills these in from the MSAL account. */
-const FALLBACK_NAME = "Cenk Saylı";
-const FALLBACK_EMAIL = "cenk.sayli@tiryaki.com.tr";
+const FALLBACK_NAME = "TYRO Kullanıcı";
+const FALLBACK_EMAIL = "";
 
 /** Two-letter initials from a "First Last" string. Falls back to the
  *  first two letters of the email local-part when the name is missing

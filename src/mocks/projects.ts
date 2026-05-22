@@ -23,7 +23,8 @@ export const mockProjects: Project[] = [
     transactionDirection: null,
     operationPeriod: null,
     vesselPlan: {
-      vesselName: "EVINOS",
+      vesselName: "COMMON SPIRIT",
+      imoNumber: "9594717",
       fixtureId: "FFIXH00616",
       voyage: 1,
       vesselStatus: "Completed",

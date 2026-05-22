@@ -32,6 +32,9 @@ const SettingsPage = React.lazy(() =>
 const HelpPage = React.lazy(() =>
   import("@/pages/HelpPage").then((m) => ({ default: m.HelpPage }))
 );
+const VesselMapPage = React.lazy(() =>
+  import("@/pages/VesselMapPage").then((m) => ({ default: m.VesselMapPage }))
+);
 
 // Wraps a lazy page in a Suspense boundary. Each route gets its own boundary
 // so AppShell stays rendered while the page chunk is loading — only the
@@ -56,6 +59,7 @@ export default function App() {
         <Route path="projects/:projectId" element={<S><ProjectsPage /></S>} />
         <Route path="pl-cost" element={<S><PLCostPage /></S>} />
         <Route path="data" element={<S><DataManagementPage /></S>} />
+        <Route path="vessel-map" element={<S><VesselMapPage /></S>} />
         <Route path="settings" element={<S><SettingsPage /></S>} />
         <Route path="help" element={<S><HelpPage /></S>} />
       </Route>

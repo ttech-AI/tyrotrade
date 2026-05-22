@@ -1,6 +1,6 @@
 import * as React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Trash2 } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Robot01Icon,
@@ -53,6 +53,13 @@ export function TyroChatDrawer({
   // Stays dismissed while the drawer remains mounted.
   const [overlayVisible, setOverlayVisible] = React.useState(true);
 
+  const [chatKey, setChatKey] = React.useState(0);
+  const clearChat = React.useCallback(() => {
+    setChatKey((k) => k + 1);
+    setOverlayVisible(false);
+  }, []);
+
+
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -98,6 +105,14 @@ export function TyroChatDrawer({
                 : "Uluslararası ticaret asistanı"}
             </SheetDescription>
           </div>
+          <button
+            type="button"
+            onClick={clearChat}
+            title="Sohbeti temizle"
+            className="shrink-0 size-8 rounded-lg grid place-items-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <Trash2 className="size-4" />
+          </button>
         </div>
 
         {/* Body — webchat + onboarding overlay */}
@@ -113,7 +128,7 @@ export function TyroChatDrawer({
                   overlayVisible ? "opacity-0 pointer-events-none" : "opacity-100"
                 )}
               >
-                <ProjectWebChat projectContext={projectContext} userContext={userContext} />
+                <ProjectWebChat key={chatKey} projectContext={projectContext} userContext={userContext} />
               </div>
 
               <AnimatePresence>

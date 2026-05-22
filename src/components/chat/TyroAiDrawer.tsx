@@ -174,22 +174,20 @@ export function TyroAiDrawer({ open, onOpenChange }: TyroAiDrawerProps) {
               Uluslararası ticaret asistanı
             </SheetDescription>
           </div>
-          {messages.length > 0 && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setMessages([]);
-                setError(null);
-              }}
-              className="h-7 px-2.5 gap-1.5 text-[11px] rounded-full mr-7"
-              aria-label="Sohbeti temizle"
-            >
-              <Eraser className="size-3" />
-              Temizle
-            </Button>
-          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setMessages([]);
+              setError(null);
+            }}
+            className="h-7 px-2.5 gap-1.5 text-[11px] rounded-full mr-7"
+            aria-label="Sohbeti temizle"
+          >
+            <Eraser className="size-3" />
+            Temizle
+          </Button>
         </div>
 
         {/* Body — welcome state OR scrollable thread */}

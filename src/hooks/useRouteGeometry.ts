@@ -68,12 +68,16 @@ function makeKey(
   lpLon: number,
   lpLat: number,
   dpLon: number,
-  dpLat: number
+  dpLat: number,
+  viaLon?: number,
+  viaLat?: number
 ): string {
-  // Round to 4 decimals (~11m precision) so trivially-different rounding
-  // doesn't fragment the cache.
   const r = (n: number) => n.toFixed(4);
-  return `${r(lpLon)},${r(lpLat)}|${r(dpLon)},${r(dpLat)}`;
+  const base = `${r(lpLon)},${r(lpLat)}|${r(dpLon)},${r(dpLat)}`;
+  if (viaLon !== undefined && viaLat !== undefined) {
+    return `${base}|via:${r(viaLon)},${r(viaLat)}`;
+  }
+  return base;
 }
 
 function makePoint(
@@ -112,14 +116,13 @@ function deriveGeometry(line: Feature<LineString>): RouteGeometry {
 }
 
 export function useRouteGeometry(
-  project: Project | null
+  project: Project | null,
+  viaPoint?: { lon: number; lat: number } | null
 ): RouteGeometry | null {
   const lp = project?.vesselPlan?.loadingPort;
   const dp = project?.vesselPlan?.dischargePort;
   const waypoints = project?.vesselPlan?.waypoints;
 
-  // Skip if ports are missing or have unknown coordinates (lat=0, lon=0
-  // means the port name didn't resolve in `lookupPort`).
   const portsValid =
     !!lp &&
     !!dp &&
@@ -127,16 +130,13 @@ export function useRouteGeometry(
     !(dp.lat === 0 && dp.lon === 0);
 
   const cacheKey = portsValid
-    ? makeKey(lp.lon, lp.lat, dp.lon, dp.lat)
+    ? makeKey(lp.lon, lp.lat, dp.lon, dp.lat, viaPoint?.lon, viaPoint?.lat)
     : null;
 
-  // Initial state: cache hit OR synchronous fallback corridor line.
   const [line, setLine] = React.useState<Feature<LineString> | null>(() => {
     if (!portsValid || !cacheKey) return null;
     const cached = lineCache.get(cacheKey);
     if (cached) return cached;
-    // Compute corridor fallback synchronously so the map renders without
-    // a blank frame while searoute-ts is loading.
     return buildSeaRoute(lp, dp, waypoints);
   });
 
@@ -150,42 +150,46 @@ export function useRouteGeometry(
       setLine(cached);
       return;
     }
-    // Fallback line first (covers initial render of new project)
     setLine(buildSeaRoute(lp, dp, waypoints));
 
-    // Then upgrade to searoute-ts result
     let cancelled = false;
     loadSearoute()
       .then((seaRoute) => {
         if (cancelled) return;
         try {
-          const origin = makePoint(lp.lon, lp.lat);
-          const destination = makePoint(dp.lon, dp.lat);
-          const route = seaRoute(origin, destination, "kilometers");
-          // Validate
-          const coords = route?.geometry?.coordinates;
-          if (!coords || coords.length < 2) return;
-          lineCache.set(cacheKey, route);
-          setLine(route);
+          if (viaPoint) {
+            // Two-segment route: LP → viaPoint → DP
+            const seg1 = seaRoute(makePoint(lp.lon, lp.lat), makePoint(viaPoint.lon, viaPoint.lat), "kilometers");
+            const seg2 = seaRoute(makePoint(viaPoint.lon, viaPoint.lat), makePoint(dp.lon, dp.lat), "kilometers");
+            const c1 = seg1?.geometry?.coordinates;
+            const c2 = seg2?.geometry?.coordinates;
+            if (!c1?.length || !c2?.length) return;
+            // Merge: drop the duplicate via-point at the junction
+            const merged: Feature<LineString> = {
+              type: "Feature",
+              properties: {},
+              geometry: { type: "LineString", coordinates: [...c1, ...c2.slice(1)] },
+            };
+            lineCache.set(cacheKey, merged);
+            setLine(merged);
+          } else {
+            const route = seaRoute(makePoint(lp.lon, lp.lat), makePoint(dp.lon, dp.lat), "kilometers");
+            const coords = route?.geometry?.coordinates;
+            if (!coords || coords.length < 2) return;
+            lineCache.set(cacheKey, route);
+            setLine(route);
+          }
         } catch (err) {
-          // searoute-ts can throw if the points are deep inland or in a
-          // disconnected region. Keep the fallback corridor line.
           // eslint-disable-next-line no-console
-          console.warn(
-            `[useRouteGeometry] searoute-ts failed for ${cacheKey}, using corridor fallback:`,
-            err
-          );
+          console.warn(`[useRouteGeometry] searoute-ts failed for ${cacheKey}, using corridor fallback:`, err);
         }
       })
       .catch((err) => {
-        // Module load failure (network / chunk error). Fallback already shown.
         // eslint-disable-next-line no-console
         console.warn("[useRouteGeometry] searoute-ts module load failed:", err);
       });
 
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cacheKey]);
 
