@@ -15,22 +15,27 @@ interface ActivePipelineTileProps {
 }
 
 /**
- * Active project status breakdown. Categories mirror the F&O voyage-status
- * option-set (`mserp_voyagestatus`) verbatim, so the tile speaks the same
- * language the user reads in F&O. Projects without a ship plan are
- * excluded — this tile is a voyage-state lens, not a project-level one.
- *   - "To Be Nominated" / "Nominated"  — pre-loading
- *   - "Commenced"                      — voyage in progress
- *   - "Completed" / "Closed"           — terminal (delivered / paid)
- *   - "Cancelled"                      — terminal (cancelled)
+ * Voyage statü dağılımı — 6 F&O kategorisi. Görsel olarak hepsi
+ * gösterilir (bar + label), ancak tile'ın headline'ı sadece **aktif**
+ * 3 kategorinin toplamını alır:
+ *   - "To Be Nominated"  — gemi atanmadı            (aktif)
+ *   - "Nominated"        — gemi atandı, sefer yok   (aktif)
+ *   - "Commenced"        — sefer in-progress         (aktif)
+ *   - "Completed"        — teslim edildi             (terminal)
+ *   - "Closed"           — dosya kapandı / ödendi   (terminal)
+ *   - "Cancelled"        — iptal                    (terminal)
+ *
+ * Aktif = pipeline'da yaşayan işler. Terminal kategoriler bar'da yer
+ * tutar (görünürlük korunur) ama "Aktif Pipeline" sayısına dahil
+ * edilmez — çünkü o iş artık aktif değil.
  */
 const STATUS_CATEGORIES = [
-  { key: "To Be Nominated", label: "To Be Nominated", color: "#8b5cf6" },
-  { key: "Nominated", label: "Nominated", color: "#6366f1" },
-  { key: "Commenced", label: "Commenced", color: "#f59e0b" },
-  { key: "Completed", label: "Completed", color: "#10b981" },
-  { key: "Closed", label: "Closed", color: "#64748b" },
-  { key: "Cancelled", label: "Cancelled", color: "#f43f5e" },
+  { key: "To Be Nominated", label: "To Be Nominated", color: "#8b5cf6", active: true },
+  { key: "Nominated", label: "Nominated", color: "#6366f1", active: true },
+  { key: "Commenced", label: "Commenced", color: "#f59e0b", active: true },
+  { key: "Completed", label: "Completed", color: "#10b981", active: false },
+  { key: "Closed", label: "Closed", color: "#64748b", active: false },
+  { key: "Cancelled", label: "Cancelled", color: "#f43f5e", active: false },
 ] as const;
 
 export function ActivePipelineTile({
@@ -42,20 +47,23 @@ export function ActivePipelineTile({
   const reduceMotion = useReducedMotion();
   const accent = useThemeAccent();
 
-  // Only count projects that actually carry a recognised voyage status —
-  // project-level "Açık" / "Kapalı" fallbacks are excluded so the tile
-  // reads as a vessel-fleet lens, not a generic project pipeline.
+  // Two counters: `activeTotal` (headline — sadece To Be Nominated +
+  // Nominated + Commenced) ve `sumStages` (bar payda — 6 kategorinin
+  // toplamı). Bar görsel olarak tüm dağılımı gösterir, ama "Aktif
+  // Pipeline" başlığı yalnızca pipeline'da yaşayan işleri sayar.
   const counts: Record<string, number> = Object.fromEntries(
     STATUS_CATEGORIES.map((c) => [c.key, 0])
   );
-  let total = 0;
+  let activeTotal = 0;
+  let sumStages = 0;
   for (const p of projects) {
     const vs = p.vesselPlan?.vesselStatus;
     if (!vs || !(vs in counts)) continue;
     counts[vs]++;
-    total++;
+    sumStages++;
+    const cat = STATUS_CATEGORIES.find((c) => c.key === vs);
+    if (cat?.active) activeTotal++;
   }
-  const sumStages = total;
 
   return (
     <BentoTile
@@ -70,26 +78,28 @@ export function ActivePipelineTile({
       <div className="flex flex-col gap-3 h-full">
         <div
           className="flex items-baseline gap-3"
-          title={`${total} proje takipte — sadece vesselPlan.vesselStatus tanımlı projeler. Voyage durumlarına göre dağılım çubukta.`}
+          title={`Aktif: ${activeTotal} (To Be Nominated + Nominated + Commenced). Bar tüm ${sumStages} voyage'ın dağılımını gösterir.`}
         >
-          {/* Headline tracks live sidebar accent. Supporting label
-              uses the same accent at 75% so both lines belong to the
-              theme palette without going faded-grey. */}
+          {/* Headline = sadece aktif 3 statü (TBN + Nom + Commenced).
+              Terminal kategoriler (Completed/Closed/Cancelled) bar'da
+              görünür ama aktif sayıma dahil değil. */}
           <span
             className="text-[30px] font-semibold leading-none tracking-tight"
             style={{ color: accent.solid }}
           >
-            <AnimatedNumber value={total} preset="count" />
+            <AnimatedNumber value={activeTotal} preset="count" />
           </span>
           <span
             className="text-[11px] font-medium"
             style={{ color: accent.stops[2], opacity: 0.75 }}
           >
-            proje takipte
+            aktif proje
           </span>
         </div>
 
-        {/* Stacked status bar */}
+        {/* Tüm 6 voyage statüsünün stacked dağılımı + altında label/sayı
+         *  satırı. Bar payda = sumStages (6 kategori toplam). Headline
+         *  bunun dışında, sadece aktif 3 kategoriyi sayar. */}
         <div className="flex flex-col gap-2 mt-auto">
           <div
             className="relative h-2.5 w-full rounded-full overflow-hidden"
@@ -99,7 +109,7 @@ export function ActivePipelineTile({
                 "inset 0 1px 1px 0 rgba(15,23,42,0.08), inset 0 -1px 0 0 rgba(255,255,255,0.6)",
             }}
             role="progressbar"
-            aria-label="Pipeline durum dağılımı"
+            aria-label="Voyage durum dağılımı"
           >
             {sumStages > 0 &&
               STATUS_CATEGORIES.map((s, i) => {
@@ -128,17 +138,17 @@ export function ActivePipelineTile({
                       background: `linear-gradient(180deg, ${s.color} 0%, ${s.color} 55%, color-mix(in oklab, ${s.color} 75%, black 25%) 100%)`,
                       boxShadow:
                         "inset 0 1px 0 0 rgba(255,255,255,0.4), inset 0 -1px 0 0 rgba(0,0,0,0.08)",
+                      // Terminal kategoriler bir tık silikleşsin — bar
+                      // okunur kalsın ama aktif kategoriler öne çıksın.
+                      opacity: s.active ? 1 : 0.7,
                     }}
-                    title={`${s.label}: ${value} proje · %${pct.toFixed(1)}`}
+                    title={`${s.label}: ${value} proje · %${pct.toFixed(1)}${s.active ? " · aktif" : " · terminal"}`}
                   />
                 );
               })}
           </div>
 
-          <div className="flex items-center justify-between gap-2 text-[10.5px] flex-wrap">
-            {/* Empty-status (count=0) categories are skipped — only
-                buckets with actual projects show up under the bar.
-                Avoids the dead "Nominated 0" row clutter. */}
+          <div className="flex items-center justify-between gap-x-2 gap-y-1 text-[10.5px] flex-wrap">
             {STATUS_CATEGORIES.map((s) => {
               const value = counts[s.key] ?? 0;
               if (value === 0) return null;
@@ -147,7 +157,8 @@ export function ActivePipelineTile({
                 <div
                   key={s.key}
                   className="flex items-center gap-1.5 min-w-0 truncate"
-                  title={`${s.label} — ${value} proje · %${pct.toFixed(1)} pay`}
+                  title={`${s.label} — ${value} proje · %${pct.toFixed(1)}${s.active ? " · aktif sayıma dahil" : " · terminal"}`}
+                  style={{ opacity: s.active ? 1 : 0.6 }}
                 >
                   <span
                     className="size-1.5 rounded-full shrink-0"

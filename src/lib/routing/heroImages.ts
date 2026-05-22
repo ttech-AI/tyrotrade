@@ -1,14 +1,18 @@
 /**
  * Voyage-status-aware hero images for the Project detail card.
  *
- * Each URL was verified directly from Pexels search results — actual cargo
- * ships / tankers at the right phase of voyage (no yachts, sailboats, or
- * scenic landscapes that earlier guesses had served up).
+ * Tiryaki **dökme yük** (dry bulk: grain + oilseed) taşır — konteyner yok.
+ * Görseller buna göre seçildi: bulk carrier'lar (handysize / supramax sınıfı)
+ * deniz seferi yapan, tahıl yüklenen / boşaltılan gemiler. Konteyner gemisi
+ * görseli koymak operasyonel gerçeklikle çelişiyor — kepçeyle (grab crane)
+ * tahıl/küspe boşaltan dökme tonajlı gemiler kullanıyoruz.
  *
- *   pending      → vessel moored / docked, no active loading
- *   loading      → crane lifting containers onto vessel
- *   in-transit   → cargo ship under way in open sea
- *   completed    → discharged at port, voyage finished
+ *   pending      → bulk carrier limanda demirli, henüz yükleme başlamadı
+ *   loading      → tahıl yüklemesi (drone view, port industrial)
+ *   in-transit   → bulk carrier açık denizde seyirde
+ *   completed    → liman ekipmanı yanında tahliye sonu / sefer tamamlandı
+ *
+ * URL'ler `curl -I` ile 200 doğrulandı (Phase: dökme görsel revize).
  */
 
 import type { Project } from "@/lib/dataverse/entities";
@@ -21,17 +25,17 @@ const pexels = (id: number) =>
 const unsplash = (id: string) =>
   `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=1200&q=80`;
 
-/** Pending — container ships moored at Hamburg terminal under clear sky. */
-export const HERO_PENDING = pexels(31637365);
+/** Pending — large bulk carrier docked at port with visible cranes (henüz aktif yükleme yok). */
+export const HERO_PENDING = pexels(13958473);
 
-/** Loading — crane lifts containers onto a cargo vessel at port. */
-export const HERO_LOADING = pexels(28438329);
+/** Loading — aerial view of cargo ship loading grain at a bustling industrial port. */
+export const HERO_LOADING = pexels(19500302);
 
-/** In-transit — large container ship crossing open sea (verified cargo, not a yacht). */
-export const HERO_IN_TRANSIT = pexels(35982637);
+/** In-transit — large bulk carrier sailing through calm blue ocean. */
+export const HERO_IN_TRANSIT = pexels(36269623);
 
-/** Completed — drone view of vessel with cargo containers near pier (discharge). */
-export const HERO_COMPLETED = pexels(6572431);
+/** Completed — bulk carrier docked at industrial harbor with loading equipment (tahliye / sefer kapanışı). */
+export const HERO_COMPLETED = pexels(23119441);
 
 /** Road / truck fallback for non-Gemi projects. */
 export const HERO_ROAD = unsplash("1532330393533-443990a51d10");

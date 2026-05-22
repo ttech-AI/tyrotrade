@@ -90,7 +90,14 @@ export function DashboardPage() {
   const account = accounts[0] ?? instance.getActiveAccount() ?? null;
   const firstName = account?.name?.trim().split(/\s+/)[0] ?? null;
   const [filters, setFilters] = React.useState<ProjectFilterState>(() =>
-    makeEmptyFilters({ includeWithoutShipPlan: DASHBOARD_SHIP_PLAN_DEFAULT })
+    makeEmptyFilters({
+      includeWithoutShipPlan: DASHBOARD_SHIP_PLAN_DEFAULT,
+      // Anasayfa zaman aralığı varsayılanı "Tüm Zamanlar". FY scope'u
+      // çok dar geliyordu (yeni FY başlarken proje sayısı sıfıra inip
+      // KPI'lar boş görünüyordu). Tüm portföy default → kullanıcı
+      // isterse PeriodFilter chip'leriyle daraltır.
+      period: "all",
+    })
   );
   // Active KPI drawer — `null` when no tile is open. Each click on a
   // BentoGrid tile fires `onSelectKpi(id)` and we render the matching
@@ -296,6 +303,7 @@ export function DashboardPage() {
               filters={filters}
               onChange={setFilters}
               shipPlanDefault={DASHBOARD_SHIP_PLAN_DEFAULT}
+              periodDefault="all"
               resultCount={projects.length}
               totalCount={totalAvailable}
               collapsible
