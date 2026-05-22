@@ -208,7 +208,7 @@ export function AppSidebar({
           />
           {showLabels && (
             // Same softer dialect as `NavSection`'s section header above.
-            <div className="px-3 pt-2 pb-1 text-[10px] font-medium uppercase tracking-[0.1em] text-[var(--sb-text-faint)]/85">
+            <div className="px-3 pt-2.5 pb-1.5 text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--sb-text-faint)]/85">
               {systemGroup.label}
             </div>
           )}
@@ -268,10 +268,9 @@ function NavSection({
       {showLabels && (
         // SaaS-pattern section label — capitalised but softer than
         // before: lighter weight (medium), tighter tracking, more
-        // padding above to breathe between groups, mixed-case
-        // wouldn't survive in a 10px size so we keep uppercase but
-        // smooth out the tone (text-faint, opacity).
-        <div className="px-3 pt-2 pb-1 text-[10px] font-medium uppercase tracking-[0.1em] text-[var(--sb-text-faint)]/85">
+        // padding above to breathe between groups. Size bumped to
+        // 11px to match the heavier nav-item typography.
+        <div className="px-3 pt-2.5 pb-1.5 text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--sb-text-faint)]/85">
           {group.label}
         </div>
       )}
@@ -306,16 +305,23 @@ function NavItemLink({
       to={item.to}
       onClick={onClick}
       className={cn(
-        "group flex items-center rounded-xl text-[13px] font-medium transition-colors relative shrink-0",
+        // Text 13→14px, row height 9→10 (40px) — SaaS sidebar normu
+        // (Linear 14px / Notion 14px / Vercel 14px). 13px küçük
+        // hissediyordu, 14px hem daha okunur hem dokunma alanı genişler.
+        "group flex items-center rounded-xl text-[14px] font-medium transition-colors relative shrink-0",
         showLabel
-          ? "h-9 w-full pl-3 pr-3 gap-2.5"
-          : "h-10 w-10 justify-center px-0",
+          ? "h-10 w-full pl-3 pr-3 gap-3"
+          : "h-11 w-11 justify-center px-0",
         isActive
           ? "bg-[var(--sb-active-bg)] text-[var(--sb-text-strong)] shadow-[inset_3px_0_0_0_var(--sb-pin-active),inset_0_0_0_1px_var(--sb-active-ring)]"
           : "text-[var(--sb-text-muted)] hover:text-[var(--sb-text)] hover:bg-[var(--sb-hover-bg)]"
       )}
     >
-      <Icon className={cn(showLabel ? "size-4" : "size-[18px]", "shrink-0")} />
+      {/* Icon 16→18px expanded, 18→20px collapsed — text ile orantılı
+       *  ve collapsed tooltip-only modda daha kolay seçilir. */}
+      <Icon
+        className={cn(showLabel ? "size-[18px]" : "size-5", "shrink-0")}
+      />
       {showLabel && <span className="truncate">{item.label}</span>}
     </Link>
   );
@@ -363,7 +369,7 @@ function SidebarToolItem(
 
   const innerContent = (
     <>
-      <span className="relative shrink-0 grid place-items-center size-[18px]">
+      <span className="relative shrink-0 grid place-items-center size-5">
         {iconNode}
         {accentDot && (
           <span
@@ -377,11 +383,14 @@ function SidebarToolItem(
     </>
   );
 
+  // Matches NavItemLink — h-10 / 14px text / 18-20px icons / gap-3 so
+  // Sistem block reads as a continuation of the primary nav rather
+  // than a smaller orphan row.
   const sharedClassName = cn(
-    "group flex items-center rounded-xl text-[13px] font-medium transition-colors relative shrink-0",
+    "group flex items-center rounded-xl text-[14px] font-medium transition-colors relative shrink-0",
     showLabel
-      ? "h-9 w-full pl-3 pr-3 gap-2.5"
-      : "h-10 w-10 justify-center px-0",
+      ? "h-10 w-full pl-3 pr-3 gap-3"
+      : "h-11 w-11 justify-center px-0",
     "text-[var(--sb-text-muted)] hover:text-[var(--sb-text)] hover:bg-[var(--sb-hover-bg)]"
   );
 

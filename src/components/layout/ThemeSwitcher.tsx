@@ -75,15 +75,17 @@ export function ThemeSwitcher({ showLabel }: ThemeSwitcherProps) {
       type="button"
       aria-label="Sidebar teması"
       className={cn(
-        "group flex items-center rounded-xl text-[13px] font-medium transition-all relative shrink-0",
+        // Same dimensions as NavItemLink + SidebarToolItem so the
+        // bottom Sistem block reads as one rhythmic stack.
+        "group flex items-center rounded-xl text-[14px] font-medium transition-all relative shrink-0",
         showLabel
-          ? "h-9 w-full pl-3 pr-3 gap-2.5"
-          : "h-10 w-10 justify-center px-0",
+          ? "h-10 w-full pl-3 pr-3 gap-3"
+          : "h-11 w-11 justify-center px-0",
         "text-[var(--sb-text-muted)] hover:text-[var(--sb-text)] hover:bg-[var(--sb-hover-bg)]"
       )}
     >
       <Palette
-        className={cn(showLabel ? "size-4" : "size-[18px]", "shrink-0")}
+        className={cn(showLabel ? "size-[18px]" : "size-5", "shrink-0")}
       />
       {showLabel && (
         <>
