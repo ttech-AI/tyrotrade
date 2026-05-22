@@ -16,8 +16,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { AdvancedFilter } from "@/components/filters/AdvancedFilter";
+import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
+import { useThemeAccent } from "@/components/layout/theme-accent";
 import {
   applyProjectFilter,
+  extractAvailableOptions,
   makeEmptyFilters,
   type ProjectFilterState,
 } from "@/lib/filters/projectFilters";
@@ -184,6 +187,28 @@ export function ProjectsPage() {
     />
   );
 
+  // Segment quick-pick — the most common filter dimension for vessel
+  // projects, surfaced as a compact pill between the search input
+  // and the AdvancedFilter trigger so users don't have to open the
+  // full popover to slice by segment.
+  const accent = useThemeAccent();
+  const segmentOptions = React.useMemo(
+    () => extractAvailableOptions(rawProjects).segments,
+    [rawProjects]
+  );
+  const segmentTrigger = (
+    <MultiSelectCombobox
+      options={segmentOptions}
+      selected={filters.segments}
+      onChange={(next) => setFilters({ ...filters, segments: next })}
+      placeholder="Segment"
+      searchPlaceholder="Segment ara..."
+      accent={accent}
+      compact
+      triggerClassName="w-[140px]"
+    />
+  );
+
   if (isMobile) {
     return (
       <div className="h-full flex flex-col gap-2">
@@ -195,6 +220,7 @@ export function ProjectsPage() {
               totalCount={rawProjects.length}
               selectedId={selectedId}
               onSelect={handleSelect}
+              segmentTrigger={segmentTrigger}
               filterTrigger={filterTrigger}
             />
           )}
@@ -239,6 +265,7 @@ export function ProjectsPage() {
           totalCount={rawProjects.length}
           selectedId={selectedId}
           onSelect={handleSelect}
+          segmentTrigger={segmentTrigger}
           filterTrigger={filterTrigger}
         />
       </div>

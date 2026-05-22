@@ -20,6 +20,11 @@ interface ProjectListProps {
    *  passes the AdvancedFilter trigger here. Optional so other callers
    *  can keep the header search-only. */
   filterTrigger?: React.ReactNode;
+  /** Slot rendered between the search input and `filterTrigger` —
+   *  Vessel Projects uses this for the segment quick-pick so the
+   *  most common filter dimension is one click away without
+   *  opening the full AdvancedFilter popover. */
+  segmentTrigger?: React.ReactNode;
 }
 
 /**
@@ -34,6 +39,7 @@ export function ProjectList({
   selectedId,
   onSelect,
   filterTrigger,
+  segmentTrigger,
 }: ProjectListProps) {
   const accent = useThemeAccent();
   const [query, setQuery] = React.useState("");
@@ -132,6 +138,7 @@ export function ProjectList({
               </button>
             )}
           </div>
+          {segmentTrigger}
           {filterTrigger}
         </div>
       </div>
