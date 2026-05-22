@@ -1,0 +1,2030 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>tyrotrade · Architecture Overview</title>
+    <style>
+      :root {
+        --sky-50: #f0f9ff;
+        --sky-300: #7dd3fc;
+        --sky-500: #0ea5e9;
+        --sky-700: #0369a1;
+        --navy-700: #1e3a8a;
+        --navy-900: #0c1a3e;
+        --slate-50: #f8fafc;
+        --slate-100: #f1f5f9;
+        --slate-200: #e2e8f0;
+        --slate-300: #cbd5e1;
+        --slate-500: #64748b;
+        --slate-600: #475569;
+        --slate-700: #334155;
+        --slate-800: #1e293b;
+        --slate-900: #0f172a;
+        --emerald-500: #10b981;
+        --emerald-50: #ecfdf5;
+        --emerald-700: #047857;
+        --amber-500: #f59e0b;
+        --amber-50: #fffbeb;
+        --amber-700: #b45309;
+        --violet-500: #8b5cf6;
+        --violet-50: #f5f3ff;
+        --violet-700: #6d28d9;
+        --rose-500: #f43f5e;
+        --rose-50: #fff1f2;
+        --rose-700: #be123c;
+        --indigo-500: #6366f1;
+        --indigo-50: #eef2ff;
+        --indigo-700: #4338ca;
+        --teal-500: #14b8a6;
+        --teal-50: #f0fdfa;
+        --teal-700: #0f766e;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background:
+          radial-gradient(
+            1200px 600px at 80% -10%,
+            rgba(125, 211, 252, 0.25),
+            transparent 60%
+          ),
+          radial-gradient(
+            900px 500px at 0% 100%,
+            rgba(30, 58, 138, 0.12),
+            transparent 60%
+          ),
+          var(--slate-50);
+        color: var(--slate-800);
+        font-family:
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          "Helvetica Neue",
+          Arial,
+          sans-serif;
+        font-feature-settings: "cv11", "ss01";
+        line-height: 1.45;
+      }
+      body {
+        min-height: 100vh;
+        padding: 28px 24px 80px;
+      }
+      header.page {
+        max-width: 1380px;
+        margin: 0 auto 22px;
+        padding: 22px 26px;
+        background: rgba(255, 255, 255, 0.72);
+        backdrop-filter: blur(20px) saturate(140%);
+        border-radius: 22px;
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        box-shadow:
+          0 1px 0 0 rgba(255, 255, 255, 0.8) inset,
+          0 12px 32px -12px rgba(15, 23, 42, 0.18);
+      }
+      .brand {
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--slate-500);
+        margin-bottom: 4px;
+      }
+      .brand .tyro {
+        color: var(--slate-900);
+      }
+      .brand .trade {
+        background: linear-gradient(
+          90deg,
+          var(--sky-300),
+          var(--sky-500),
+          var(--navy-700)
+        );
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      h1 {
+        margin: 4px 0 8px;
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: var(--slate-900);
+      }
+      header.page p {
+        margin: 0;
+        font-size: 13.5px;
+        color: var(--slate-600);
+        max-width: 760px;
+      }
+      .legend {
+        margin-top: 16px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .legend .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 9px 3px 7px;
+        border-radius: 999px;
+        background: white;
+        border: 1px solid var(--slate-200);
+        font-size: 11px;
+        color: var(--slate-600);
+        font-weight: 500;
+      }
+      .legend .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        display: inline-block;
+      }
+      main.canvas {
+        max-width: 1380px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+      section.layer {
+        background: rgba(255, 255, 255, 0.6);
+        backdrop-filter: blur(14px) saturate(135%);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.65);
+        box-shadow:
+          0 1px 0 0 rgba(255, 255, 255, 0.85) inset,
+          0 10px 28px -16px rgba(15, 23, 42, 0.14);
+        padding: 18px 18px 20px;
+        position: relative;
+      }
+      section.layer + section.layer::before {
+        content: "↓";
+        position: absolute;
+        top: -14px;
+        left: 32px;
+        font-size: 14px;
+        color: var(--slate-400);
+      }
+      .layer-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .layer-head h2 {
+        margin: 0;
+        font-size: 12.5px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--slate-700);
+      }
+      .layer-head .sub {
+        font-size: 11.5px;
+        color: var(--slate-500);
+      }
+      .row {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      }
+      .card {
+        cursor: pointer;
+        background: white;
+        border-radius: 14px;
+        border: 1px solid var(--slate-200);
+        padding: 12px 13px 13px;
+        position: relative;
+        transition:
+          transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+          box-shadow 180ms cubic-bezier(0.22, 1, 0.36, 1),
+          border-color 150ms;
+        text-align: left;
+        overflow: hidden;
+      }
+      .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 12px 28px -14px rgba(15, 23, 42, 0.22);
+        border-color: var(--slate-300);
+      }
+      .card.active {
+        border-color: var(--sky-500);
+        box-shadow:
+          0 0 0 2px rgba(14, 165, 233, 0.18),
+          0 14px 30px -12px rgba(14, 165, 233, 0.35);
+      }
+      .card .accent-strip {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+      }
+      .card .title-row {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-bottom: 4px;
+      }
+      .card .emoji {
+        font-size: 15px;
+        line-height: 1;
+        flex-shrink: 0;
+      }
+      .card h3 {
+        margin: 0;
+        font-size: 13.5px;
+        font-weight: 600;
+        color: var(--slate-900);
+        line-height: 1.25;
+      }
+      .card .blurb {
+        font-size: 11.5px;
+        color: var(--slate-600);
+        line-height: 1.4;
+        margin-top: 2px;
+      }
+      .card .meta {
+        margin-top: 7px;
+        font-family:
+          ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        font-size: 10.5px;
+        color: var(--slate-500);
+        truncate: ellipsis;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* Layer accent palettes — applied via [data-layer] */
+      [data-layer="external"] .card .accent-strip {
+        background: var(--slate-500);
+      }
+      [data-layer="auth"] .card .accent-strip {
+        background: var(--indigo-500);
+      }
+      [data-layer="data"] .card .accent-strip {
+        background: var(--sky-500);
+      }
+      [data-layer="cache"] .card .accent-strip {
+        background: var(--emerald-500);
+      }
+      [data-layer="compose"] .card .accent-strip {
+        background: var(--amber-500);
+      }
+      [data-layer="derive"] .card .accent-strip {
+        background: var(--violet-500);
+      }
+      [data-layer="shell"] .card .accent-strip {
+        background: var(--rose-500);
+      }
+      [data-layer="pages"] .card .accent-strip {
+        background: linear-gradient(
+          180deg,
+          var(--sky-500),
+          var(--navy-700)
+        );
+      }
+      [data-layer="ui"] .card .accent-strip {
+        background: var(--teal-500);
+      }
+
+      /* Detail panel — slides in from right */
+      aside.detail {
+        position: fixed;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 440px;
+        max-width: 100vw;
+        background: rgba(255, 255, 255, 0.96);
+        backdrop-filter: blur(28px) saturate(150%);
+        border-left: 1px solid var(--slate-200);
+        box-shadow: -20px 0 56px -24px rgba(15, 23, 42, 0.28);
+        transform: translateX(100%);
+        transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+        z-index: 50;
+        display: flex;
+        flex-direction: column;
+      }
+      aside.detail.open {
+        transform: translateX(0);
+      }
+      aside.detail header {
+        padding: 16px 18px 12px;
+        border-bottom: 1px solid var(--slate-200);
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+      }
+      aside.detail header .icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 11px;
+        display: grid;
+        place-items: center;
+        font-size: 18px;
+        color: white;
+        flex-shrink: 0;
+      }
+      aside.detail h3 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--slate-900);
+        line-height: 1.25;
+      }
+      aside.detail .layer-pill {
+        display: inline-block;
+        margin-top: 3px;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        background: var(--slate-100);
+        color: var(--slate-600);
+      }
+      aside.detail .close {
+        margin-left: auto;
+        background: none;
+        border: 1px solid var(--slate-200);
+        border-radius: 8px;
+        width: 30px;
+        height: 30px;
+        font-size: 16px;
+        line-height: 1;
+        color: var(--slate-500);
+        cursor: pointer;
+      }
+      aside.detail .close:hover {
+        background: var(--slate-100);
+      }
+      aside.detail .body {
+        padding: 14px 18px 24px;
+        overflow-y: auto;
+        flex: 1;
+      }
+      aside.detail .body p {
+        font-size: 13px;
+        color: var(--slate-700);
+        line-height: 1.55;
+        margin: 0 0 12px;
+      }
+      aside.detail h4 {
+        margin: 16px 0 6px;
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--slate-500);
+      }
+      aside.detail ul {
+        margin: 0;
+        padding-left: 18px;
+      }
+      aside.detail ul li {
+        font-size: 12px;
+        color: var(--slate-700);
+        line-height: 1.5;
+        margin-bottom: 3px;
+      }
+      aside.detail .files {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      aside.detail .files li {
+        padding: 5px 8px;
+        margin-bottom: 4px;
+        background: var(--slate-50);
+        border: 1px solid var(--slate-200);
+        border-radius: 8px;
+        font-family:
+          ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          Consolas,
+          monospace;
+        font-size: 11px;
+        color: var(--slate-700);
+        word-break: break-all;
+      }
+      aside.detail .files li .note {
+        display: block;
+        font-family: system-ui, -apple-system, sans-serif;
+        font-size: 11px;
+        color: var(--slate-500);
+        margin-top: 2px;
+      }
+      .scrim {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.08);
+        backdrop-filter: blur(2px);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 220ms;
+        z-index: 40;
+      }
+      .scrim.show {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      /* Light scroll-bar */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: var(--slate-300);
+        border-radius: 4px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <header class="page">
+      <div class="brand">
+        <span class="tyro">tyro</span><span class="trade">trade</span> ·
+        architecture overview
+      </div>
+      <h1>TYRO International Trade — Çatı Diyagramı</h1>
+      <p>
+        Uygulamanın katman katman parçaları. Üstte dış servisler, altta UI
+        bileşenleri. Veriler yukarıdan aşağıya akar: Dataverse'ten cache'e,
+        composer'a, sayfalara. Bir kutuya tıklayınca o parçanın ne yaptığı,
+        hangi dosyalarda yaşadığı ve dikkat edilmesi gereken davranışlar
+        sağdaki panelde açılır.
+      </p>
+      <div class="legend">
+        <span class="chip"
+          ><span class="dot" style="background: var(--slate-500)"></span> Dış
+          servisler</span
+        >
+        <span class="chip"
+          ><span class="dot" style="background: var(--indigo-500)"></span>
+          Auth</span
+        >
+        <span class="chip"
+          ><span class="dot" style="background: var(--sky-500)"></span> Veri
+          çekme</span
+        >
+        <span class="chip"
+          ><span class="dot" style="background: var(--emerald-500)"></span>
+          Cache</span
+        >
+        <span class="chip"
+          ><span class="dot" style="background: var(--amber-500)"></span>
+          Composition</span
+        >
+        <span class="chip"
+          ><span class="dot" style="background: var(--violet-500)"></span>
+          Selector & filter</span
+        >
+        <span class="chip"
+          ><span class="dot" style="background: var(--rose-500)"></span>
+          Routing & shell</span
+        >
+        <span class="chip"
+          ><span
+            class="dot"
+            style="background: linear-gradient(180deg, var(--sky-500), var(--navy-700))"
+          ></span>
+          Sayfalar</span
+        >
+        <span class="chip"
+          ><span class="dot" style="background: var(--teal-500)"></span> UI
+          bileşenleri</span
+        >
+      </div>
+    </header>
+
+    <main class="canvas" id="canvas"></main>
+
+    <div class="scrim" id="scrim"></div>
+    <aside class="detail" id="detail" aria-hidden="true">
+      <header>
+        <span class="icon" id="d-icon">·</span>
+        <div style="min-width: 0; flex: 1">
+          <h3 id="d-title">—</h3>
+          <span class="layer-pill" id="d-pill">—</span>
+        </div>
+        <button class="close" id="d-close" aria-label="Kapat">×</button>
+      </header>
+      <div class="body" id="d-body"></div>
+    </aside>
+
+    <script>
+      /* ---------------------------------------------------------------
+         LAYERS — top-down architecture
+         Each layer is a logical band. Cards inside are ordered roughly
+         left-to-right by where they sit in the dataflow.
+      --------------------------------------------------------------- */
+      const LAYERS = [
+        {
+          id: "external",
+          title: "DIŞ SERVİSLER",
+          sub: "Uygulamanın bağlı olduğu Microsoft + 3rd-party servisler",
+          color: "var(--slate-500)",
+          cards: [
+            "msal",
+            "dataverse",
+            "vesselMaster",
+            "copilot",
+            "ais",
+            "cloudflareWorker",
+            "maplibre",
+            "leaflet",
+            "gitpages",
+            "envVars",
+          ],
+        },
+        {
+          id: "auth",
+          title: "KİMLİK DOĞRULAMA",
+          sub: "MSAL SPA flow + Dataverse user_impersonation scope",
+          color: "var(--indigo-500)",
+          cards: ["msalReact", "authGate", "tokenAcquire"],
+        },
+        {
+          id: "data",
+          title: "VERİ ÇEKME",
+          sub: "Read-only OData v9.2 — sadece GET, hiçbir POST/PATCH yok",
+          color: "var(--sky-500)",
+          cards: [
+            "realClient",
+            "mockClient",
+            "refreshAll",
+            "subProjectScope",
+            "onDemandHooks",
+            "actualExpenseRollup",
+            "vesselPositions",
+          ],
+        },
+        {
+          id: "cache",
+          title: "CACHE KATMANI",
+          sub: "localStorage tek doğruluk kaynağı + cache-updated event'leri",
+          color: "var(--emerald-500)",
+          cards: [
+            "entityCache",
+            "masterCaches",
+            "syntheticCaches",
+            "financingIds",
+            "rollupCache",
+          ],
+        },
+        {
+          id: "compose",
+          title: "COMPOSITION",
+          sub: "Raw Dataverse rows → Project[] UI shape (pure)",
+          color: "var(--amber-500)",
+          cards: [
+            "useRealProjects",
+            "composeProjects",
+            "subProjectElevation",
+            "portCoordinates",
+            "corridors",
+          ],
+        },
+        {
+          id: "derive",
+          title: "SELECTOR & FİLTRE",
+          sub: "Memoize'lı türetim — hesaplamalar UI'dan ayrı",
+          color: "var(--violet-500)",
+          cards: [
+            "filters",
+            "periods",
+            "fy",
+            "selectorsProject",
+            "selectorsAggregate",
+            "selectorsPL",
+            "selectorsPLCost",
+          ],
+        },
+        {
+          id: "shell",
+          title: "ROUTING + UYGULAMA KABUĞU",
+          sub: "HashRouter (GitHub Pages için) + sidebar + topbar shell",
+          color: "var(--rose-500)",
+          cards: ["app", "appShell", "appSidebar", "themeAccent"],
+        },
+        {
+          id: "pages",
+          title: "SAYFALAR",
+          sub: "Kullanıcının gördüğü tam sayfa rotalar",
+          color: "var(--sky-500)",
+          cards: [
+            "login",
+            "dashboard",
+            "vesselProjects",
+            "vesselMap",
+            "tradeCost",
+            "veriYonetimi",
+            "settings",
+            "help",
+          ],
+        },
+        {
+          id: "ui",
+          title: "DOMAİN UI BİLEŞENLERİ",
+          sub: "Tekrar kullanılan iş-yönelik componentler",
+          color: "var(--teal-500)",
+          cards: [
+            "advancedFilter",
+            "bentoGrid",
+            "kpiDrawer",
+            "leaderboard",
+            "eventsPanel",
+            "projectList",
+            "segmentQuickPick",
+            "routeMap",
+            "detailCards",
+            "tyroChat",
+          ],
+        },
+      ];
+
+      /* ---------------------------------------------------------------
+         CARDS — full metadata indexed by id
+      --------------------------------------------------------------- */
+      const CARDS = {
+        // ── External ────────────────────────────────────────────────
+        msal: {
+          emoji: "🔐",
+          title: "Microsoft Entra ID",
+          blurb: "PKCE SPA flow + user_impersonation scope",
+          meta: "@azure/msal-browser",
+          description:
+            "Tiryaki Azure AD tenant'ı üzerinden kullanıcıyı tanır. Single-page Application kaydı + user_impersonation scope ile Dataverse Web API erişimi sağlar. Token sessionStorage'da, Safari ITP için popup fallback'i mevcut.",
+          files: [
+            {
+              path: "src/lib/auth/msal.ts",
+              note: "MSAL config (clientId, authority, redirectUri)",
+            },
+            {
+              path: "src/lib/auth/acquireToken.ts",
+              note: "Silent → popup token akışı",
+            },
+          ],
+          behaviors: [
+            "Login → loginRedirect (Globe scene)",
+            "Sonraki çağrılar acquireTokenSilent (hidden iframe)",
+            "401 → silent refresh retry × 1, sonra popup",
+          ],
+        },
+        dataverse: {
+          emoji: "🗄️",
+          title: "Dataverse Web API",
+          blurb: "F&O virtual entities (mserp_*) — read-only",
+          meta: "tiryaki.crm4.dynamics.com",
+          description:
+            "Dynamics 365 F&O TRYK modülünün dual-write üzerinden Dataverse'e yansımış virtual entity'leri. 6 ana entity (projects, lines, ship, expense, purchase, sales) + 2 destek (sub-projects, vessel master) + 3 aggregate header tablosu üzerinde okuma yapılır.",
+          files: [
+            {
+              path: "src/lib/dataverse/realClient.ts",
+              note: "fetch + Bearer token + retry",
+            },
+            {
+              path: "src/lib/dataverse/columnOrder.ts",
+              note: "$select listeleri, kilit",
+            },
+            {
+              path: "src/lib/dataverse/fieldLabels.ts",
+              note: "Türkçe alan etiketleri",
+            },
+          ],
+          behaviors: [
+            "🔒 READ-ONLY invariant — sadece list() + get()",
+            "401 → token silent-refresh retry",
+            "429 → Retry-After backoff (1s, 2s, 3s)",
+            "F&O virtual entity'lerde not In() reddedilir (405)",
+          ],
+        },
+        vesselMaster: {
+          emoji: "🚢",
+          title: "Vessel Master Tablosu",
+          blurb: "Gemi RecID → isim + IMO lookup",
+          meta: "mserp_tryvlxvesseltableentities",
+          description:
+            "Ship-plan satırlarında sadece `mserp_vessel` (numeric RecID) var. Refresh chain'in 'Gemi Bilgileri' adımı bu master tabloyu çekip ship cache'i RecID → gemi adı + IMO ile zenginleştirir.",
+          files: [
+            {
+              path: "src/lib/dataverse/refreshAll.ts",
+              note: "fetchVesselMasterAndEnrichShipCache()",
+            },
+          ],
+          behaviors: [
+            "Tenant-wide tek fetch (master küçük, ~hundreds)",
+            "Ship cache row'larına `mserp_vesselname` + `mserp_imonumber` enjekte eder",
+          ],
+        },
+        copilot: {
+          emoji: "💬",
+          title: "Microsoft Copilot Studio",
+          blurb: "TYRO Chat ajanı (Direct Line / botframework-webchat)",
+          meta: "ProjectWebChat + Direct Line connection",
+          description:
+            "TYRO Chat butonu sağ-üst topbar'da. Tıklayınca açılan drawer botframework-webchat üzerinden Copilot Studio agent'ının Direct Line endpoint'ine bağlanır. Proje bağlamı + kullanıcı kimliği iframe'e iletilir. URL'ler ve environment ID'leri artık env var'da, hardcoded değil.",
+          files: [
+            {
+              path: "src/components/chat/TyroChatDrawer.tsx",
+              note: "Mobile sheet drawer + Trash2 clear-chat button",
+            },
+            {
+              path: "src/components/layout/AppShell.tsx",
+              note: "Desktop inline push panel (DesktopChatSlot)",
+            },
+            {
+              path: "src/components/layout/TyroChatButton.tsx",
+              note: "Topbar trigger pill",
+            },
+            {
+              path: "src/components/chat/ProjectWebChat.tsx",
+              note: "Direct Line wrapper + project/user context bridge",
+            },
+          ],
+          behaviors: [
+            "Mobile: Sheet drawer · Desktop: inline panel (push layout, portal değil)",
+            "ProjectCard hover → `tyro:askInChat` event → drawer açılır",
+            "Trash2 butonu sessionStorage.tyro:chat:session siler + key remount",
+            "VITE_COPILOT_DIRECT_CONNECT_URL / _ENVIRONMENT_ID / _BOT_SCHEMA env vars",
+            "Robot01Icon brand mark (topbar + drawer header)",
+          ],
+        },
+        ais: {
+          emoji: "📡",
+          title: "AIS Vessel Tracking",
+          blurb: "myshiptracking.com canlı gemi konumu (scrape)",
+          meta: "Cloudflare Worker arkalı proxy",
+          description:
+            "RouteMap'teki 'Anlık Konum Al' butonu IMO + gemi adıyla Cloudflare worker'ı çağırır, worker da myshiptracking.com'u scrape edip lat/lon/sog/cog/durum/bayrak döner. VesselMapPage tüm aktif geminin pozisyonunu paralel çeker (Leaflet harita üstünde). CORS + bot-detection bypass için worker arada.",
+          files: [
+            {
+              path: "src/hooks/useVesselPositions.ts",
+              note: "Promise.allSettled per-project AIS fetch",
+            },
+            {
+              path: "src/components/map/RouteMap.tsx",
+              note: "AisMarker + manual trigger button",
+            },
+          ],
+          behaviors: [
+            "Manual trigger (button) — otomatik polling YOK",
+            "Discharge sonrası butona disable (sefer bitti, AIS anlamsız)",
+            "AIS marker raw coordinates'ta — route-line snap YAPMAZ",
+            "VITE_VESSEL_WORKER_URL env var üzerinden bağlanır",
+          ],
+        },
+        cloudflareWorker: {
+          emoji: "☁️",
+          title: "Cloudflare Worker — AIS Proxy",
+          blurb: "myshiptracking.com scraper, CORS bridge",
+          meta: "cloudflare-worker/worker.js",
+          description:
+            "Repo içinde standalone Cloudflare Worker. AIS scrape için: 1) IMO + gemi adıyla arama, 2) gemi sayfasına gir, 3) lat/lon/sog/cog HTML'den parse. CORS header'larıyla browser'ın direct erişimini sağlar (myshiptracking.com tarayıcıyı bot olarak işaretliyor + CORS yok).",
+          files: [
+            {
+              path: "cloudflare-worker/worker.js",
+              note: "Tek dosya, fetch handler + HTML regex parse",
+            },
+          ],
+          behaviors: [
+            "Browser User-Agent header'ı set eder (bot detection bypass)",
+            "Exact name slug match → IMO match → first result fallback",
+            "OPTIONS preflight handler — CORS hazır",
+            "Deploy: tek wrangler push, kendi domain'iyle (workers.dev)",
+          ],
+        },
+        maplibre: {
+          emoji: "🗺️",
+          title: "MapLibre GL + Carto",
+          blurb: "Vessel Projects sayfasının vector haritası",
+          meta: "react-map-gl/maplibre + @turf",
+          description:
+            "Sefer Takibi sayfasındaki ana harita. MapLibre vector renderer üzerinde Carto Voyager basemap (açık tonlu, ücretsiz). Sea route LineString'leri turf.js great-circle ile çizilir, kıtaları kesmemesi için corridors.ts'teki named waypoint'lerden geçirilir. Animated vessel marker (turf.along) + completed segment kırpma.",
+          files: [
+            { path: "src/lib/map/style.ts", note: "Basemap style URL" },
+            {
+              path: "src/lib/routing/corridors.ts",
+              note: "Maritime waypoint corridors",
+            },
+            {
+              path: "src/lib/routing/portCoordinates.ts",
+              note: "Port adı → koordinat",
+            },
+            {
+              path: "src/components/map/RouteMap.tsx",
+              note: "Harita componenti",
+            },
+          ],
+          behaviors: [
+            "Tek great-circle pair kıtaları keser — corridors ZORUNLU",
+            "Paint color hex/rgba, OKLCH değil (MapLibre reddediyor)",
+            "Eksik portlarda harita yerine empty state",
+          ],
+        },
+        leaflet: {
+          emoji: "🍃",
+          title: "Leaflet + OpenStreetMap",
+          blurb: "Vessel Map sayfasının canlı AIS haritası",
+          meta: "leaflet + OSM tile layer",
+          description:
+            "VesselMapPage'in haritası — ayrı bir bağımlılık. Tüm aktif geminin canlı AIS pozisyonunu (useVesselPositions hook) OSM tile'lar üstünde rotated ship icon (SVG) ile gösterir. MapLibre değil çünkü daha hafif + standalone bir sayfa olduğu için ayrı stack.",
+          files: [
+            {
+              path: "src/pages/VesselMapPage.tsx",
+              note: "Leaflet map + ship icons + popup",
+            },
+          ],
+          behaviors: [
+            "OSM tile attribution zorunlu",
+            "Ship icon SVG, COG açısına göre rotate",
+            "Marker'a tıklayınca popup: gemi adı, IMO, hız, kurs",
+          ],
+        },
+        gitpages: {
+          emoji: "📦",
+          title: "GitHub Pages + Actions",
+          blurb: "Static hosting · GitHub Actions ile deploy",
+          meta: "tyroaihub.github.io/tyrotrade",
+          description:
+            "Build çıktısı `.github/workflows/deploy.yml` workflow'u ile gh-pages branch'e push edilir. Sub-path /tyrotrade/ olduğu için BrowserRouter yerine HashRouter kullanılır (404.html derdi olmasın diye). Workflow build sırasında VITE_* env var'ları enjekte eder.",
+          files: [
+            { path: "vite.config.ts", note: 'base: "/tyrotrade/"' },
+            {
+              path: ".github/workflows/deploy.yml",
+              note: "Build + deploy + env var injection",
+            },
+            {
+              path: "src/main.tsx",
+              note: "HashRouter mount",
+            },
+          ],
+          behaviors: [
+            "Asset URL'leri import.meta.env.BASE_URL ile",
+            "Push → otomatik deploy (GitHub Actions)",
+            "Env var'lar workflow secret'ı veya .env'den okunur",
+          ],
+        },
+        envVars: {
+          emoji: "🔧",
+          title: "Environment Variables",
+          blurb: "Tüm dış servis URL/ID'leri env üzerinde",
+          meta: ".env.example + GitHub Actions secrets",
+          description:
+            "Önceden component'lerde hardcoded olan Copilot Studio URL'leri, Vessel Worker endpoint'i, Gemini API key, Dataverse scope vb. artık VITE_* env var'larında. Tenant değiştirmek veya başka bir org'a deploy etmek için config değişikliği yeterli.",
+          files: [
+            {
+              path: ".env.example",
+              note: "Tüm değişkenlerin default + dokümantasyon",
+            },
+            {
+              path: ".github/workflows/deploy.yml",
+              note: "CI env vars",
+            },
+          ],
+          behaviors: [
+            "VITE_USE_MOCK — mock/real client toggle",
+            "VITE_AAD_TENANT_ID, _CLIENT_ID, _REDIRECT_URI — MSAL",
+            "VITE_DATAVERSE_URL + _SCOPE — Dataverse Web API",
+            "VITE_GEMINI_API_KEY — (TYRO AI drawer kaldırıldı, ileride yeniden açılabilir diye env'de tutuluyor)",
+            "VITE_VESSEL_WORKER_URL — Cloudflare AIS proxy",
+            "VITE_COPILOT_DIRECT_CONNECT_URL / _ENVIRONMENT_ID / _BOT_SCHEMA — Copilot Studio Direct Line",
+            "VITE_COPILOT_CHAT_URL — iframe fallback URL",
+            "VITE_SUPABASE_ANON_KEY — gelecek genişletme için reserved",
+          ],
+        },
+
+        // ── Auth ────────────────────────────────────────────────────
+        msalReact: {
+          emoji: "🛡️",
+          title: "@azure/msal-react",
+          blurb: "Provider + useMsal hook",
+          meta: "MsalProvider + useAccount",
+          description:
+            "MsalProvider tüm app'i sarar. useAccount hook'u aktif kullanıcıyı verir. AuthGate bunu kontrol eder.",
+          files: [{ path: "src/lib/auth/msal.ts", note: "PublicClientApp" }],
+          behaviors: ["sessionStorage cache", "storeAuthStateInCookie: false"],
+        },
+        authGate: {
+          emoji: "🚪",
+          title: "AuthGate",
+          blurb: "Login değilse /login'e redirect",
+          meta: "<AuthGate><Outlet /></AuthGate>",
+          description:
+            "Tüm korumalı rotaların sarmalayıcısı. useAccount null ise <Navigate to='/login' state={{from}} />.",
+          files: [
+            {
+              path: "src/components/auth/AuthGate.tsx",
+              note: "Tek dosya, ufak",
+            },
+          ],
+          behaviors: ["Geri dönüş için state.from saklanır"],
+        },
+        tokenAcquire: {
+          emoji: "🎫",
+          title: "Token acquisition",
+          blurb: "Silent → popup fallback (Safari ITP)",
+          meta: "acquireDataverseToken()",
+          description:
+            "Her Dataverse fetch'in önünde acquireTokenSilent. Başarısız olursa popup. realClient.ts'in arka planında çalışır.",
+          files: [
+            {
+              path: "src/lib/auth/acquireToken.ts",
+              note: "Token akışı",
+            },
+          ],
+          behaviors: [
+            "Token cache'lenir, expire öncesi silent refresh",
+            "401 alınınca forceRefresh ile retry",
+          ],
+        },
+
+        // ── Data ────────────────────────────────────────────────────
+        realClient: {
+          emoji: "🌐",
+          title: "RealDataverseClient",
+          blurb: "fetch + Bearer + retry · GET only",
+          meta: "DataverseClient interface impl",
+          description:
+            "MSAL token ile authed fetch yapan client. 401'de silent refresh + retry × 1, 429'da Retry-After backoff ile retry × 3. Sadece list() + listAll() + get() expose eder.",
+          files: [
+            {
+              path: "src/lib/dataverse/realClient.ts",
+              note: "authedFetch + retry logic",
+            },
+            {
+              path: "src/lib/dataverse/client.ts",
+              note: "DataverseClient interface (read-only)",
+            },
+          ],
+          behaviors: [
+            "Prefer: odata.include-annotations=\"*\" header (FormattedValue için)",
+            "listAll() @odata.nextLink ile sayfaları otomatik gezer",
+          ],
+        },
+        mockClient: {
+          emoji: "🧪",
+          title: "MockDataverseClient",
+          blurb: "Offline dev için synthetic projeler",
+          meta: "VITE_USE_MOCK=true",
+          description:
+            "Aynı DataverseClient interface'ini implement eder, src/mocks/projects.ts'ten okur. Basit $filter regex parser. Offline geliştirme için.",
+          files: [
+            {
+              path: "src/lib/dataverse/mockClient.ts",
+              note: "Mock impl",
+            },
+            {
+              path: "src/mocks/projects.ts",
+              note: "Auto-generated, ~1.6 MB",
+            },
+            {
+              path: "scripts/build-mocks.py",
+              note: "Excel → mocks generator",
+            },
+          ],
+          behaviors: [
+            "Default UNSET → mock, VITE_USE_MOCK=false → real",
+            "useProjects() factory pattern üzerinden seçer",
+          ],
+        },
+        refreshAll: {
+          emoji: "🔄",
+          title: "refreshAll.ts",
+          blurb: "10 adımlık tenant-wide refresh chain",
+          meta: "RefreshAllButton → refreshAllEntities()",
+          description:
+            "Verileri Güncelle butonu tetikler. Sıralı 10 step: Projeler → Lines → SubProject → SubProjectDetail → Ship → VesselMaster → TahminiGiderToplamı → Finansman IDs (2) → SatışToplamları. Her step başarılı olursa writeCache() → tyro:cache-updated event'i fırlatır.",
+          files: [
+            {
+              path: "src/lib/dataverse/refreshAll.ts",
+              note: "Chain + helper fonksiyonlar",
+            },
+            {
+              path: "src/components/data-management/RefreshAllButton.tsx",
+              note: "UI trigger",
+            },
+          ],
+          behaviors: [
+            "PROJECTS_FILTER = Gemi + segment dolu + ORGANIK01 istisna",
+            "Chunked IN(50) helper'ları concurrency 6 ile bounded",
+            "Step başarısız olursa zincir durur, partial cache kalır",
+          ],
+        },
+        subProjectScope: {
+          emoji: "📎",
+          title: "Sub-Project ID Union",
+          blurb: "readAllScopedProjids() — parent + sub IDs",
+          meta: "Ship/Expense/Sales fetch'leri için",
+          description:
+            "F&O custom layer'da sub-project ID'ler child entity FK'larında parent ID gibi davranır. 5 step (Gemi Planı, Tahmini Gider, Sales agg, vb.) hem parent hem sub ID'leri IN filter'ında birleştirir.",
+          files: [
+            {
+              path: "src/lib/dataverse/refreshAll.ts",
+              note: "readAllScopedProjids() helper",
+            },
+          ],
+          behaviors: [
+            "Proje Satırları sadece parent (sub-projects empty)",
+            "Alt Projeler kendisi sadece parent FK ile çekilir",
+          ],
+        },
+        onDemandHooks: {
+          emoji: "⚡",
+          title: "Per-Project On-Demand Hooks",
+          blurb: "5 hook — proje seçilince fetch",
+          meta: "useProjectInvoices / Purchases / ExpenseLines / EstimatedExpense / SegmentBudget",
+          description:
+            "Master cache quota'sını korumak için detay rows on-demand. Proje değişince ilgili hook fetch eder, sonucu paylaşılan cache slot'una yazar. Defensive client-side filter eski projeden kalan row'ları kestirir.",
+          files: [
+            {
+              path: "src/hooks/useProjectInvoices.ts",
+              note: "Satış faturaları",
+            },
+            {
+              path: "src/hooks/useProjectPurchases.ts",
+              note: "Alım faturaları",
+            },
+            {
+              path: "src/hooks/useProjectExpenseLines.ts",
+              note: "Gerçekleşen gider (3-step chain)",
+            },
+            {
+              path: "src/hooks/useProjectEstimatedExpense.ts",
+              note: "Tahmini gider ham rows",
+            },
+            {
+              path: "src/hooks/useSegmentBudget.ts",
+              note: "Segment-bazlı bütçe",
+            },
+          ],
+          behaviors: [
+            "Her await sonrası `if (cancelled) return` (project switch race)",
+            "Aynı cache slot'una yazar — slot'ta bir kerede tek projenin rows'u",
+          ],
+        },
+        actualExpenseRollup: {
+          emoji: "📊",
+          title: "Trade Cost Rollup Pipeline",
+          blurb: "4 aşamalı tenant-wide aggregate",
+          meta: "useActualExpenseRollup → synthetic cache",
+          description:
+            "Trade Cost sayfasının gerektirdiği per-(projid, expenseId) gerçekleşen masraf toplamı. inventdimb → dist → expense-line + paralel refmap fetch. 30-60 sn sürer, ayrı synthetic cache'te saklanır, sayfa mount'unda lazy fetch.",
+          files: [
+            {
+              path: "src/lib/dataverse/actualExpenseRollup.ts",
+              note: "4-stage pipeline",
+            },
+            {
+              path: "src/hooks/useActualExpenseRollup.ts",
+              note: "Lazy auto-fetch + manual refresh",
+            },
+          ],
+          behaviors: [
+            "Refresh chain ana akışında DEĞİL — Trade Cost'a özel",
+            "710041 sign-flip (FX price difference) burada da uygulanır",
+            "Refresh chain bittiğinde clearCache(rollup) → lazy yeniden",
+          ],
+        },
+        vesselPositions: {
+          emoji: "📍",
+          title: "useVesselPositions()",
+          blurb: "AIS canlı gemi pozisyonu çekme hook'u",
+          meta: "Promise.allSettled per-project",
+          description:
+            "Aktif IMO + gemi adı olan tüm projeleri seçer, Cloudflare worker'a paralel istekler atar, lat/lon/hız/kurs/durum/bayrak döndürür. RouteMap'in 'Anlık Konum Al' butonu ve VesselMapPage harita marker'ları bu hook'u kullanır. Manuel trigger only — auto-polling YOK (myshiptracking.com rate-limit'i + dev maliyeti).",
+          files: [
+            {
+              path: "src/hooks/useVesselPositions.ts",
+              note: "{ positions, status, lastUpdated, refresh }",
+            },
+          ],
+          behaviors: [
+            "Sadece imoNumber + vesselName dolu projeler için fetch",
+            "Bir geminin fetch'i fail olsa diğerler döner (allSettled)",
+            "Error case her satıra `error` field'ı ile döner",
+            "Status: idle → loading → done/error",
+          ],
+        },
+
+        // ── Cache ───────────────────────────────────────────────────
+        entityCache: {
+          emoji: "💾",
+          title: "entityCache.ts",
+          blurb: "localStorage cache + cache-updated event",
+          meta: "readCache / writeCache / clearCache",
+          description:
+            "Tek doğruluk kaynağı. writeCache + clearCache hem localStorage'a yazar/siler hem `tyro:cache-updated` CustomEvent fırlatır (same-tab subscriber'lar için, native `storage` event sadece cross-tab tetikler).",
+          files: [
+            {
+              path: "src/lib/storage/entityCache.ts",
+              note: "Cache primitives + event dispatch",
+            },
+          ],
+          behaviors: [
+            "Cache key prefix: `tyro:dv:<entitySet>`",
+            "Quota dolduğunda kendi slot'unu siler + retry × 1",
+            "Diğer slot'ları evict ETMEZ (cross-tab cache yarışı olmasın)",
+          ],
+        },
+        masterCaches: {
+          emoji: "📚",
+          title: "Master Cache Slot'ları",
+          blurb: "Tenant-wide tüm projeleri kapsayan veri",
+          meta: "Projects · Lines · Ship · Sub-Projects · Vessel Master",
+          description:
+            "Refresh chain'in yazdığı 'core' cache'ler. Tüm sayfalarda ortak okunur. ~3 MB toplam, quota ile dans halinde.",
+          files: [
+            {
+              path: "tyro:dv:mserp_etgtryprojecttableentities",
+              note: "Projeler header (~ 470 row)",
+            },
+            {
+              path: "tyro:dv:mserp_tryaiprojectlineentities",
+              note: "Proje satırları",
+            },
+            {
+              path: "tyro:dv:mserp_tryaiprojectshiprelationentities",
+              note: "Gemi planı (vessel master enriched)",
+            },
+            {
+              path: "tyro:dv:mserp_trysubprojectentities",
+              note: "Alt projeler header",
+            },
+            {
+              path: "tyro:dv:mserp_trysubprojectdetailsentities",
+              note: "Alt proje detay",
+            },
+          ],
+          behaviors: [
+            "Ham row'lar (büyük detay tabloları) burada DEĞİL — on-demand",
+          ],
+        },
+        syntheticCaches: {
+          emoji: "✨",
+          title: "Synthetic Aggregate Cache'leri",
+          blurb: "Gerçek entity değil — composer/Trade Cost için",
+          meta: "estimatedExpenseAggregate · salesAggregate · ...",
+          description:
+            "Refresh chain bazı entity'lerin ham satırlarını çekmek yerine server-side `$apply=groupby` aggregate veya client-side aggregation ile küçük per-project özet yazar. composer + dashboard P&L bunları kullanır.",
+          files: [
+            {
+              path: "tyro:dv:estimatedExpenseAggregateByProject",
+              note: "Per-(projid, expenseType) Tahmini Gider",
+            },
+            {
+              path: "tyro:dv:salesAggregateByProject",
+              note: "Per-(projid, currency) Gerçekleşen Satış",
+            },
+          ],
+          behaviors: [
+            "Cache 7 MB → ~3 MB'a indi (raw rows on-demand'a taşındı)",
+            "F&O virtual entity OR clause limitleri için iki-pass yapılır",
+          ],
+        },
+        financingIds: {
+          emoji: "🏦",
+          title: "Finansman ID Cache'leri",
+          blurb: "Finance siparişlerini dışlamak için",
+          meta: "financingSalesIds + financingPurchIds",
+          description:
+            "`mserp_etgordertype === 200000007` (Finansman) olan sales/purchase order ID'leri. F&O `not In()`'ı reddettiği için client-side filter ile invoice/purchase rows bu set'ten elenir.",
+          files: [
+            {
+              path: "tyro:dv:financingSalesIds",
+              note: "~312 ID",
+            },
+            {
+              path: "tyro:dv:financingPurchIds",
+              note: "~325 ID",
+            },
+          ],
+          behaviors: [
+            "Refresh chain'in 2 küçük step'inde doldurulur",
+            "Hem master cache write hem on-demand fetch okur",
+          ],
+        },
+        rollupCache: {
+          emoji: "🧮",
+          title: "Trade Cost Rollup Cache",
+          blurb: "Per-(projid, expenseId) gerçekleşen masraf",
+          meta: "tyro:dv:actualExpenseRollup",
+          description:
+            "Trade Cost sayfasının ana veri kaynağı. Lazy populated (page mount). Stale (>6h) veya boşsa pipeline tetikler. Refresh chain `clearCache(rollup)` ile invalidate eder.",
+          files: [
+            {
+              path: "src/lib/dataverse/actualExpenseRollup.ts",
+              note: "Format: ActualExpenseRollupRow[]",
+            },
+          ],
+          behaviors: [
+            "Auto-fetch on mount when empty/stale",
+            "Manual refresh button on PLCostPage",
+          ],
+        },
+
+        // ── Compose ─────────────────────────────────────────────────
+        useRealProjects: {
+          emoji: "💧",
+          title: "useRealProjects()",
+          blurb: "Cache fingerprint'leri + memoize'lı compose",
+          meta: "React.useMemo + cache event listener",
+          description:
+            "5 cache slot'unun fingerprint'lerini (80-char prefix) dinler. Native `storage` (cross-tab) + custom `tyro:cache-updated` (same-tab) event'lerini birlikte yakalayıp re-derive eder. Deep-compare YOK.",
+          files: [
+            {
+              path: "src/hooks/useRealProjects.ts",
+              note: "Fingerprint hook + composeProjects call",
+            },
+          ],
+          behaviors: [
+            "Cache değişene kadar Project[] ref-stable",
+            "isEmpty=true sadece projects cache boş ise",
+          ],
+        },
+        composeProjects: {
+          emoji: "🔧",
+          title: "composeProjects()",
+          blurb: "Raw rows → Project[] (pure)",
+          meta: "src/lib/dataverse/composeProjects.ts",
+          description:
+            "5 raw cache array'i + sales aggregate + sub-project rows alır, Project[] üretir. Her parent için: lines, vesselPlan, costEstimate, salesActualUsd alanları doldurulur. Tamamen saf — React'sız, yan etkisiz.",
+          files: [
+            {
+              path: "src/lib/dataverse/composeProjects.ts",
+              note: "buildProject() per parent + sub",
+            },
+          ],
+          behaviors: [
+            "Sub-project elevation: parent gizli, voyage legs first-class",
+            "costEstimateLines aggregate cache'ten türetilir",
+            "vesselPlan.waypoints selectCorridor() ile maritime route",
+          ],
+        },
+        subProjectElevation: {
+          emoji: "🚢",
+          title: "Sub-Project Elevation",
+          blurb: "Voyage leg'leri Project'e dönüştürür",
+          meta: "composer'da subsByParent map",
+          description:
+            "Sub-project ID'leri child entity FK'larında parent gibi davrandığı için, composer her sub-project'i ayrı Project entry olarak emit eder. Parent gizlenir (Veri Yönetimi'nde görünür — orada inspector pattern). Segment, trader, group parent'tan miras alınır.",
+          files: [
+            {
+              path: "src/lib/dataverse/composeProjects.ts",
+              note: "buildProject(parent, sub)",
+            },
+            {
+              path: "src/pages/DataManagementPage.tsx",
+              note: "allowedParentProjectNos — inspector'da parent görünür",
+            },
+          ],
+          behaviors: [
+            "lines boş (parent'a ait)",
+            "Vessel Projects + Dashboard sadece sub-project'leri görür",
+            "Veri Yönetimi inspector hem parent hem sub'ları gösterir",
+          ],
+        },
+        portCoordinates: {
+          emoji: "📍",
+          title: "Port Coordinates",
+          blurb: "Port adı → lat/lon dictionary",
+          meta: "lookupPort() + normalisation",
+          description:
+            "Dataverse'de port adı text olarak gelir (mserp_tryloadingport). Bu dictionary canonical key'lere (lowercase + diacritic strip + non-alnum strip) eşler. Alias'lar tek kanonical entry'e bağlanır. Bulunamayan portlar `getUnresolvedPorts()` ile diagnostic log'a düşer.",
+          files: [
+            {
+              path: "src/lib/routing/portCoordinates.ts",
+              note: "100+ canonical port + aliases",
+            },
+          ],
+          behaviors: [
+            "'Newport (Wales)' → split paren → 'newport' canonical",
+            "Bulunamayan port → fallback (0, 0) → empty state harita",
+          ],
+        },
+        corridors: {
+          emoji: "🛤️",
+          title: "Maritime Corridors",
+          blurb: "Karaları aşmayan rota waypoint'leri",
+          meta: "selectCorridor(origin, dest)",
+          description:
+            "Tek great-circle pair Avrupa'yı/Afrika'yı keser. corridors.ts named waypoint'ler (Bosphorus, Gibraltar, Suez, Hormuz, Bab-el-Mandeb, Panama, ...) tutar, port pair'e göre uygun zinciri döndürür.",
+          files: [
+            {
+              path: "src/lib/routing/corridors.ts",
+              note: "selectCorridor() + ARG_TO_GIB, BS_TO_AEGEAN, UK_TO_GIB, ...",
+            },
+          ],
+          behaviors: [
+            "Yeni port pair → eklenmesi gereken corridor",
+            "Symmetric: origin↔dest reversed corridor auto-handled",
+          ],
+        },
+
+        // ── Derive ──────────────────────────────────────────────────
+        filters: {
+          emoji: "🎛️",
+          title: "ProjectFilterState",
+          blurb: "Birleşik filter shape — Period + categorical Set'ler",
+          meta: "applyProjectFilter() + projectFilterCount()",
+          description:
+            "Tüm sayfaların paylaştığı tek filter state. Period (FY/monthly/quarterly/yearly/all) + categorical Set'ler (segment, status, group, trader, port, ...). Defensive: undefined Set'leri empty Set ile doldurur (white-screen önlemi).",
+          files: [
+            {
+              path: "src/lib/filters/projectFilters.ts",
+              note: "State + apply + count + extractOptions",
+            },
+            {
+              path: "src/components/filters/AdvancedFilter.tsx",
+              note: "Popover UI",
+            },
+          ],
+          behaviors: [
+            "PROJECT_ID_EXCEPTIONS period + ship-plan filter'dan bypass",
+            "Sayfa-bazlı periodDefault prop'u",
+          ],
+        },
+        periods: {
+          emoji: "📅",
+          title: "Period & FY",
+          blurb: "Tiryaki finansal yıl: 1 Tem → 30 Haz",
+          meta: "periods.ts + financialPeriod.ts",
+          description:
+            "Period filtresi `monthly | quarterly | yearly | fy | all`. FY için 1 Temmuz–30 Haziran döngüsü, etiket 'YY-YY' (örn. 25-26). applyPeriodFilter rolling/FY/all dispatch eder.",
+          files: [
+            {
+              path: "src/lib/dashboard/periods.ts",
+              note: "applyPeriodFilter",
+            },
+            {
+              path: "src/lib/dashboard/financialPeriod.ts",
+              note: "getFinancialYear, findFyByKey",
+            },
+          ],
+          behaviors: [
+            "selectExecutionDate: operationPeriod ?? projectDate",
+            "Sayfa default'ları: Dashboard=FY, Trade Cost=all, Veri Yönetimi=all",
+          ],
+        },
+        fy: {
+          emoji: "🗓️",
+          title: "FinancialYear modülü",
+          blurb: "Tüm FY hesaplamaları için utility",
+          meta: "lastNFinancialYears, makeFY",
+          description:
+            "Belirli bir tarihin hangi FY'ye düştüğü, son N FY listesi, FY chip'leri için label generator. Etiket 2-digit, internal 4-digit yıl.",
+          files: [
+            {
+              path: "src/lib/dashboard/financialPeriod.ts",
+              note: "Tüm FY API'si",
+            },
+          ],
+          behaviors: ["Bugün 2026-05-16 → FY 25-26 (1 Tem 2025 – 30 Haz 2026)"],
+        },
+        selectorsProject: {
+          emoji: "🔍",
+          title: "Project Selectors",
+          blurb: "Tek-projeye yönelik saf hesaplar",
+          meta: "selectTransitDays, selectTotalKg, ...",
+          description:
+            "Per-project istatistikler — total kg, cargo value, transit days, stage. Tüm consumer'lar (tile'lar, breakdown'lar) buradan okur.",
+          files: [
+            {
+              path: "src/lib/selectors/project.ts",
+              note: "selectTransitDays single source-of-truth",
+            },
+          ],
+          behaviors: [
+            "selectTransitDays: lpEd?? blDate → dpEta?? dpNorAccepted",
+          ],
+        },
+        selectorsAggregate: {
+          emoji: "📐",
+          title: "Aggregate Selectors",
+          blurb: "Cross-project rollups",
+          meta: "aggregatePipelineBuckets, aggregateAvgTransitDays, ...",
+          description:
+            "Bir Project[] alıp dashboard tile / leaderboard / events için aggregate üretir. Pure, memoize'lanabilir.",
+          files: [
+            {
+              path: "src/lib/selectors/aggregate.ts",
+              note: "Dashboard'un veri kaynağı",
+            },
+          ],
+          behaviors: [
+            "Velocity tile breakdown ile aynı selectTransitDays kullanır (tutarlılık)",
+          ],
+        },
+        selectorsPL: {
+          emoji: "💰",
+          title: "P&L Selectors",
+          blurb: "selectProjectPL — sales × purchase × expense",
+          meta: "selectSalesTotal, selectPurchaseTotal, ...",
+          description:
+            "Per-project P&L hesabı. Currency-native sales × line price - purchase × purchase price - costEstimate.totalUsd. Mixed currency caveat: USD-only subset için global rollup safe.",
+          files: [
+            {
+              path: "src/lib/selectors/profitLoss.ts",
+              note: "Lifted from ProfitLossCard for re-use",
+            },
+          ],
+          behaviors: ["ProfitLossCard + Dashboard P&L tile aynı kaynaktan"],
+        },
+        selectorsPLCost: {
+          emoji: "🌳",
+          title: "Trade Cost Tree Builder",
+          blurb: "buildPLCostTree — 4-level hierarchy",
+          meta: "Segment → Voyage → Project/Vessel → ExpenseLine",
+          description:
+            "Project[] + actualExpenseRollup rows → hierarchical PLCostNode tree. Parent metrics bottom-up sum, derived ratios (R/E %, R/E Ton %) finaliseMetrics ile tüm seviyelerde yeniden hesaplanır.",
+          files: [
+            {
+              path: "src/lib/selectors/plCost.ts",
+              note: "Tree builder + aggregation",
+            },
+            {
+              path: "src/lib/selectors/plInsights.ts",
+              note: "Smart insights (5 segment callout)",
+            },
+          ],
+          behaviors: [
+            "viewMode: vessel | project — L3 grouping anahtarı",
+            "Smart insights diversification: her slot farklı segment",
+          ],
+        },
+
+        // ── Shell ───────────────────────────────────────────────────
+        app: {
+          emoji: "🎯",
+          title: "App.tsx",
+          blurb: "HashRouter + route table",
+          meta: "/login standalone, gerisi AppShell altında",
+          description:
+            "Tüm route'ları tanımlar. /login full-screen (Globe scene). Kalanlar AuthGate altında AppShell wrap'inde.",
+          files: [{ path: "src/App.tsx", note: "Route table" }],
+          behaviors: [
+            "HashRouter — GitHub Pages sub-path için",
+            "Lazy chunked: bazı sayfalar dynamic import",
+          ],
+        },
+        appShell: {
+          emoji: "🏠",
+          title: "AppShell",
+          blurb: "Sidebar + topbar + outlet",
+          meta: "Collapsible sidebar · sticky topbar",
+          description:
+            "Auth'lu sayfaların kabuğu. Solda AppSidebar (pinned/hover), üstte topbar (logo + search + bell + TYRO Chat). Outlet ile sayfa render edilir. Desktop'ta inline DesktopChatSlot Copilot iframe'i barındırır.",
+          files: [
+            { path: "src/components/layout/AppShell.tsx", note: "Ana shell" },
+          ],
+          behaviors: [
+            "Mobile: TyroChatDrawer (Sheet) · Desktop: inline panel",
+            "Sidebar pin state localStorage'da",
+          ],
+        },
+        appSidebar: {
+          emoji: "📑",
+          title: "AppSidebar",
+          blurb: "Hover-expand nav + pin button",
+          meta: "shadcn Sidebar baz",
+          description:
+            "Nav item'ları: Dashboard, Vessel Projects, Trade Cost, Veri Yönetimi, Settings, Help. Sistem grubunda TYRO AI + TYRO Stock (sibling apps). 3 tema (light / navy / black) accent driver.",
+          files: [
+            {
+              path: "src/components/layout/AppSidebar.tsx",
+              note: "Nav config + theme switcher",
+            },
+            {
+              path: "src/components/layout/sidebar-context.tsx",
+              note: "Pin + hover state",
+            },
+          ],
+          behaviors: [
+            "Effective expanded: pinned || hovering",
+            "Mobile: Sheet drawer",
+          ],
+        },
+        themeAccent: {
+          emoji: "🎨",
+          title: "useThemeAccent()",
+          blurb: "3 tema · sky/gold/cyan accent palette",
+          meta: "{ solid, gradient, ring, ringStrong, tint }",
+          description:
+            "Sidebar teması (navy / light / black) ile değişen accent renkleri. Componentler inline style ile bağlanır, hardcoded renk YOK. Domain-fixed semantic toneslar (TONE_PL emerald, TONE_AI teal) ayrıdır.",
+          files: [
+            {
+              path: "src/components/layout/theme-accent.ts",
+              note: "Theme → accent map",
+            },
+          ],
+          behaviors: [
+            "light → sky, navy → gold, black → bright sky",
+            "TONE_PL / TONE_EXPENSE / TONE_FORECAST / TONE_AI semantic",
+          ],
+        },
+
+        // ── Pages ───────────────────────────────────────────────────
+        login: {
+          emoji: "🌍",
+          title: "LoginPage",
+          blurb: "Globe scene + Microsoft sign-in",
+          meta: "/login — AppShell DIŞINDA",
+          description:
+            "Premium globe + brand showcase + MSAL button. Mobil için kompakt mini-scene + tek-ekran fit. Confetti success efekti.",
+          files: [{ path: "src/pages/LoginPage.tsx", note: "Tek dosya" }],
+          behaviors: ["Globe scene mobile'da disabled (perf)"],
+        },
+        dashboard: {
+          emoji: "📊",
+          title: "DashboardPage",
+          blurb: "Welcome + BentoGrid + Leaderboards + Events",
+          meta: "/ (ana sayfa)",
+          description:
+            "Executive view. Greeting (dinamik period scope) → BentoGrid (8 KPI tile) → LeaderboardPanel (4 board) → EventsPanel (recent + upcoming). Tüm bunlar applyProjectFilter çıktısı üzerinde.",
+          files: [
+            {
+              path: "src/pages/DashboardPage.tsx",
+              note: "Wire-up",
+            },
+          ],
+          behaviors: [
+            "AdvancedFilter trigger right",
+            "Period default: FY (current)",
+            "Tile click → KpiDetailDrawer",
+          ],
+        },
+        vesselProjects: {
+          emoji: "🚢",
+          title: "ProjectsPage (Sefer Takibi)",
+          blurb: "3-pane: list · map · detail",
+          meta: "/projects, /projects/:projectId",
+          description:
+            "Sefer takibi. Solda ProjectList (header'da iki satır: search + segment quick-pick + AdvancedFilter), ortada RouteMap (Carto + waypoints + animated marker + AIS), sağda detail kart yığını (overview, commodity, P&L, budget sales). Sub-project elevation aktif.",
+          files: [
+            { path: "src/pages/ProjectsPage.tsx", note: "Layout + state" },
+          ],
+          behaviors: [
+            "Default filter: 'Tüm Zamanlar' + 3 aktif sefer durumu",
+            "İlk visible proje auto-select",
+            "URL projectId ↔ selectedId sync",
+            "Deep-link state.focusProjectNo single-project filter",
+          ],
+        },
+        vesselMap: {
+          emoji: "🌐",
+          title: "VesselMapPage",
+          blurb: "Canlı AIS gemi pozisyon haritası",
+          meta: "/vessel-map · Leaflet + OSM",
+          description:
+            "Tüm aktif (IMO numarası olan) projelerin gemi pozisyonunu Leaflet harita üzerinde gösterir. OSM tiles, SVG ship icon (COG'a göre rotated), marker popup'ta detay (gemi adı, IMO, hız, kurs, durum, bayrak, son güncelleme). Manuel refresh butonu (auto-polling YOK).",
+          files: [
+            {
+              path: "src/pages/VesselMapPage.tsx",
+              note: "Leaflet map + ship icons + refresh button",
+            },
+          ],
+          behaviors: [
+            "useVesselPositions hook ile worker'dan veri",
+            "AppShell altında, lazy chunked (App.tsx React.lazy)",
+            "Sidebar nav'dan kaldırıldı — direkt URL ile erişilir",
+          ],
+        },
+        tradeCost: {
+          emoji: "🌳",
+          title: "PLCostPage (Trade Cost)",
+          blurb: "Tahmini × Gerçekleşen hierarchical analiz",
+          meta: "/pl-cost",
+          description:
+            "4-level tree: Segment → Voyage Status → Project/Vessel → Expense Line. Sortable columns, smart insights ribbon (5 segment callout), detail panel deep-link → /projects/:X. Period default = 'Tüm Zamanlar'.",
+          files: [
+            { path: "src/pages/PLCostPage.tsx", note: "Page + drawer" },
+            {
+              path: "src/components/pl-cost/PLCostTable.tsx",
+              note: "Sortable hierarchical table",
+            },
+            {
+              path: "src/components/pl-cost/PLCostDetailPanel.tsx",
+              note: "Drill-down panel",
+            },
+            {
+              path: "src/components/pl-cost/PLCostProgress.tsx",
+              note: "AI thinking progress (lazy fetch)",
+            },
+          ],
+          behaviors: [
+            "Lazy rollup fetch — fetch sırasında full-screen progress",
+            "QuickFilters (compact comboboxes) ile AdvancedFilter aynı state",
+          ],
+        },
+        veriYonetimi: {
+          emoji: "🔍",
+          title: "DataManagementPage (Veri Yönetimi)",
+          blurb: "Read-only Dataverse inspector",
+          meta: "/data",
+          description:
+            "Entity-bazlı raw row inspector. Top tab'lar: Projeler, Alt Projeler, Tahmini Bütçe (Segment). Her tab'da search + filter. Project tab'ında child tab strip (Lines, Ship, Expense, Sales, ...) on-demand fetch ile dolar. RefreshAllButton burada.",
+          files: [
+            {
+              path: "src/pages/DataManagementPage.tsx",
+              note: "Tab strip + refresh chain",
+            },
+          ],
+          behaviors: [
+            "Period default = 'Tüm Zamanlar' (inspector için)",
+            "Parent projeler de görünür (sub-project elevation bypass)",
+            "selectedProjId on-demand hook'ları tetikler",
+          ],
+        },
+        settings: {
+          emoji: "⚙️",
+          title: "SettingsPage",
+          blurb: "Profil + uygulama tercihleri",
+          meta: "/settings",
+          description:
+            "Kullanıcı profili, tema tercihi, notification preferences. TYRO AI (Gemini) drawer kaldırıldıktan sonra `userSettings.ts`'teki Gemini API key bölümü Settings UI'dan da temizlendi (env var'da duruyor, ileride yeniden açılabilir).",
+          files: [{ path: "src/pages/SettingsPage.tsx", note: "Tek sayfa" }],
+          behaviors: ["Tercihler localStorage'da saklanır"],
+        },
+        help: {
+          emoji: "❓",
+          title: "HelpPage",
+          blurb: "Kullanım kılavuzu + FAQ",
+          meta: "/help",
+          description: "Statik dokümantasyon — feature açıklamaları, troubleshooting.",
+          files: [{ path: "src/pages/HelpPage.tsx", note: "Markdown-like" }],
+          behaviors: [],
+        },
+
+        // ── UI ──────────────────────────────────────────────────────
+        advancedFilter: {
+          emoji: "🎚️",
+          title: "AdvancedFilter",
+          blurb: "Search-multiselect popover · birleşik filtre UI",
+          meta: "+ PeriodFilter + MultiSelectCombobox",
+          description:
+            "Tüm sayfaların paylaştığı filtre popover'ı. Period chip strip + 11 categorical combobox section (Segment, Sefer Durumu, Trader, Port, Status, Incoterm, Company, Vessel, Supplier, Buyer, Group, Proje No). Sort + width + section order tasarımı tutarlı.",
+          files: [
+            {
+              path: "src/components/filters/AdvancedFilter.tsx",
+              note: "Popover + ComboboxSection helper",
+            },
+            {
+              path: "src/components/ui/multi-select-combobox.tsx",
+              note: "cmdk-based searchable list",
+            },
+          ],
+          behaviors: [
+            "Section sırası: Period · Segment · Sefer Durumu · Trader · Port · ...",
+            "shipPlanDefault + periodDefault page-bazlı override",
+          ],
+        },
+        bentoGrid: {
+          emoji: "🧩",
+          title: "BentoGrid + KPI Tiles",
+          blurb: "Dashboard executive metrics — 8 tile",
+          meta: "PeriodPerformance · EstimatedPL · ActivePipeline · ...",
+          description:
+            "Dashboard'un hero'su. Asimetrik grid (12-col × 4-row). NumberFlow animasyonu, framer-motion stagger reveal, tile click → KpiDetailDrawer.",
+          files: [
+            {
+              path: "src/components/dashboard/BentoGrid.tsx",
+              note: "12-col layout",
+            },
+            {
+              path: "src/components/dashboard/tiles/",
+              note: "8 tile component",
+            },
+          ],
+          behaviors: [
+            "useReducedMotion guards",
+            "AnimatedNumber preset = currency/tons/percent/days/count",
+          ],
+        },
+        kpiDrawer: {
+          emoji: "📋",
+          title: "KpiDetailDrawer",
+          blurb: "Tile click → proje listesi breakdown",
+          meta: "9 breakdown component · 1 shared drawer chrome",
+          description:
+            "Tile tıklayınca sağdan açılır. Search + sort toolbar üstte (single source of truth). Per-tile breakdown component (Expense, Pipeline, Currency, Corridor, Velocity, Counterparty, Period, PL, Quantity) projeleri listeler.",
+          files: [
+            {
+              path: "src/components/dashboard/KpiDetailDrawer.tsx",
+              note: "Chrome",
+            },
+            {
+              path: "src/components/dashboard/kpiBreakdowns.tsx",
+              note: "9 breakdown",
+            },
+            {
+              path: "src/components/dashboard/KpiDrawerToolbar.tsx",
+              note: "Search + sort header",
+            },
+          ],
+          behaviors: [
+            "Project row click → /projects/:X navigate",
+            "Sort flip per breakdown — labels per-KPI",
+          ],
+        },
+        leaderboard: {
+          emoji: "🏆",
+          title: "LeaderboardPanel",
+          blurb: "4 board — top-10 sıralı projeler",
+          meta: "Sales / Expense / Margin (asc + desc)",
+          description:
+            "Dashboard'da BentoGrid altında. 4 tab: En Çok Faturalı Satış, El Yakan Projeler, Kar Marjı En Düşük, Kar Marjı En Yüksek. Recharts horizontal bar.",
+          files: [
+            {
+              path: "src/components/dashboard/LeaderboardPanel.tsx",
+              note: "Tab strip + bar chart",
+            },
+          ],
+          behaviors: [
+            "Bar click → /projects/:X",
+            "Period selector kendi state'i (FY default)",
+          ],
+        },
+        eventsPanel: {
+          emoji: "📅",
+          title: "EventsPanel",
+          blurb: "Son 7 gün + önümüzdeki 14 gün milestone'lar",
+          meta: "buildActivityFeed",
+          description:
+            "Dashboard sağ panelde. Recent (done) + Upcoming (future) iki bölüm. Relative time ('3 gün önce'), stage chip, cargo emoji.",
+          files: [
+            {
+              path: "src/components/dashboard/EventsPanel.tsx",
+              note: "Filtered + grouped",
+            },
+          ],
+          behaviors: ["Project row click → /projects/:X"],
+        },
+        projectList: {
+          emoji: "📋",
+          title: "ProjectList + ProjectCard",
+          blurb: "Vessel Projects sol rail",
+          meta: "Search + hover chat icon",
+          description:
+            "Sol panelin liste. Search input + filter trigger header'da. ProjectCard: segment chip, projectName, route, hover'da TYRO Chat ikonu (route slot'unda).",
+          files: [
+            {
+              path: "src/components/projects/ProjectList.tsx",
+              note: "Container",
+            },
+            {
+              path: "src/components/projects/ProjectCard.tsx",
+              note: "Tek satır",
+            },
+          ],
+          behaviors: [
+            "Sort: segment ASC + projectNo DESC (ProjectsPage'de)",
+            "Card hover → onQuickAsk → TYRO Chat",
+          ],
+        },
+        routeMap: {
+          emoji: "🗺️",
+          title: "RouteMap",
+          blurb: "MapLibre + waypoints + animated marker + AIS",
+          meta: "useRouteGeometry + useRouteProgress + useVesselPositions",
+          description:
+            "Sea route polyline (turf.js great-circle), animated vessel marker (turf.along), completed segment kırpma (lineSliceAlong), bbox fit. 'Anlık Konum Al' butonu AIS gerçek pozisyonu çeker (AisMarker — raw lat/lon, route'a snap YOK). Liman bilgisi eksikse empty state. VesselMarker (planned position from progress) + AisMarker (real AIS) ayrı componentler.",
+          files: [
+            {
+              path: "src/components/map/RouteMap.tsx",
+              note: "Map + overlays + timeline + AIS button",
+            },
+            {
+              path: "src/hooks/useRouteGeometry.ts",
+              note: "LineString + waypoints (AIS via-point fold)",
+            },
+            {
+              path: "src/hooks/useRouteProgress.ts",
+              note: "Milestone → progress %",
+            },
+          ],
+          behaviors: [
+            "Discharge sonrası 'Anlık Konum' butonu disable",
+            "MilestoneStrip stage label authoritative `stage` prop'tan (progress'ten türetilmez)",
+            "Paint colors hex, OKLCH değil",
+            "MissingPortEmptyState — port adı boş projelerde",
+          ],
+        },
+        detailCards: {
+          emoji: "💳",
+          title: "Detail Cards",
+          blurb: "Vessel Projects sağ rail kartları",
+          meta: "Overview · Commodity · BudgetPL · BudgetSales · ...",
+          description:
+            "5 kart, üst-üste dizilir. ProjectOverviewCard (header + status), CommoditySalesCard (lines × price), BudgetPLCard (tahmini totalUsd), BudgetSalesCard (Tahmini × Gerçekleşen P&L resolve, on-demand fetch + skeleton).",
+          files: [
+            {
+              path: "src/components/details/",
+              note: "Tüm kart componentleri",
+            },
+            {
+              path: "src/components/details/AccentIconBadge.tsx",
+              note: "Semantic tone badge",
+            },
+          ],
+          behaviors: [
+            "BudgetSalesCard: A+B loading skeleton (shimmer + dim)",
+            "710041 sign-flip (FX price difference)",
+          ],
+        },
+        tyroChat: {
+          emoji: "💬",
+          title: "TYRO Chat (Copilot Studio)",
+          blurb: "Direct Line agent · botframework-webchat",
+          meta: "Topbar button → drawer/panel → webchat",
+          description:
+            "Mobile: Sheet drawer · Desktop: inline push panel (DesktopChatSlot — Outlet ile flex sibling, portal değil → content sola kayar). Robot01Icon brand mark (topbar + header). ProjectCard'tan quick-ask `tyro:askInChat` event'i drawer'ı açar.",
+          files: [
+            {
+              path: "src/components/chat/TyroChatDrawer.tsx",
+              note: "Mobile sheet + Trash2 clear button",
+            },
+            {
+              path: "src/components/layout/AppShell.tsx",
+              note: "DesktopChatSlot (inline panel)",
+            },
+            {
+              path: "src/components/layout/TyroChatButton.tsx",
+              note: "Topbar trigger",
+            },
+            {
+              path: "src/components/chat/ProjectWebChat.tsx",
+              note: "Direct Line + context bridge",
+            },
+          ],
+          behaviors: [
+            "Trash2 sohbeti temizler — sessionStorage.tyro:chat:session + key remount",
+            "tyro:openChatAfterAuth sessionStorage flag'i login sonrası açar",
+            "Mobile + desktop ayrı render path",
+            "VITE_COPILOT_DIRECT_CONNECT_URL env'den okur",
+          ],
+        },
+        segmentQuickPick: {
+          emoji: "🏷️",
+          title: "Segment Quick-Pick",
+          blurb: "ProjectList header'da inline segment filtre",
+          meta: "Search + AdvancedFilter ile aynı satırda değil",
+          description:
+            "ProjectList header'ı iki satıra ayrıldı: 1) search input, 2) segment quick-pick combobox + AdvancedFilter trigger. Segment seçimi tek tıkla tetiklenir, gelişmiş filtre popover'ı açmaya gerek kalmaz. Aynı filter state'i shared — başka yerde değiştirilirse buradan da görünür.",
+          files: [
+            {
+              path: "src/components/projects/ProjectList.tsx",
+              note: "Header layout + segment quick-pick",
+            },
+          ],
+          behaviors: [
+            "Compact mode MultiSelectCombobox (h-9, single chip + overflow pill)",
+            "AdvancedFilter ile aynı `filters.segments` state'i paylaşır",
+            "Tek-satır search'ün yerini almaz — paralel control",
+          ],
+        },
+      };
+      // NOTE: TYRO AI (Gemini) drawer commit cfc292f ile kaldırıldı.
+      // src/lib/ai/* dosyaları + VITE_GEMINI_API_KEY env var ileride
+      // yeniden açılma olasılığı için duruyor. Aktif değil.
+
+      /* ---------------------------------------------------------------
+         RENDER
+      --------------------------------------------------------------- */
+      const canvas = document.getElementById("canvas");
+      LAYERS.forEach((layer) => {
+        const section = document.createElement("section");
+        section.className = "layer";
+        section.setAttribute("data-layer", layer.id);
+
+        const head = document.createElement("div");
+        head.className = "layer-head";
+        head.innerHTML = `
+          <h2>${layer.title}</h2>
+          <span class="sub">${layer.sub}</span>
+        `;
+        section.appendChild(head);
+
+        const row = document.createElement("div");
+        row.className = "row";
+        layer.cards.forEach((cid) => {
+          const c = CARDS[cid];
+          if (!c) return;
+          const card = document.createElement("button");
+          card.className = "card";
+          card.type = "button";
+          card.dataset.id = cid;
+          card.dataset.layer = layer.id;
+          card.innerHTML = `
+            <span class="accent-strip"></span>
+            <div class="title-row">
+              <span class="emoji">${c.emoji}</span>
+              <h3>${c.title}</h3>
+            </div>
+            <div class="blurb">${c.blurb}</div>
+            <div class="meta">${c.meta}</div>
+          `;
+          card.addEventListener("click", () => openDetail(cid, layer));
+          row.appendChild(card);
+        });
+        section.appendChild(row);
+        canvas.appendChild(section);
+      });
+
+      /* ---------------------------------------------------------------
+         DETAIL PANEL
+      --------------------------------------------------------------- */
+      const detail = document.getElementById("detail");
+      const scrim = document.getElementById("scrim");
+      const dIcon = document.getElementById("d-icon");
+      const dTitle = document.getElementById("d-title");
+      const dPill = document.getElementById("d-pill");
+      const dBody = document.getElementById("d-body");
+      const dClose = document.getElementById("d-close");
+
+      function openDetail(id, layer) {
+        const c = CARDS[id];
+        if (!c) return;
+        document
+          .querySelectorAll(".card.active")
+          .forEach((el) => el.classList.remove("active"));
+        document
+          .querySelector(`.card[data-id="${id}"]`)
+          ?.classList.add("active");
+
+        dIcon.textContent = c.emoji;
+        dIcon.style.background = layer.color;
+        dTitle.textContent = c.title;
+        dPill.textContent = layer.title;
+        dPill.style.color = layer.color;
+
+        const filesHtml = c.files?.length
+          ? `
+          <h4>İlgili dosyalar / cache key'leri</h4>
+          <ul class="files">
+            ${c.files
+              .map(
+                (f) => `
+              <li>
+                ${f.path}
+                ${f.note ? `<span class="note">${f.note}</span>` : ""}
+              </li>
+            `,
+              )
+              .join("")}
+          </ul>
+        `
+          : "";
+
+        const behHtml = c.behaviors?.length
+          ? `
+          <h4>Davranışlar / kurallar</h4>
+          <ul>
+            ${c.behaviors.map((b) => `<li>${b}</li>`).join("")}
+          </ul>
+        `
+          : "";
+
+        dBody.innerHTML = `
+          <p>${c.description}</p>
+          ${filesHtml}
+          ${behHtml}
+        `;
+        detail.classList.add("open");
+        detail.setAttribute("aria-hidden", "false");
+        scrim.classList.add("show");
+      }
+
+      function closeDetail() {
+        detail.classList.remove("open");
+        detail.setAttribute("aria-hidden", "true");
+        scrim.classList.remove("show");
+        document
+          .querySelectorAll(".card.active")
+          .forEach((el) => el.classList.remove("active"));
+      }
+
+      dClose.addEventListener("click", closeDetail);
+      scrim.addEventListener("click", closeDetail);
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closeDetail();
+      });
+    </script>
+  </body>
+</html>
