@@ -4,7 +4,7 @@ import along from "@turf/along";
 import bbox from "@turf/bbox";
 import type { Feature, LineString, Position } from "geojson";
 import { buildSeaRoute } from "@/lib/routing/seaRoute";
-import type { Project } from "@/lib/dataverse/entities";
+import type { Project, Waypoint } from "@/lib/dataverse/entities";
 
 export interface RouteGeometry {
   line: Feature<LineString>;
@@ -133,11 +133,21 @@ export function useRouteGeometry(
     ? makeKey(lp.lon, lp.lat, dp.lon, dp.lat, viaPoint?.lon, viaPoint?.lat)
     : null;
 
+  // When AIS via-point is present, splice it into the corridor waypoints so
+  // the fallback line passes through the live position even before
+  // searoute-ts loads. Without this the first paint shows a static corridor
+  // route that visibly misses the AIS marker.
+  const initialWaypoints = React.useMemo(() => {
+    if (!viaPoint) return waypoints;
+    const via: Waypoint = { lon: viaPoint.lon, lat: viaPoint.lat, name: "AIS" };
+    return [...(waypoints ?? []), via];
+  }, [waypoints, viaPoint?.lon, viaPoint?.lat]);
+
   const [line, setLine] = React.useState<Feature<LineString> | null>(() => {
     if (!portsValid || !cacheKey) return null;
     const cached = lineCache.get(cacheKey);
     if (cached) return cached;
-    return buildSeaRoute(lp, dp, waypoints);
+    return buildSeaRoute(lp, dp, initialWaypoints);
   });
 
   React.useEffect(() => {
@@ -150,7 +160,7 @@ export function useRouteGeometry(
       setLine(cached);
       return;
     }
-    setLine(buildSeaRoute(lp, dp, waypoints));
+    setLine(buildSeaRoute(lp, dp, initialWaypoints));
 
     let cancelled = false;
     loadSearoute()

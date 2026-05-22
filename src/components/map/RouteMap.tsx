@@ -282,10 +282,14 @@ export function RouteMap({ project }: RouteMapProps) {
       effectiveProgress > 0
         ? (lineSliceAlong(line, 0, km, { units: "kilometers" }) as Feature<LineString>)
         : null;
-    // If AIS position is available, show marker at raw AIS coords (not snapped).
-    // The completed segment uses the snapped progress for route visualization.
-    const position = aisPos
-      ? [aisPos.lon, aisPos.lat] as Position
+    // When AIS is available, place the marker at the SNAPPED point on the
+    // route line (computed in `aisSnapped`). myshiptracking sometimes returns
+    // positions slightly off the actual sea lane (e.g. inside a port outline,
+    // or at an old anchorage), so snapping keeps the marker visually aligned
+    // with the rendered route. Raw AIS lat/lon is still exposed via the
+    // marker tooltip / details panel for transparency.
+    const position = aisSnapped
+      ? aisSnapped.position
       : geom.positionAt(effectiveProgress);
     let headingDeg = aisPos?.cog ?? 0;
     if (!aisPos) {
