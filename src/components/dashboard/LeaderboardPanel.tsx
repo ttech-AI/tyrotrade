@@ -38,7 +38,10 @@ import {
 } from "@/lib/selectors/aggregate";
 import type { Project } from "@/lib/dataverse/entities";
 
-const TOP_N = 10;
+// Dashboard 2-kolon layout'ta panel daha dar — 10 satır taşıyordu,
+// 5 yeterli ve nefes alabilir. Drawer (KPI detay) için ayrı listeler
+// kendi cap'lerini kullanıyor.
+const TOP_N = 5;
 
 interface LeaderboardPanelProps {
   projects: Project[];

@@ -36,7 +36,9 @@ import {
 } from "@/lib/selectors/aggregate";
 import type { Project } from "@/lib/dataverse/entities";
 
-const TOP_N = 10;
+// Yan yana 2-kolon layout'a uygun cap — eskiden 10 satırlık liste
+// panel'i ezikleştiriyordu, 5 zarif ve hızlı okunur kalıyor.
+const TOP_N = 5;
 
 interface LeaderboardSegmentsPanelProps {
   projects: Project[];
