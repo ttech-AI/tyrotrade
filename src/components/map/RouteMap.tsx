@@ -641,7 +641,11 @@ export function RouteMap({ project }: RouteMapProps) {
                       variant="ghost"
                       size="icon-sm"
                       onClick={fetchAisPosition}
-                      disabled={aisFetching || !project?.vesselPlan?.imoNumber}
+                      disabled={
+                        aisFetching ||
+                        !project?.vesselPlan?.imoNumber ||
+                        stage === "discharged"
+                      }
                       aria-label="Anlık konum al"
                     >
                       <RefreshCw className={cn("size-4", aisFetching && "animate-spin")} />
@@ -650,6 +654,8 @@ export function RouteMap({ project }: RouteMapProps) {
                   <TooltipContent side="left">
                     {!project?.vesselPlan?.imoNumber
                       ? "IMO numarası yok"
+                      : stage === "discharged"
+                      ? "Sefer tamamlandı — gemi artık bu proje için takip edilmiyor"
                       : aisError
                       ? aisError
                       : aisPos
