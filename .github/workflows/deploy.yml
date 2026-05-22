@@ -44,6 +44,11 @@ jobs:
           VITE_DATAVERSE_URL: https://operations-tiryaki.crm4.dynamics.com
           VITE_DATAVERSE_SCOPE: https://operations-tiryaki.crm4.dynamics.com/user_impersonation
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_VESSEL_WORKER_URL: https://noisy-smoke-b37a.pinarkrtnloglu.workers.dev
+          VITE_COPILOT_CHAT_URL: https://copilotstudio.microsoft.com/environments/Default-9efa3bdf-67ad-47e3-8dfb-d1df79a6d7fa/bots/crfc1_agentokBCAt/webchat?__version__=2
+          VITE_COPILOT_DIRECT_CONNECT_URL: https://default9efa3bdf67ad47e38dfbd1df79a6d7.fa.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/crfc1_agentokBCAt/conversations?api-version=2022-03-01-preview
+          VITE_COPILOT_ENVIRONMENT_ID: Default-9efa3bdf-67ad-47e3-8dfb-d1df79a6d7fa
+          VITE_COPILOT_BOT_SCHEMA: crfc1_agentokBCAt
 
       - uses: actions/upload-pages-artifact@v3
         with:
