@@ -30,7 +30,9 @@ export interface StageProgress {
  *  bypasses the check. 6 hours: long enough that intra-day return
  *  visits skip the 4-stage pipeline cost, short enough that the
  *  next day's view sees fresh data without thinking about it. */
-const STALE_AFTER_MS = 6 * 60 * 60 * 1000;
+// STALE_AFTER_MS sabiti auto-fetch ile birlikte kaldırıldı.
+// İleride zaman-bazlı stale uyarısı eklemek istersek tekrar
+// reactivate edilebilir.
 
 export interface UseActualExpenseRollupReturn {
   /** Flat realised-expense rollup rows (per projectNo × expenseId). */
@@ -182,12 +184,8 @@ export function useActualExpenseRollup(): UseActualExpenseRollupReturn {
   };
 }
 
-function isStale(fetchedAt: string | null): boolean {
-  if (!fetchedAt) return true;
-  const t = new Date(fetchedAt).getTime();
-  if (!Number.isFinite(t)) return true;
-  return Date.now() - t > STALE_AFTER_MS;
-}
+// `isStale` helper auto-fetch effect ile birlikte kaldırıldı; manuel
+// refresh artık tek yol, freshness değerlendirmesine ihtiyaç kalmadı.
 
 /** Same fingerprint pattern as `useRealProjects.useCacheFingerprint`
  *  — listens for cross-tab `storage` events AND the same-tab
