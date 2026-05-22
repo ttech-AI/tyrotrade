@@ -668,6 +668,7 @@ export function RouteMap({ project }: RouteMapProps) {
               <MilestoneStrip
                 ms={project.vesselPlan.milestones}
                 progress={effectiveProgress}
+                stage={stage}
                 onClose={() => setTimelineOpen(false)}
               />
             )}
@@ -1314,10 +1315,15 @@ interface MilestoneStripProps {
       : never
     : never;
   progress: number;
+  /** Authoritative stage label, computed from milestone dates in the
+   *  parent (`useRouteProgress`). The strip must use this rather than
+   *  re-deriving from `progress` alone — otherwise the strip says "Yolda"
+   *  while the header chip says "Varış limanında" once DP-ETA passes. */
+  stage: string;
   onClose: () => void;
 }
 
-function MilestoneStrip({ ms, progress, onClose }: MilestoneStripProps) {
+function MilestoneStrip({ ms, progress, stage, onClose }: MilestoneStripProps) {
   // Production-aligned 9-step voyage timeline. Order matches the D365
   // F&O screen (LP loading → BL → DP discharge) so the chip strip
   // reads the same as the source system.
@@ -1425,7 +1431,7 @@ function MilestoneStrip({ ms, progress, onClose }: MilestoneStripProps) {
             </span>
             <span className="text-[10px] text-muted-foreground">·</span>
             <span className="text-[10px] font-semibold text-emerald-700 tabular-nums">
-              %{pct} · {STAGE_LABEL[progress >= 1 ? "discharged" : progress >= 0.95 ? "at-discharge-port" : progress > 0.1 ? "in-transit" : progress >= 0.08 ? "loading" : progress >= 0.04 ? "at-loading-port" : "pre-loading"]}
+              %{pct} · {STAGE_LABEL[stage] ?? stage}
             </span>
           </div>
           <button
