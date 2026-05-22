@@ -119,10 +119,15 @@ export function EntityRowsTable<T extends Record<string, unknown>>({
       )}
       style={{ maxHeight }}
     >
-      <table className="min-w-max border-collapse text-[12.5px] font-mono">
+      {/* Inspector table — Inter sans throughout (was font-mono before;
+       *  mono made prose values ("Commenced", "Açık", invoice notes)
+       *  harder to read than necessary). `tabular-nums` keeps number
+       *  columns aligned without forcing mono. Mono kept only on
+       *  explicit code-like values (F&O field names in tooltips). */}
+      <table className="min-w-max border-collapse text-[13px] tabular-nums">
         <thead className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm">
           <tr>
-            <th className="px-2.5 py-2 text-left text-[11.5px] text-muted-foreground font-semibold border-b border-foreground/[0.08] tabular-nums w-10">
+            <th className="px-2.5 py-2 text-left text-[11px] text-muted-foreground font-semibold border-b border-foreground/[0.08] w-10">
               #
             </th>
             {cols.map((c) => {
@@ -136,7 +141,7 @@ export function EntityRowsTable<T extends Record<string, unknown>>({
                   // while the visible header reads in Turkish.
                   title={c}
                   className={cn(
-                    "px-2.5 py-2 text-left text-[11.5px] font-semibold uppercase tracking-wide border-b border-foreground/[0.08] whitespace-nowrap select-none",
+                    "px-2.5 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.04em] border-b border-foreground/[0.08] whitespace-nowrap select-none",
                     isSortable && "cursor-pointer hover:bg-foreground/[0.04]",
                     active ? "text-foreground" : "text-muted-foreground"
                   )}

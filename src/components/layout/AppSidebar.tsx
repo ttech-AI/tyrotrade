@@ -11,7 +11,7 @@ import {
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Home01Icon,
-  HotPriceIcon,
+  BadgeDollarSignIcon,
 } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -27,16 +27,24 @@ import { useSidebar } from "./sidebar-context";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import { ProfileMenu } from "./ProfileMenu";
 
-/** Wrapper to make HugeIcons compatible with the lucide-style ElementType nav signature. */
+/** Wrapper to make HugeIcons compatible with the lucide-style ElementType nav signature.
+ *  strokeWidth 1.75 lighter weight — matches SaaS sidebar conventions
+ *  (Linear / Notion / Vercel) where icons read as "navigation hints",
+ *  not headline glyphs. Heavier stroke (2+) competes with the label
+ *  text and tires the eye over long sessions. */
 function HomeLineIcon({ className }: { className?: string }) {
   return (
-    <HugeiconsIcon icon={Home01Icon} className={className} strokeWidth={2} />
+    <HugeiconsIcon icon={Home01Icon} className={className} strokeWidth={1.75} />
   );
 }
 
 function PLCostIcon({ className }: { className?: string }) {
   return (
-    <HugeiconsIcon icon={HotPriceIcon} className={className} strokeWidth={2} />
+    <HugeiconsIcon
+      icon={BadgeDollarSignIcon}
+      className={className}
+      strokeWidth={1.75}
+    />
   );
 }
 
@@ -51,15 +59,31 @@ interface NavGroup {
   items: NavItem[];
 }
 
+/** Sidebar groups — sentence-case Turkish labels, soft section headers.
+ *  Pattern lifted from Linear / Notion / Vercel: short hint labels,
+ *  not capitalised bombast. Grouping logic:
+ *    "Operasyon"   → günlük / aktif takip için (Anasayfa + Sefer Takibi)
+ *    "Analiz"      → karar destek + raporlama (Trade Cost)
+ *    "Yönetim"     → veri kaynağı + admin (Veri Yönetimi)
+ *    Bottom block  → sistem (TYRO Stock, Yardım, Tema, Ayarlar, Profil)
+ *  The bottom block stays inline rendered (NOT via NAV_GROUPS) because
+ *  it has heterogeneous items (external link + theme switcher + profile
+ *  menu) that don't share the NavItemLink shape. */
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: "Ana Menü",
+    label: "Operasyon",
     items: [
-      { to: "/", label: "Dashboard", icon: HomeLineIcon },
-      { to: "/projects", label: "Vessel Projects", icon: Ship },
-      { to: "/pl-cost", label: "Trade Cost", icon: PLCostIcon },
-      { to: "/data", label: "Data Management", icon: Database },
+      { to: "/", label: "Anasayfa", icon: HomeLineIcon },
+      { to: "/projects", label: "Sefer Takibi", icon: Ship },
     ],
+  },
+  {
+    label: "Analiz",
+    items: [{ to: "/pl-cost", label: "Trade Cost", icon: PLCostIcon }],
+  },
+  {
+    label: "Yönetim",
+    items: [{ to: "/data", label: "Veri Yönetimi", icon: Database }],
   },
   {
     label: "Sistem",
@@ -81,7 +105,13 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const { expanded, pinned, togglePin, theme } = useSidebar();
   const showLabels = embedded || expanded;
-  const [mainGroup, systemGroup] = NAV_GROUPS;
+  // First 3 groups (Operasyon / Analiz / Yönetim) render in the
+  // scrolling nav area. Last group (Sistem) renders at the bottom
+  // pinned to the profile + theme switcher. Sistem items are unpacked
+  // because they share the bottom block with sibling-app shortcuts +
+  // theme switcher (heterogeneous content, not a clean NavSection).
+  const topGroups = NAV_GROUPS.slice(0, 3);
+  const systemGroup = NAV_GROUPS[3];
 
   return (
     <TooltipProvider delayDuration={150} disableHoverableContent>
@@ -150,14 +180,18 @@ export function AppSidebar({
         <nav
           className={cn(
             "flex-1 overflow-y-auto overflow-x-hidden flex flex-col",
-            showLabels ? "px-2 pt-1 gap-0.5" : "items-center px-0 pt-1 gap-1.5"
+            showLabels ? "px-2 pt-1 gap-2" : "items-center px-0 pt-1 gap-1.5"
           )}
         >
-          <NavSection
-            group={mainGroup}
-            showLabels={showLabels}
-            onItemClick={onItemClick}
-          />
+          {topGroups.map((g, idx) => (
+            <NavSection
+              key={g.label}
+              group={g}
+              showLabels={showLabels}
+              onItemClick={onItemClick}
+              topDivider={idx > 0}
+            />
+          ))}
         </nav>
 
         <div
@@ -173,7 +207,8 @@ export function AppSidebar({
             )}
           />
           {showLabels && (
-            <div className="px-3 pt-1 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--sb-text-faint)]">
+            // Same softer dialect as `NavSection`'s section header above.
+            <div className="px-3 pt-2 pb-1 text-[10px] font-medium uppercase tracking-[0.1em] text-[var(--sb-text-faint)]/85">
               {systemGroup.label}
             </div>
           )}
@@ -227,16 +262,16 @@ function NavSection({
 }) {
   return (
     <>
-      {topDivider && (
-        <div
-          className={cn(
-            "mb-2 h-px bg-gradient-to-r from-transparent via-[var(--sb-divider)] to-transparent",
-            !showLabels && "w-8 mx-auto"
-          )}
-        />
+      {topDivider && !showLabels && (
+        <div className="mb-1 h-px w-8 mx-auto bg-[var(--sb-divider)] opacity-60" />
       )}
       {showLabels && (
-        <div className="px-3 pt-1 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--sb-text-faint)]">
+        // SaaS-pattern section label — capitalised but softer than
+        // before: lighter weight (medium), tighter tracking, more
+        // padding above to breathe between groups, mixed-case
+        // wouldn't survive in a 10px size so we keep uppercase but
+        // smooth out the tone (text-faint, opacity).
+        <div className="px-3 pt-2 pb-1 text-[10px] font-medium uppercase tracking-[0.1em] text-[var(--sb-text-faint)]/85">
           {group.label}
         </div>
       )}

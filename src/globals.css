@@ -1,7 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+/* Inter Variable is the only font — loaded via @fontsource in main.tsx.
+ * `font-sans` (default for body via @apply font-sans) points to Inter
+ * with system-ui fallback. Geist import retired so we don't ship a
+ * second font face. */
 
 @custom-variant dark (&:is(.dark *));
 

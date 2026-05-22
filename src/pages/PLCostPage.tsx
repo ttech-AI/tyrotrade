@@ -2,11 +2,12 @@ import * as React from "react";
 import { Link } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  DashboardSpeed01Icon,
   Database01Icon,
   RefreshIcon,
   BoatIcon,
   Briefcase01Icon,
+  WrenchIcon,
+  BadgeDollarSignIcon,
 } from "@hugeicons/core-free-icons";
 import {
   Tooltip,
@@ -228,12 +229,16 @@ export function PLCostPage() {
           />
         </GlassPanel>
       ) : rollup.isEmpty ? (
-        <EmptyState
+        // Geliştirme aşamasında — gerçek pipeline'ı kullanıcıya
+        // göstermek yerine zarif bir "yapım aşamasında" duyurusu
+        // sergiliyoruz. `hasProjects` bayrağı hâlâ Veri Yönetimi'ne
+        // yönlendirme metnini ayarlamak için iletilir (proje cache'i
+        // hiç dolmamışsa farklı ton).
+        <DevelopmentNotice
           accentColor={accent.solid}
           accentRing={accent.ring}
           accentGradient={accent.gradient}
           hasProjects={projects.length > 0}
-          onCompute={handleRefresh}
         />
       ) : (
         <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden">
@@ -481,89 +486,129 @@ function ErrorState({
   );
 }
 
-function EmptyState({
+/**
+ * Trade Cost sayfası için "geliştirme aşamasında" duyurusu.
+ *
+ * Sayfanın asıl pipeline + tree görünümü yapım aşamasında — kullanıcı
+ * "Hesapla" butonunu görüp prematur tetiklemek yerine, ne için
+ * çalıştığımızı + ne zaman aktif olacağını açıklayan zarif bir
+ * placeholder görür. `hasProjects=false` iken (master refresh yok)
+ * Veri Yönetimi'ne yönlendirme küçük bir uyarı olarak alta düşer.
+ *
+ * `onCompute` prop'u geçici beta erişimi için saklı tutuluyor — şu
+ * an "Hesapla" butonu render edilmiyor; ileride beta tester'lar için
+ * bir geçit eklemek gerekirse zaten elimizde.
+ */
+function DevelopmentNotice({
   accentColor,
   accentRing,
   accentGradient,
   hasProjects,
-  onCompute,
 }: {
   accentColor: string;
   accentRing: string;
   accentGradient: string;
-  /** Master projects cache dolu mu? Olmadığında 'Veri Yönetimi'ne git'
-   *  CTA, dolduğunda 'Trade Cost'u Hesapla' butonu render edilir. */
   hasProjects: boolean;
-  /** Refresh callback — rollup pipeline'ını manuel başlatır. */
-  onCompute: () => void;
 }) {
+  void accentColor; // reserved for future beta-tester gate
   return (
     <GlassPanel tone="default" className="flex-1 min-h-0 rounded-2xl">
       <div className="h-full flex items-center justify-center p-8">
-        <div className="max-w-md text-center space-y-4">
-          <span
-            className="size-14 mx-auto rounded-2xl grid place-items-center text-white"
-            style={{
-              background: accentGradient,
-              boxShadow: `0 6px 18px -4px ${accentRing}`,
-            }}
-          >
-            <HugeiconsIcon
-              icon={DashboardSpeed01Icon}
-              size={26}
-              strokeWidth={2}
-            />
-          </span>
-          {hasProjects ? (
-            <>
-              <div>
-                <div className="text-base font-semibold">
-                  Trade Cost henüz hesaplanmadı
-                </div>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Tahmini × Gerçekleşen masraf analizini başlatmak için tıklayın.
-                  Bu işlem 30-60 saniye sürer — pipeline 4 aşamada tüm aktif
-                  projelerin gerçekleşen masraf satırlarını toplar.
-                </p>
-              </div>
-              <Button onClick={onCompute} className="gap-1.5">
+        <div className="max-w-lg w-full text-center space-y-5">
+          {/* Yapım aşaması rozet — accent gradient + wrench */}
+          <div className="relative inline-flex">
+            <span
+              className="size-16 rounded-2xl grid place-items-center text-white relative shadow-lg"
+              style={{
+                background: accentGradient,
+                boxShadow: `0 10px 28px -8px ${accentRing}, inset 0 1px 0 0 rgba(255,255,255,0.30)`,
+              }}
+            >
+              <HugeiconsIcon
+                icon={BadgeDollarSignIcon}
+                size={28}
+                strokeWidth={1.75}
+              />
+            </span>
+            {/* Küçük wrench tag — "in progress" mikro-işaret */}
+            <span
+              className="absolute -bottom-1.5 -right-1.5 size-7 rounded-xl grid place-items-center bg-amber-500 text-white shadow-md ring-2 ring-white"
+              aria-hidden
+            >
+              <HugeiconsIcon icon={WrenchIcon} size={14} strokeWidth={2} />
+            </span>
+          </div>
+
+          {/* Headline + sublabel */}
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-700 text-[10.5px] font-semibold uppercase tracking-[0.12em]">
+              <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
+              Geliştirme Aşamasında
+            </div>
+            <h2 className="text-xl font-bold tracking-tight text-foreground">
+              Trade Cost yapım aşamasında
+            </h2>
+            <p className="text-[13.5px] text-muted-foreground leading-relaxed max-w-md mx-auto">
+              Tahmini × Gerçekleşen masraf analizi şu anda{" "}
+              <span className="font-semibold text-foreground">aktif geliştirme</span>{" "}
+              halinde. Segment → Voyage Status → Proje → Masraf kalemi
+              hiyerarşisinde detaylı kırılım, akıllı içgörü şeritleri ve
+              drill-down panelleri yakın zamanda burada olacak.
+            </p>
+          </div>
+
+          {/* Roadmap mini-list */}
+          <div className="bg-foreground/[0.025] border border-border/40 rounded-xl px-4 py-3.5 text-left">
+            <div className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-muted-foreground mb-2">
+              Yakında
+            </div>
+            <ul className="space-y-1.5 text-[12.5px]">
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-600 mt-[3px]">✓</span>
+                <span className="text-foreground/80">
+                  Per-(proje, masraf) Gerçekleşen Gider toplamı pipeline'ı
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-600 mt-[3px]">✓</span>
+                <span className="text-foreground/80">
+                  Tahmini × Gerçekleşen sapma metrikleri + smart insights
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-amber-600 mt-[3px]">◯</span>
+                <span className="text-muted-foreground">
+                  FX-aware bütçe normalizasyonu, çoklu para birimi
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-amber-600 mt-[3px]">◯</span>
+                <span className="text-muted-foreground">
+                  Excel export + segment-bazlı dönem karşılaştırması
+                </span>
+              </li>
+            </ul>
+          </div>
+
+          {!hasProjects && (
+            <div className="text-[12px] text-muted-foreground/80 pt-1">
+              Henüz proje verisi yüklenmedi.{" "}
+              <Link
+                to="/data"
+                className="font-semibold text-foreground hover:underline inline-flex items-center gap-1"
+              >
                 <HugeiconsIcon
-                  icon={DashboardSpeed01Icon}
-                  size={16}
+                  icon={Database01Icon}
+                  size={12}
                   strokeWidth={2}
                 />
-                Trade Cost'u Hesapla
-              </Button>
-            </>
-          ) : (
-            <>
-              <div>
-                <div className="text-base font-semibold">
-                  Veri henüz yüklenmedi
-                </div>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Önce projeler verisi çekilmeli. Veri Yönetimi sayfasından
-                  Verileri Güncelle'ye basıp dönün — sonra Trade Cost'u
-                  hesaplayabilirsiniz.
-                </p>
-              </div>
-              <Button asChild>
-                <Link to="/data" className="gap-1.5">
-                  <HugeiconsIcon
-                    icon={Database01Icon}
-                    size={16}
-                    strokeWidth={2}
-                  />
-                  Veri Yönetimi'ne git
-                </Link>
-              </Button>
-            </>
+                Veri Yönetimi'ne git
+              </Link>
+            </div>
           )}
-          <div className="text-[10px] text-muted-foreground/60">
-            {accentColor /* eslint guard */}
-          </div>
         </div>
       </div>
     </GlassPanel>
   );
 }
+
