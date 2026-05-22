@@ -77,7 +77,7 @@ export function ProfileMenu({ expanded }: ProfileMenuProps) {
 
   const avatar = (
     <span
-      className="size-8 rounded-full grid place-items-center text-white text-[10.5px] font-semibold shrink-0 shadow-sm"
+      className="size-9 rounded-full grid place-items-center text-white text-[11.5px] font-semibold shrink-0 shadow-sm"
       style={{
         background: accent.gradient,
         boxShadow: `0 0 0 1.5px ${accent.ring}, 0 1px 2px rgba(0,0,0,0.18)`,
@@ -93,20 +93,25 @@ export function ProfileMenu({ expanded }: ProfileMenuProps) {
       type="button"
       aria-label="Profil menüsünü aç"
       className={cn(
-        "group flex items-center rounded-xl transition-all relative shrink-0 outline-none",
+        // Profile row sits one notch taller than nav (h-12 vs h-10) so
+        // identity reads as a distinct anchor, not "just another nav
+        // entry". Avatar size-9 + 14px name + 11px email fits cleanly
+        // inside 48px without crowding. Typography aligned to the new
+        // 14px SaaS sidebar baseline.
+        "group flex items-center rounded-xl transition-colors relative shrink-0 outline-none",
         "focus-visible:ring-2 focus-visible:ring-[var(--sb-active-ring)]",
         expanded
-          ? "h-12 w-full px-2 gap-2.5 hover:bg-[var(--sb-hover-bg)]"
-          : "h-10 w-10 justify-center px-0"
+          ? "h-12 w-full px-2.5 gap-3 hover:bg-[var(--sb-hover-bg)]"
+          : "h-11 w-11 justify-center px-0"
       )}
     >
       {avatar}
       {expanded && (
         <span className="min-w-0 flex-1 text-left">
-          <span className="block text-[12px] font-semibold leading-tight truncate text-[var(--sb-text)]">
+          <span className="block text-[13.5px] font-semibold leading-tight truncate text-[var(--sb-text)]">
             {NAME}
           </span>
-          <span className="block text-[10px] leading-tight truncate text-[var(--sb-text-faint)]">
+          <span className="block text-[11px] leading-tight truncate text-[var(--sb-text-faint)] mt-0.5">
             {EMAIL}
           </span>
         </span>

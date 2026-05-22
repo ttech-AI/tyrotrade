@@ -217,9 +217,9 @@ export function AppSidebar({
             kind="link"
             href="https://tyrowms.github.io/"
             iconNode={<Logo size={18} palette="aurora" />}
-            label="TYRO Stock"
+            label="tyroStock"
             showLabel={showLabels}
-            tooltip="TYRO Stock'u yeni sekmede aç"
+            tooltip="tyroStock'u yeni sekmede aç"
             onClick={onItemClick}
           />
           <NavItemLink
@@ -304,23 +304,35 @@ function NavItemLink({
     <Link
       to={item.to}
       onClick={onClick}
+      aria-current={isActive ? "page" : undefined}
       className={cn(
-        // Text 13→14px, row height 9→10 (40px) — SaaS sidebar normu
-        // (Linear 14px / Notion 14px / Vercel 14px). 13px küçük
-        // hissediyordu, 14px hem daha okunur hem dokunma alanı genişler.
+        // Text 14px / row 40px (h-10) — SaaS sidebar normu
+        // (Linear / Notion / Vercel hepsi 14px).
         "group flex items-center rounded-xl text-[14px] font-medium transition-colors relative shrink-0",
         showLabel
           ? "h-10 w-full pl-3 pr-3 gap-3"
           : "h-11 w-11 justify-center px-0",
+        // Elegant active state — boxed inset-bar + ring kombinasyonu
+        // ağırdı, onun yerine Linear/Notion deseni: subtle bg tint +
+        // semibold text + accent-coloured icon. Dekorasyon yok, sadece
+        // typography + renk + bg konuşuyor. Çok daha modern, çok daha
+        // zarif. Pin button'un aktif sidebar göstergesi rolünü gerek
+        // yok burada tekrarlamaya — bg tint + accent icon yeterli ipucu.
         isActive
-          ? "bg-[var(--sb-active-bg)] text-[var(--sb-text-strong)] shadow-[inset_3px_0_0_0_var(--sb-pin-active),inset_0_0_0_1px_var(--sb-active-ring)]"
+          ? "bg-[var(--sb-active-bg)] text-[var(--sb-text-strong)] font-semibold"
           : "text-[var(--sb-text-muted)] hover:text-[var(--sb-text)] hover:bg-[var(--sb-hover-bg)]"
       )}
     >
-      {/* Icon 16→18px expanded, 18→20px collapsed — text ile orantılı
-       *  ve collapsed tooltip-only modda daha kolay seçilir. */}
+      {/* Icon 18px expanded, 20px collapsed — text ile orantılı.
+       *  Aktifken accent rengini alır (icon, label'dan ayrı renkte) —
+       *  bu küçük detay, label tek başına ağır olmadan, "bu sayfadasın"
+       *  ipucu verir. */}
       <Icon
-        className={cn(showLabel ? "size-[18px]" : "size-5", "shrink-0")}
+        className={cn(
+          showLabel ? "size-[18px]" : "size-5",
+          "shrink-0 transition-colors",
+          isActive && "text-[var(--sb-pin-active)]"
+        )}
       />
       {showLabel && <span className="truncate">{item.label}</span>}
     </Link>
