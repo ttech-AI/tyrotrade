@@ -46,15 +46,16 @@ import {
  *  remains valid when the list shrinks back to zero. */
 export const PROJECT_ID_EXCEPTIONS: readonly string[] = ["ORGANIK01"];
 
-/** Server-side filter for the Projects header fetch — sea-mode
- *  projects with a non-empty segment, OR any project whose
- *  `mserp_projid` is in `PROJECT_ID_EXCEPTIONS`. Single source of
- *  truth for the auto-refresh chain, the Veri Yönetimi inspector
- *  tab, and the entity-config inspector default. Exported so all
- *  three consumers stay in lock-step. */
+/** Server-side filter for the Projects header fetch — projects with a
+ *  non-empty segment, OR any project whose `mserp_projid` is in
+ *  `PROJECT_ID_EXCEPTIONS`. The previous `mserp_dlvmode eq 'Gemi'`
+ *  delivery-mode restriction was removed so Karayolu / Konteyner
+ *  projects with a segment also flow in. Single source of truth for
+ *  the auto-refresh chain, the Veri Yönetimi inspector tab, and the
+ *  entity-config inspector default. Exported so all three consumers
+ *  stay in lock-step. */
 export const PROJECTS_FILTER = (() => {
-  const base =
-    "(mserp_dlvmode eq 'Gemi' and mserp_tryprojectsegment ne null)";
+  const base = "mserp_tryprojectsegment ne null";
   if (PROJECT_ID_EXCEPTIONS.length === 0) return base;
   const orChain = PROJECT_ID_EXCEPTIONS.map(
     (id) => `mserp_projid eq '${id}'`
@@ -67,7 +68,6 @@ export const PROJECTS_FILTER = (() => {
  *  F&O they're pulling. */
 export function describeProjectFilter(): string {
   const lines = [
-    "• Teslimat şekli (mserp_dlvmode) = Gemi",
     "• Segment (mserp_tryprojectsegment) dolu (boş olmayan)",
   ];
   if (PROJECT_ID_EXCEPTIONS.length > 0) {
