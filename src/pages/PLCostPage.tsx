@@ -228,7 +228,13 @@ export function PLCostPage() {
           />
         </GlassPanel>
       ) : rollup.isEmpty ? (
-        <EmptyState accentColor={accent.solid} accentRing={accent.ring} accentGradient={accent.gradient} />
+        <EmptyState
+          accentColor={accent.solid}
+          accentRing={accent.ring}
+          accentGradient={accent.gradient}
+          hasProjects={projects.length > 0}
+          onCompute={handleRefresh}
+        />
       ) : (
         <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden">
           <GlassPanel tone="subtle" className="rounded-xl shrink-0">
@@ -479,10 +485,17 @@ function EmptyState({
   accentColor,
   accentRing,
   accentGradient,
+  hasProjects,
+  onCompute,
 }: {
   accentColor: string;
   accentRing: string;
   accentGradient: string;
+  /** Master projects cache dolu mu? Olmadığında 'Veri Yönetimi'ne git'
+   *  CTA, dolduğunda 'Trade Cost'u Hesapla' butonu render edilir. */
+  hasProjects: boolean;
+  /** Refresh callback — rollup pipeline'ını manuel başlatır. */
+  onCompute: () => void;
 }) {
   return (
     <GlassPanel tone="default" className="flex-1 min-h-0 rounded-2xl">
@@ -501,23 +514,51 @@ function EmptyState({
               strokeWidth={2}
             />
           </span>
-          <div>
-            <div className="text-base font-semibold">Veri henüz yüklenmedi</div>
-            <p className="text-sm text-muted-foreground mt-1">
-              Önce projeler verisi çekilmeli. Veri Yönetimi sayfasından Verileri
-              Güncelle'ye basıp dönün — bu sayfa otomatik hazırlamaya başlar.
-            </p>
-          </div>
-          <Button asChild>
-            <Link to="/data" className="gap-1.5">
-              <HugeiconsIcon
-                icon={Database01Icon}
-                size={16}
-                strokeWidth={2}
-              />
-              Veri Yönetimi'ne git
-            </Link>
-          </Button>
+          {hasProjects ? (
+            <>
+              <div>
+                <div className="text-base font-semibold">
+                  Trade Cost henüz hesaplanmadı
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Tahmini × Gerçekleşen masraf analizini başlatmak için tıklayın.
+                  Bu işlem 30-60 saniye sürer — pipeline 4 aşamada tüm aktif
+                  projelerin gerçekleşen masraf satırlarını toplar.
+                </p>
+              </div>
+              <Button onClick={onCompute} className="gap-1.5">
+                <HugeiconsIcon
+                  icon={DashboardSpeed01Icon}
+                  size={16}
+                  strokeWidth={2}
+                />
+                Trade Cost'u Hesapla
+              </Button>
+            </>
+          ) : (
+            <>
+              <div>
+                <div className="text-base font-semibold">
+                  Veri henüz yüklenmedi
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Önce projeler verisi çekilmeli. Veri Yönetimi sayfasından
+                  Verileri Güncelle'ye basıp dönün — sonra Trade Cost'u
+                  hesaplayabilirsiniz.
+                </p>
+              </div>
+              <Button asChild>
+                <Link to="/data" className="gap-1.5">
+                  <HugeiconsIcon
+                    icon={Database01Icon}
+                    size={16}
+                    strokeWidth={2}
+                  />
+                  Veri Yönetimi'ne git
+                </Link>
+              </Button>
+            </>
+          )}
           <div className="text-[10px] text-muted-foreground/60">
             {accentColor /* eslint guard */}
           </div>

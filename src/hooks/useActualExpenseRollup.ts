@@ -163,19 +163,11 @@ export function useActualExpenseRollup(): UseActualExpenseRollupReturn {
     }
   }, [applyProgress]);
 
-  // Auto-fetch on mount when cache is missing / stale. Ref guards
-  // against double-firing in StrictMode. Only triggers ONCE per
-  // page mount; manual refresh button drives subsequent fetches.
-  const autoFetchedRef = React.useRef(false);
-  React.useEffect(() => {
-    if (autoFetchedRef.current) return;
-    if (isFetching) return;
-    if (snapshot.rows.length === 0 || isStale(snapshot.fetchedAt)) {
-      autoFetchedRef.current = true;
-      void runFetch();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Auto-fetch DISABLED — user feedback: 30-60s pipeline page mount'a
+  // tetiklenince sayfayı "kilitliyor" hissi veriyordu. Şimdi sadece
+  // manual refresh butonu fetch eder; cache stale/empty olsa bile
+  // kendiliğinden başlamaz. Empty state'i kullanıcı görür, "Hesapla"
+  // butonuyla bilinçli olarak başlatır.
 
   return {
     rows: snapshot.rows,
