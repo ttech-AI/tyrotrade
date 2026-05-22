@@ -205,7 +205,7 @@ export function ProjectsPage() {
       searchPlaceholder="Segment ara..."
       accent={accent}
       compact
-      triggerClassName="w-[140px]"
+      triggerClassName="w-[110px] shrink-0"
     />
   );
 
