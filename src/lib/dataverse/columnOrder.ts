@@ -163,6 +163,8 @@ export const SHIP_COLUMNS = [
   // header already brings in.
   "mserp_tryshipprojid",
   "mserp_assignmentid",
+  "mserp_vessel",
+  "mserp_imonumber",
   "mserp_vesselvoyagenumber",
   "mserp_voyagestatus",
   "mserp_tryshipmentstatus",
