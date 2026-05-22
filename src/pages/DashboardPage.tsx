@@ -3,7 +3,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { BentoGrid } from "@/components/dashboard/BentoGrid";
 import { LeaderboardPanel } from "@/components/dashboard/LeaderboardPanel";
 import { LeaderboardSegmentsPanel } from "@/components/dashboard/LeaderboardSegmentsPanel";
-import { EventsPanel } from "@/components/dashboard/EventsPanel";
 import { AdvancedFilter } from "@/components/filters/AdvancedFilter";
 import {
   KpiDetailDrawer,
@@ -317,18 +316,16 @@ export function DashboardPage() {
           onSelectKpi={setDrawerKpi}
         />
 
-        {/* Bottom 12-col grid: Kral Projeler + Kral Segmentler stacked
-            in the left 9 cols (matches BentoGrid's wider tiles above);
-            Olaylar fills the right 3 cols and stretches the full
-            stack height — same width as Counterparty in the bento row
-            above so columns align vertically across the page. */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-3">
-          <div className="xl:col-span-9 flex flex-col gap-3 min-w-0">
+        {/* Kral Projeler + Kral Segmentler yan yana — 12 kolonlu grid'de
+            6+6. Olaylar paneli kaldırıldı: aynı içerik zaten topbar
+            bildirim merkezinde mevcut, dashboard'da iki kez göstermek
+            gereksiz görsel gürültü yaratıyordu. */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+          <div className="min-w-0">
             <LeaderboardPanel projects={projects} />
-            <LeaderboardSegmentsPanel projects={projects} />
           </div>
-          <div className="xl:col-span-3 min-w-0">
-            <EventsPanel projects={projects} now={now} />
+          <div className="min-w-0">
+            <LeaderboardSegmentsPanel projects={projects} />
           </div>
         </div>
       </div>
