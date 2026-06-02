@@ -33,6 +33,18 @@ jobs:
         with:
           enablement: true
 
+      # GitHub Pages serves custom domains over https once the cert is
+      # issued, but configure-pages `base_url` can report http:// before
+      # HTTPS is enforced. MSAL redirect URIs are registered as https in
+      # Azure → an http:// redirect URI triggers AADSTS50011. Force the
+      # scheme to https, keep base_url's host + path, ensure one trailing /.
+      - name: Resolve redirect URI (force https)
+        id: redirect
+        run: |
+          url="${{ steps.pages.outputs.base_url }}"
+          url="https://${url#*://}"
+          echo "uri=${url%/}/" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -48,11 +60,11 @@ jobs:
           # "/tyrotrade" on a project site or "/" at a custom-domain root;
           # base_url is the full canonical URL. No hardcoding.
           BASE_PATH: ${{ steps.pages.outputs.base_path }}
-          # SPA redirect URI = canonical Pages URL + trailing slash. Must
-          # be registered in the Azure AD app's SPA redirect URIs:
+          # SPA redirect URI = canonical Pages URL (https-forced) + slash.
+          # Must be registered in the Azure AD app's SPA redirect URIs:
           #   https://ttech-ai.github.io/tyrotrade/   (github.io)
           #   https://tyrotrade.ttech.business/       (custom domain)
-          VITE_AAD_REDIRECT_URI: ${{ steps.pages.outputs.base_url }}/
+          VITE_AAD_REDIRECT_URI: ${{ steps.redirect.outputs.uri }}
           # Azure AD SPA app registration — TIRYAKI tenant.
           # Tenant + client IDs are not secrets (MSAL SPA flow exposes them
           # in the client bundle anyway), but we keep them in the workflow
