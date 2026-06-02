@@ -4,8 +4,9 @@ import "leaflet/dist/leaflet.css";
 import { useProjects } from "@/hooks/useProjects";
 import { useVesselPositions, type VesselPosition } from "@/hooks/useVesselPositions";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Ship, AlertCircle } from "lucide-react";
+import { RefreshCw, Ship, AlertCircle, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isPositionStale, positionAgeDays } from "@/lib/routing/positionAge";
 
 // Fix Leaflet default marker icons (webpack/vite asset issue)
 delete (L.Icon.Default.prototype as unknown as Record<string, unknown>)._getIconUrl;
@@ -49,7 +50,11 @@ function VesselMap({ positions }: { positions: VesselPosition[] }) {
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
-    const active = positions.filter((p) => !p.error && p.lat !== 0);
+    // Drop stale (>30 d) positions from the map — consistent with the
+    // RouteMap "ignore stale" rule. They're surfaced in the list below.
+    const active = positions.filter(
+      (p) => !p.error && p.lat !== 0 && !isPositionStale(p.positionReceivedAt)
+    );
 
     active.forEach((p) => {
       const marker = L.marker([p.lat, p.lon], { icon: createShipIcon(p.cog) })
@@ -82,7 +87,15 @@ export function VesselMapPage() {
   const { projects } = useProjects();
   const { positions, status, lastUpdated, refresh } = useVesselPositions(projects);
 
-  const activeCount = positions.filter((p) => !p.error).length;
+  const staleList = positions.filter(
+    (p) => !p.error && isPositionStale(p.positionReceivedAt)
+  );
+  const staleCount = staleList.length;
+  // "Active" = resolved AND fresh — stale positions are excluded from the
+  // map and counted separately so the headline reflects what's on screen.
+  const activeCount = positions.filter(
+    (p) => !p.error && !isPositionStale(p.positionReceivedAt)
+  ).length;
   const errorCount = positions.filter((p) => p.error).length;
 
   return (
@@ -95,6 +108,7 @@ export function VesselMapPage() {
             <p className="text-sm text-muted-foreground">
               Son güncelleme: {lastUpdated.toLocaleTimeString("tr-TR")}
               {activeCount > 0 && ` · ${activeCount} gemi`}
+              {staleCount > 0 && ` · ${staleCount} konum 1 aydan eski`}
               {errorCount > 0 && ` · ${errorCount} bulunamadı`}
             </p>
           )}
@@ -122,6 +136,29 @@ export function VesselMapPage() {
         )}
       </div>
 
+      {/* Stale list — vessels whose last AIS report is older than a month.
+          Excluded from the map (position can't be trusted) but listed here
+          with their age so the operator knows they exist. */}
+      {staleCount > 0 && status === "done" && (
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+          <div className="mb-1 flex items-center gap-2 text-sm font-medium text-amber-700">
+            <Clock className="size-4" />
+            Konumu 1 aydan eski gemiler (haritada gösterilmiyor)
+          </div>
+          <ul className="space-y-0.5 text-xs text-muted-foreground">
+            {staleList.map((p) => {
+              const age = positionAgeDays(p.positionReceivedAt);
+              return (
+                <li key={p.projectNo}>
+                  {p.name} ({p.imo})
+                  {age !== null ? ` — son konum ${age} gün önce` : ""}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       {/* Error list */}
       {errorCount > 0 && status === "done" && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
@@ -133,7 +170,7 @@ export function VesselMapPage() {
             {positions
               .filter((p) => p.error)
               .map((p) => (
-                <li key={p.imo}>
+                <li key={p.projectNo}>
                   {p.name} ({p.imo}) — {p.error}
                 </li>
               ))}

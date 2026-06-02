@@ -72,6 +72,23 @@ export default {
       /(Under way[^<]{0,20}|Moored|At anchor|Stopped|Not under command)/
     );
 
+    // Position Received — the actual AIS report time (UTC), distinct from
+    // `updatedAt` (our scrape time, always "now"). myshiptracking renders it
+    // as title="YYYY-MM-DD HH:MM" on the "Position Received" table row, and
+    // again in the prose "as reported on <strong>...</strong> by AIS". The
+    // table row is canonical; prose is the fallback. Frontend uses this to
+    // drop positions older than the staleness threshold.
+    const posTimeMatch =
+      vesselHtml.match(
+        /Position Received<\/th>\s*<td>[\s\S]*?title="(\d{4}-\d{2}-\d{2} \d{2}:\d{2})"/
+      ) ||
+      vesselHtml.match(
+        /as reported on <strong>(\d{4}-\d{2}-\d{2} \d{2}:\d{2})<\/strong>/
+      );
+    const positionReceivedAt = posTimeMatch
+      ? new Date(posTimeMatch[1].replace(" ", "T") + ":00Z").toISOString()
+      : null;
+
     return json({
       name,
       imo,
@@ -84,6 +101,7 @@ export default {
       dwt: dwtMatch?.[1] ?? null,
       status: statusMatch?.[1] ?? null,
       vesselUrl,
+      positionReceivedAt,
       updatedAt: new Date().toISOString(),
     });
   },

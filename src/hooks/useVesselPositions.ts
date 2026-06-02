@@ -1,5 +1,7 @@
 import * as React from "react";
 import type { Project } from "@/lib/dataverse/entities";
+import { shouldUseMock } from "@/lib/dataverse";
+import { mockPositionReceivedAt } from "@/mocks/vesselPositions";
 
 const WORKER_URL = ((import.meta.env.VITE_VESSEL_WORKER_URL as string | undefined) ?? "").replace(/\/$/, "");
 
@@ -14,6 +16,8 @@ export interface VesselPosition {
   status: string | null;
   flag: string | null;
   vesselUrl: string;
+  /** Actual AIS report time (UTC) — drives staleness. Null if unparsed. */
+  positionReceivedAt: string | null;
   updatedAt: string;
   error?: string;
 }
@@ -26,6 +30,41 @@ export function useVesselPositions(projects: Project[]) {
   const [lastUpdated, setLastUpdated] = React.useState<Date | null>(null);
 
   const refresh = React.useCallback(async () => {
+    // Local dev (mock mode): synthesize positions at the LP→DP midpoint with
+    // a deterministic fresh/stale age per project, so the map shows live
+    // markers AND the "1 aydan eski" stale list without a worker. Mock
+    // projects mostly lack real IMOs, so we don't gate on imoNumber here.
+    if (shouldUseMock()) {
+      setStatus("loading");
+      const now = new Date();
+      const mock = projects
+        .filter((p) => p.vesselPlan?.vesselName)
+        .map((p) => {
+          const lp = p.vesselPlan!.loadingPort;
+          const dp = p.vesselPlan!.dischargePort;
+          return {
+            projectNo: p.projectNo,
+            name: p.vesselPlan!.vesselName,
+            imo: p.vesselPlan!.imoNumber ?? "—",
+            lat: (lp.lat + dp.lat) / 2,
+            lon: (lp.lon + dp.lon) / 2,
+            sog: 12.5,
+            cog: 60,
+            status: "Under way (mock)",
+            flag: null,
+            vesselUrl: "#",
+            positionReceivedAt: mockPositionReceivedAt(p.projectNo, now),
+            updatedAt: now.toISOString(),
+          } satisfies VesselPosition;
+        })
+        .filter((p) => !(p.lat === 0 && p.lon === 0));
+      await new Promise((r) => setTimeout(r, 500));
+      setPositions(mock);
+      setLastUpdated(new Date());
+      setStatus("done");
+      return;
+    }
+
     const candidates = projects.filter(
       (p) => p.vesselPlan?.imoNumber && p.vesselPlan?.vesselName
     );
@@ -54,6 +93,7 @@ export function useVesselPositions(projects: Project[]) {
             status: null,
             flag: null,
             vesselUrl: "",
+            positionReceivedAt: null,
             updatedAt: new Date().toISOString(),
             error: data.error ?? "Bilinmeyen hata",
           } satisfies VesselPosition;

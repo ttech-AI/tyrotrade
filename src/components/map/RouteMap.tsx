@@ -52,6 +52,9 @@ import { useRouteProgress } from "@/hooks/useRouteProgress";
 import { formatDate } from "@/lib/format";
 import type { Project } from "@/lib/dataverse/entities";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { isPositionStale, positionAgeDays } from "@/lib/routing/positionAge";
+import { shouldUseMock } from "@/lib/dataverse";
+import { mockPositionReceivedAt } from "@/mocks/vesselPositions";
 
 interface RouteMapProps {
   project: Project | null;
@@ -153,6 +156,8 @@ interface AisPosition {
   cog: number;
   status: string | null;
   vesselUrl: string;
+  /** Actual AIS report time (UTC). Null when the scrape couldn't parse it. */
+  positionReceivedAt: string | null;
 }
 
 export function RouteMap({ project }: RouteMapProps) {
@@ -166,6 +171,14 @@ export function RouteMap({ project }: RouteMapProps) {
   const [aisPos, setAisPos] = React.useState<AisPosition | null>(null);
   const [aisFetching, setAisFetching] = React.useState(false);
   const [aisError, setAisError] = React.useState<string | null>(null);
+  // Stale-position lock: when the fetched position is older than the
+  // staleness threshold we don't use it (no marker, progress stays
+  // date-based) and lock the refresh control with the position's age.
+  // Stays set for the current project (re-fetching returns the same old
+  // date); cleared on project change by the reset effect below.
+  const [aisStale, setAisStale] = React.useState<{ ageDays: number } | null>(
+    null
+  );
   const accent = useThemeAccent();
   const geom = useRouteGeometry(project, aisPos);
   const { progress, stage } = useRouteProgress(project);
@@ -173,9 +186,44 @@ export function RouteMap({ project }: RouteMapProps) {
   const fetchAisPosition = React.useCallback(async () => {
     const imo = project?.vesselPlan?.imoNumber;
     const name = project?.vesselPlan?.vesselName;
-    if (!imo || !name) return;
     setAisFetching(true);
     setAisError(null);
+
+    // Local dev (mock mode): no worker round-trip — synthesize an AIS hit
+    // on the route. Age is deterministic per project so some projects show
+    // a live marker and others trip the stale lock. Lets the staleness UI
+    // be seen offline; the real worker path below runs in real mode.
+    if (shouldUseMock()) {
+      const receivedAt = project ? mockPositionReceivedAt(project.projectNo) : null;
+      await new Promise((r) => setTimeout(r, 350)); // let the spinner show
+      if (isPositionStale(receivedAt)) {
+        setAisStale({ ageDays: positionAgeDays(receivedAt) ?? 0 });
+        setAisPos(null);
+      } else if (geom) {
+        const [lon, lat] = geom.positionAt(0.45);
+        const [lon2, lat2] = geom.positionAt(0.47);
+        const cog = bearing(point([lon, lat]), point([lon2, lat2]));
+        setAisPos({
+          lat,
+          lon,
+          sog: 12.6,
+          cog,
+          status: "Under way (mock)",
+          vesselUrl: "#",
+          positionReceivedAt: receivedAt,
+        });
+        setAisStale(null);
+      } else {
+        setAisError("Rota geometrisi henüz hazır değil");
+      }
+      setAisFetching(false);
+      return;
+    }
+
+    if (!imo || !name) {
+      setAisFetching(false);
+      return;
+    }
     try {
       const res = await fetch(
         `${VESSEL_WORKER}?name=${encodeURIComponent(name)}&imo=${encodeURIComponent(imo)}`
@@ -183,20 +231,36 @@ export function RouteMap({ project }: RouteMapProps) {
       const data = await res.json();
       if (data.error) {
         setAisError(data.error);
+      } else if (isPositionStale(data.positionReceivedAt)) {
+        // Older than MAX_POSITION_AGE_DAYS — drop it entirely. Marker
+        // isn't placed, progress falls back to the milestone estimate,
+        // and the control locks with the age so the operator knows why.
+        setAisStale({ ageDays: positionAgeDays(data.positionReceivedAt) ?? 0 });
+        setAisPos(null);
       } else {
-        setAisPos({ lat: data.lat, lon: data.lon, sog: data.sog, cog: data.cog, status: data.status, vesselUrl: data.vesselUrl });
+        setAisPos({
+          lat: data.lat,
+          lon: data.lon,
+          sog: data.sog,
+          cog: data.cog,
+          status: data.status,
+          vesselUrl: data.vesselUrl,
+          positionReceivedAt: data.positionReceivedAt ?? null,
+        });
+        setAisStale(null);
       }
     } catch {
       setAisError("Bağlantı hatası");
     } finally {
       setAisFetching(false);
     }
-  }, [project?.vesselPlan?.imoNumber, project?.vesselPlan?.vesselName]);
+  }, [project, geom]);
 
   // Reset AIS state when project changes — don't auto-fetch
   React.useEffect(() => {
     setAisPos(null);
     setAisError(null);
+    setAisStale(null);
   }, [project?.projectNo]);
 
   // Re-open timeline when project changes — fresh project, fresh
@@ -643,8 +707,9 @@ export function RouteMap({ project }: RouteMapProps) {
                       onClick={fetchAisPosition}
                       disabled={
                         aisFetching ||
-                        !project?.vesselPlan?.imoNumber ||
-                        stage === "discharged"
+                        (!shouldUseMock() && !project?.vesselPlan?.imoNumber) ||
+                        stage === "discharged" ||
+                        aisStale !== null
                       }
                       aria-label="Anlık konum al"
                     >
@@ -652,10 +717,12 @@ export function RouteMap({ project }: RouteMapProps) {
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="left">
-                    {!project?.vesselPlan?.imoNumber
+                    {!shouldUseMock() && !project?.vesselPlan?.imoNumber
                       ? "IMO numarası yok"
                       : stage === "discharged"
                       ? "Sefer tamamlandı — gemi artık bu proje için takip edilmiyor"
+                      : aisStale
+                      ? `Son konum ${aisStale.ageDays} gün önce — çok eski, kullanılmadı`
                       : aisError
                       ? aisError
                       : aisPos
@@ -665,6 +732,24 @@ export function RouteMap({ project }: RouteMapProps) {
                 </Tooltip>
               </div>
             </GlassPanel>
+
+            {/* Stale-position note — appears directly under the control
+                stack when the last reported AIS position is older than
+                the threshold. The live position was dropped; the vessel
+                is drawn at its date-based estimate instead. */}
+            {aisStale && (
+              <GlassPanel
+                tone="strong"
+                className="rounded-lg pointer-events-auto self-end"
+              >
+                <div className="flex items-center gap-1.5 px-2 py-1 text-[10.5px] font-medium text-amber-700">
+                  <Clock className="size-3 shrink-0" strokeWidth={2.5} />
+                  <span className="whitespace-nowrap">
+                    Son konum {aisStale.ageDays} gün önce
+                  </span>
+                </div>
+              </GlassPanel>
+            )}
           </div>
         )}
 
