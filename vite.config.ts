@@ -3,8 +3,22 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "node:path";
 
+// Deployment-aware base path. The Pages workflow injects `BASE_PATH`
+// from `actions/configure-pages` so the build adapts to wherever Pages
+// serves it:
+//   • project site  → "/tyrotrade" → normalised to "/tyrotrade/"
+//   • custom domain  → "/"          (tyrotrade.ttech.business at root)
+// Local dev / no env → default to the project path.
+const rawBase = process.env.BASE_PATH ?? "/tyrotrade/";
+const base =
+  rawBase === "/" || rawBase === ""
+    ? "/"
+    : rawBase.endsWith("/")
+      ? rawBase
+      : `${rawBase}/`;
+
 export default defineConfig({
-  base: "/tyrotrade/",
+  base,
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {

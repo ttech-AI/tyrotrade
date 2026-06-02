@@ -20,24 +20,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Auto-enable Pages on first run (Source = GitHub Actions) so the
-      # repo owner doesn't have to flip it in Settings. Requires the
-      # workflow's GITHUB_TOKEN to have `pages: write` (declared above)
-      # and an org/owner that allows Actions to manage Pages.
+      # configure-pages reads this repo's Pages config — INCLUDING any
+      # custom domain set in Settings → Pages — and outputs the correct
+      # base_path / base_url / host. So the build auto-adapts:
+      #   • *.github.io/tyrotrade  → base_path "/tyrotrade", host *.github.io
+      #   • tyrotrade.ttech.business (custom domain, served at root)
+      #                            → base_path "/",          host the domain
+      # enablement:true also auto-turns-on Pages on first run.
       - name: Configure Pages
+        id: pages
         uses: actions/configure-pages@v5
         with:
           enablement: true
-
-      # Owner-agnostic Pages URL so the MSAL redirect URI matches
-      # whichever org hosts this repo (tyroaihub.github.io OR
-      # ttech-ai.github.io). GitHub Pages hosts are lowercase.
-      - name: Resolve Pages redirect URI
-        id: pagesurl
-        run: |
-          owner=$(echo "${GITHUB_REPOSITORY%%/*}" | tr '[:upper:]' '[:lower:]')
-          repo=${GITHUB_REPOSITORY#*/}
-          echo "redirect=https://${owner}.github.io/${repo}/" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-node@v4
         with:
@@ -49,6 +43,16 @@ jobs:
       - name: Build
         run: npm run build
         env:
+          # Vite base path + MSAL redirect URI both follow whatever Pages
+          # actually serves (configure-pages outputs). base_path is
+          # "/tyrotrade" on a project site or "/" at a custom-domain root;
+          # base_url is the full canonical URL. No hardcoding.
+          BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          # SPA redirect URI = canonical Pages URL + trailing slash. Must
+          # be registered in the Azure AD app's SPA redirect URIs:
+          #   https://ttech-ai.github.io/tyrotrade/   (github.io)
+          #   https://tyrotrade.ttech.business/       (custom domain)
+          VITE_AAD_REDIRECT_URI: ${{ steps.pages.outputs.base_url }}/
           # Azure AD SPA app registration — TIRYAKI tenant.
           # Tenant + client IDs are not secrets (MSAL SPA flow exposes them
           # in the client bundle anyway), but we keep them in the workflow
@@ -56,10 +60,6 @@ jobs:
           VITE_USE_MOCK: "false"
           VITE_AAD_TENANT_ID: 9efa3bdf-67ad-47e3-8dfb-d1df79a6d7fa
           VITE_AAD_CLIENT_ID: 7d31868c-d0ef-452e-a5ac-4d42852649ec
-          # Production redirect URI — must be added to the Azure AD app's
-          # SPA platform redirect URIs list. The GitHub Pages URL below
-          # follows the `https://<owner>.github.io/<repo>/` pattern.
-          VITE_AAD_REDIRECT_URI: ${{ steps.pagesurl.outputs.redirect }}
           VITE_DATAVERSE_URL: https://operations-tiryaki.crm4.dynamics.com
           VITE_DATAVERSE_SCOPE: https://operations-tiryaki.crm4.dynamics.com/user_impersonation
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
@@ -68,6 +68,18 @@ jobs:
           VITE_COPILOT_DIRECT_CONNECT_URL: https://default9efa3bdf67ad47e38dfbd1df79a6d7.fa.environment.api.powerplatform.com/copilotstudio/dataverse-backed/authenticated/bots/crfc1_agentokBCAt/conversations?api-version=2022-03-01-preview
           VITE_COPILOT_ENVIRONMENT_ID: Default-9efa3bdf-67ad-47e3-8dfb-d1df79a6d7fa
           VITE_COPILOT_BOT_SCHEMA: crfc1_agentokBCAt
+
+      # Custom-domain deploys need a CNAME file in the artifact so Pages
+      # keeps serving at that host (and doesn't reset the Settings value
+      # on each Actions deploy). *.github.io hosts get NO CNAME — keeps
+      # the TYROAIHUB project-site deploy unaffected.
+      - name: Write CNAME for custom domain
+        run: |
+          host='${{ steps.pages.outputs.host }}'
+          case "$host" in
+            ''|*.github.io) echo "No custom domain ($host) — skip CNAME" ;;
+            *) printf '%s\n' "$host" > dist/CNAME && echo "dist/CNAME = $host" ;;
+          esac
 
       - uses: actions/upload-pages-artifact@v3
         with:
