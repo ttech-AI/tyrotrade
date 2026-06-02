@@ -243,6 +243,7 @@ export function ProjectsPage() {
               selectedId={selectedId}
               onSelect={handleSelect}
               segmentTrigger={segmentTrigger}
+              segmentSelectedCount={filters.segments.size}
               filterTrigger={filterTrigger}
             />
           )}
@@ -288,6 +289,7 @@ export function ProjectsPage() {
           selectedId={selectedId}
           onSelect={handleSelect}
           segmentTrigger={segmentTrigger}
+          segmentSelectedCount={filters.segments.size}
           filterTrigger={filterTrigger}
         />
       </div>

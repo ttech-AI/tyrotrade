@@ -1,4 +1,6 @@
 import * as React from "react";
+import { motion } from "framer-motion";
+import { Layers } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Search01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { GlassPanel } from "@/components/glass/GlassPanel";
@@ -7,6 +9,11 @@ import { ProjectQuickAsk } from "./ProjectQuickAsk";
 import type { Project } from "@/lib/dataverse/entities";
 import { useThemeAccent } from "@/components/layout/theme-accent";
 import { cn } from "@/lib/utils";
+
+/** Width-toggle easing for the search ↔ segment expand/collapse. Short
+ *  so any framer `layout` size interpolation reads as a snap-with-ease,
+ *  not a slow morph. */
+const TOGGLE_TRANSITION = { duration: 0.22, ease: [0.22, 1, 0.36, 1] as const };
 
 interface ProjectListProps {
   /** Already-filtered project list — Vessel Projects page applies the
@@ -23,8 +30,14 @@ interface ProjectListProps {
   /** Slot rendered between the search input and `filterTrigger` —
    *  Vessel Projects uses this for the segment quick-pick so the
    *  most common filter dimension is one click away without
-   *  opening the full AdvancedFilter popover. */
+   *  opening the full AdvancedFilter popover. When provided, the search
+   *  box + segment collapse into a mutually-exclusive expand/collapse
+   *  toggle (one expanded, the other an icon). */
   segmentTrigger?: React.ReactNode;
+  /** How many segments are currently selected — drives the active-value
+   *  dot on the segment's collapsed icon so the user sees a filter is
+   *  live even while it's collapsed. */
+  segmentSelectedCount?: number;
 }
 
 /**
@@ -40,9 +53,23 @@ export function ProjectList({
   onSelect,
   filterTrigger,
   segmentTrigger,
+  segmentSelectedCount,
 }: ProjectListProps) {
   const accent = useThemeAccent();
   const [query, setQuery] = React.useState("");
+  // Which of the two quick-fields is expanded. Default "segment" — it's
+  // the primary slice for the weekly per-team triage; search starts as
+  // a collapsed icon to its left. Only relevant when `segmentTrigger`
+  // is supplied; search-only callers ignore it.
+  const [activeField, setActiveField] = React.useState<"search" | "segment">(
+    "segment"
+  );
+  const searchRef = React.useRef<HTMLInputElement>(null);
+  // Focus the input the moment search expands so the user can type
+  // immediately after clicking the collapsed search icon.
+  React.useEffect(() => {
+    if (activeField === "search") searchRef.current?.focus();
+  }, [activeField]);
   const [quickAsk, setQuickAsk] = React.useState<{
     project: Project;
     x: number;
@@ -78,6 +105,47 @@ export function ProjectList({
 
   const total = totalCount ?? projects.length;
 
+  // Expanded search field — shared by the toggle layout (segment present)
+  // and the plain full-width layout (search-only callers).
+  const searchInput = (
+    <div className="relative w-full min-w-0">
+      <HugeiconsIcon
+        icon={Search01Icon}
+        size={15}
+        strokeWidth={2.25}
+        className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none z-[1]"
+        style={{ color: accent.solid }}
+      />
+      <input
+        ref={searchRef}
+        type="text"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Proje, gemi, liman, tedarikçi..."
+        className={cn(
+          "w-full h-9 pl-9 pr-7 rounded-full text-[13px] outline-none",
+          "bg-white/70 backdrop-blur-xl backdrop-saturate-150",
+          "ring-1 ring-foreground/15 hover:ring-foreground/30 focus:ring-2 focus:ring-ring",
+          "placeholder:text-muted-foreground/70 transition-shadow"
+        )}
+        style={{
+          boxShadow:
+            "0 4px 12px -4px rgba(15,23,42,0.18), inset 0 1px 0 0 rgba(255,255,255,0.85)",
+        }}
+      />
+      {query && (
+        <button
+          type="button"
+          onClick={() => setQuery("")}
+          aria-label="Aramayı temizle"
+          className="absolute right-2 top-1/2 -translate-y-1/2 size-5 grid place-items-center rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/[0.06] z-[1]"
+        >
+          <HugeiconsIcon icon={Cancel01Icon} size={11} strokeWidth={2.5} />
+        </button>
+      )}
+    </div>
+  );
+
   return (
     <GlassPanel
       tone="default"
@@ -102,49 +170,61 @@ export function ProjectList({
             </span>
           </h2>
         </div>
-        <div className="relative flex-1 min-w-0">
-          <HugeiconsIcon
-            icon={Search01Icon}
-            size={15}
-            strokeWidth={2.25}
-            className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none z-[1]"
-            style={{ color: accent.solid }}
-          />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Proje, gemi, liman, tedarikçi..."
-            className={cn(
-              "w-full h-9 pl-9 pr-7 rounded-full text-[13px] outline-none",
-              "bg-white/70 backdrop-blur-xl backdrop-saturate-150",
-              "ring-1 ring-foreground/15 hover:ring-foreground/30 focus:ring-2 focus:ring-ring",
-              "placeholder:text-muted-foreground/70 transition-shadow"
-            )}
-            style={{
-              boxShadow:
-                "0 4px 12px -4px rgba(15,23,42,0.18), inset 0 1px 0 0 rgba(255,255,255,0.85)",
-            }}
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={() => setQuery("")}
-              aria-label="Aramayı temizle"
-              className="absolute right-2 top-1/2 -translate-y-1/2 size-5 grid place-items-center rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/[0.06] z-[1]"
+        {segmentTrigger ? (
+          // Search ↔ Segment toggle: only ONE is expanded at a time, the
+          // other collapses to an icon. Click a collapsed icon to expand
+          // it (and collapse the sibling). Search sits left of segment;
+          // the AdvancedFilter trigger stays pinned right. framer `layout`
+          // animates the width hand-off.
+          <div className="flex items-center gap-1.5">
+            <motion.div
+              layout
+              transition={TOGGLE_TRANSITION}
+              className={activeField === "search" ? "flex-1 min-w-0" : "shrink-0"}
             >
-              <HugeiconsIcon icon={Cancel01Icon} size={11} strokeWidth={2.5} />
-            </button>
-          )}
-        </div>
-        {(segmentTrigger || filterTrigger) && (
-          // Segment quick-pick + AdvancedFilter trigger share one row.
-          // The segment field carries its own raised/labelled placeholder
-          // ("Segment seç" + ikon) so no separate header label is needed.
-          <div className="flex items-center gap-1.5 mt-2">
-            {segmentTrigger && (
-              <div className="flex-1 min-w-0">{segmentTrigger}</div>
-            )}
+              {activeField === "search" ? (
+                searchInput
+              ) : (
+                <CollapsedFieldButton
+                  label="Ara"
+                  hasValue={query.trim().length > 0}
+                  accent={accent}
+                  onClick={() => setActiveField("search")}
+                  icon={
+                    <HugeiconsIcon
+                      icon={Search01Icon}
+                      size={16}
+                      strokeWidth={2.25}
+                    />
+                  }
+                />
+              )}
+            </motion.div>
+            <motion.div
+              layout
+              transition={TOGGLE_TRANSITION}
+              className={
+                activeField === "segment" ? "flex-1 min-w-0" : "shrink-0"
+              }
+            >
+              {activeField === "segment" ? (
+                <div className="w-full min-w-0">{segmentTrigger}</div>
+              ) : (
+                <CollapsedFieldButton
+                  label="Segment"
+                  hasValue={(segmentSelectedCount ?? 0) > 0}
+                  accent={accent}
+                  onClick={() => setActiveField("segment")}
+                  icon={<Layers className="size-4" strokeWidth={2.25} />}
+                />
+              )}
+            </motion.div>
+            {filterTrigger}
+          </div>
+        ) : (
+          // Search-only callers: plain full-width search + optional filter.
+          <div className="flex items-center gap-1.5">
+            <div className="flex-1 min-w-0">{searchInput}</div>
             {filterTrigger}
           </div>
         )}
@@ -178,5 +258,54 @@ export function ProjectList({
         />
       )}
     </GlassPanel>
+  );
+}
+
+/**
+ * Collapsed state of a quick-field (search or segment) — a circular icon
+ * button matching the raised/glass aesthetic of the expanded fields.
+ * Carries an accent-coloured active dot when the (hidden) field has a
+ * live value so the user knows a filter is applied even while collapsed.
+ */
+function CollapsedFieldButton({
+  icon,
+  label,
+  hasValue,
+  onClick,
+  accent,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  hasValue: boolean;
+  onClick: () => void;
+  accent: ReturnType<typeof useThemeAccent>;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={cn(
+        "relative h-9 w-9 grid place-items-center rounded-full shrink-0",
+        "bg-white/70 backdrop-blur-xl backdrop-saturate-150",
+        "ring-1 ring-foreground/15 hover:ring-foreground/30 transition-shadow"
+      )}
+      style={{
+        boxShadow:
+          "0 4px 12px -4px rgba(15,23,42,0.18), inset 0 1px 0 0 rgba(255,255,255,0.85)",
+      }}
+    >
+      <span style={{ color: accent.solid }} className="grid place-items-center">
+        {icon}
+      </span>
+      {hasValue && (
+        <span
+          aria-hidden
+          className="absolute -top-0.5 -right-0.5 size-2.5 rounded-full ring-2 ring-white"
+          style={{ backgroundColor: accent.solid }}
+        />
+      )}
+    </button>
   );
 }
