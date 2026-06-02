@@ -234,7 +234,11 @@ function CompactStat({
       className="px-2 py-1.5 rounded-xl bg-card/50 border border-border/40 min-w-0"
       title={title}
     >
-      <div className="text-[9.5px] uppercase tracking-wider text-muted-foreground truncate">
+      {/* Wrap to 2 lines instead of truncating — uzun etiketler
+          ("Tahmini Ürün Bedeli", "Tahmini Fiyat/Miktar") tam görünür.
+          min-h iki satır rezerve eder, böylece tek-satırlık etiketler
+          (Tahmini Miktar) ile değer satırları aynı hizada kalır. */}
+      <div className="text-[9.5px] uppercase tracking-wider text-muted-foreground leading-[1.2] line-clamp-2 min-h-[22px]">
         {label}
       </div>
       <div className="flex items-center gap-1 mt-0.5 min-w-0">
