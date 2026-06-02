@@ -20,6 +20,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Auto-enable Pages on first run (Source = GitHub Actions) so the
+      # repo owner doesn't have to flip it in Settings. Requires the
+      # workflow's GITHUB_TOKEN to have `pages: write` (declared above)
+      # and an org/owner that allows Actions to manage Pages.
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      # Owner-agnostic Pages URL so the MSAL redirect URI matches
+      # whichever org hosts this repo (tyroaihub.github.io OR
+      # ttech-ai.github.io). GitHub Pages hosts are lowercase.
+      - name: Resolve Pages redirect URI
+        id: pagesurl
+        run: |
+          owner=$(echo "${GITHUB_REPOSITORY%%/*}" | tr '[:upper:]' '[:lower:]')
+          repo=${GITHUB_REPOSITORY#*/}
+          echo "redirect=https://${owner}.github.io/${repo}/" >> "$GITHUB_OUTPUT"
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -40,7 +59,7 @@ jobs:
           # Production redirect URI — must be added to the Azure AD app's
           # SPA platform redirect URIs list. The GitHub Pages URL below
           # follows the `https://<owner>.github.io/<repo>/` pattern.
-          VITE_AAD_REDIRECT_URI: https://tyroaihub.github.io/tyrotrade/
+          VITE_AAD_REDIRECT_URI: ${{ steps.pagesurl.outputs.redirect }}
           VITE_DATAVERSE_URL: https://operations-tiryaki.crm4.dynamics.com
           VITE_DATAVERSE_SCOPE: https://operations-tiryaki.crm4.dynamics.com/user_impersonation
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
