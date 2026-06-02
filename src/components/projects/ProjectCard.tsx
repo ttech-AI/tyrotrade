@@ -125,8 +125,10 @@ export function ProjectCard({ project, selected, onClick, onQuickAsk }: ProjectC
         </>
       )}
 
-      {/* Row 1 — meta: status dot, project no, segment */}
-      <div className="relative flex items-center gap-1.5 min-w-0 text-[11.5px]">
+      {/* Row 1 — statü: renkli nokta + statü metni. Eskiden sadece
+          seçilince çıkan alt-caption buraya, noktanın yanına taşındı ve
+          artık her kartta görünür → durum tek bakışta okunur. */}
+      <div className="relative flex items-center gap-1.5 min-w-0">
         <span
           className={cn(
             "size-2 rounded-full ring-2 shrink-0",
@@ -135,6 +137,22 @@ export function ProjectCard({ project, selected, onClick, onQuickAsk }: ProjectC
           )}
           aria-hidden
         />
+        <span
+          // lang="en": statüler İngilizce ("Nominated", "Commenced").
+          // CSS `uppercase` sayfanın tr locale'inde "i"→"İ" yapıyordu
+          // ("NOMİNATED"); lang="en" ile doğru "NOMINATED" (i→I) olur.
+          lang="en"
+          className={cn(
+            "font-semibold uppercase tracking-wide text-[10.5px] truncate min-w-0",
+            tone.label
+          )}
+        >
+          {status}
+        </span>
+      </div>
+
+      {/* Row 2 — proje kodu + segment (statünün bir altına alındı). */}
+      <div className="relative mt-1 flex items-center gap-1.5 min-w-0 text-[11.5px]">
         <span className="font-mono text-muted-foreground tracking-tight truncate min-w-0">
           {project.projectNo}
         </span>
@@ -148,10 +166,10 @@ export function ProjectCard({ project, selected, onClick, onQuickAsk }: ProjectC
         )}
       </div>
 
-      {/* Row 2 — title. Tam wrap: ellipsis YOK, ad sığmazsa aşağı
+      {/* Row 3 — title. Tam wrap: ellipsis YOK, ad sığmazsa aşağı
           satıra kayar (panel genişledi, çok satırlı adlar artık
           tamamen okunur). */}
-      <h3 className="relative text-[14.5px] font-semibold leading-snug mt-1 break-words">
+      <h3 className="relative text-[14.5px] font-semibold leading-snug mt-1.5 break-words">
         {project.projectName}
       </h3>
 
@@ -186,13 +204,6 @@ export function ProjectCard({ project, selected, onClick, onQuickAsk }: ProjectC
           {/* Reserved trailing slot — chat ikonu boyutunda, hover'da
               metin reflow olmasın. */}
           <span className="ml-auto size-6 shrink-0" aria-hidden />
-        </div>
-      )}
-
-      {/* Status caption — only shown when selected */}
-      {selected && (
-        <div className="relative mt-1.5 text-[10.5px] uppercase tracking-wider">
-          <span className={cn("font-semibold", tone.label)}>{status}</span>
         </div>
       )}
 
