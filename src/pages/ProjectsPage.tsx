@@ -214,11 +214,20 @@ export function ProjectsPage() {
       options={segmentOptions}
       selected={filters.segments}
       onChange={(next) => setFilters({ ...filters, segments: next })}
-      placeholder="Segment"
+      placeholder="Segment seç"
       searchPlaceholder="Segment ara..."
       accent={accent}
       compact
-      triggerClassName="w-full px-2"
+      raised
+      leadingIcon={
+        <Layers
+          className="size-4"
+          strokeWidth={2.25}
+          style={{ color: accent.solid }}
+          aria-hidden
+        />
+      }
+      triggerClassName="w-full px-3"
     />
   );
 

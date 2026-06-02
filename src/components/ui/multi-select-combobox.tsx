@@ -54,7 +54,22 @@ interface MultiSelectComboboxProps {
    *  label sits ABOVE the trigger so screen readers announce e.g.
    *  "Segment, combobox, no selection". */
   triggerAriaLabelledBy?: string;
+  /** Optional icon rendered at the very start of the trigger — sits
+   *  before the placeholder / chips. Used to give a quick-pick field
+   *  (e.g. Segment) a self-explanatory glyph without a separate label. */
+  leadingIcon?: React.ReactNode;
+  /** Raised "glass field" presentation — stronger border + a soft
+   *  drop shadow + top inset highlight so the trigger reads as a
+   *  prominent, tactile control (matches the search input above it).
+   *  The selection ring composes on top when values are picked. */
+  raised?: boolean;
 }
+
+/** Shared raised-field shadow — same recipe as the ProjectList search
+ *  input so a quick-pick combobox sitting under it reads as the same
+ *  tactile glass surface. */
+const RAISED_SHADOW =
+  "0 4px 12px -4px rgba(15,23,42,0.18), inset 0 1px 0 0 rgba(255,255,255,0.9)";
 
 function normalizeOption(o: MultiSelectOption): {
   value: string;
@@ -87,6 +102,8 @@ export function MultiSelectCombobox({
   maxListHeight = 240,
   compact = false,
   triggerAriaLabelledBy,
+  leadingIcon,
+  raised = false,
 }: MultiSelectComboboxProps) {
   const [open, setOpen] = React.useState(false);
 
@@ -146,15 +163,34 @@ export function MultiSelectCombobox({
                 : "rounded-lg min-h-10 px-3 py-2 flex-wrap",
               hasSelection
                 ? "border-foreground/20"
-                : "border-input",
+                : // Raised: thicker neutral stroke so the empty field
+                  // still reads as a prominent control, not a faint ghost.
+                  raised
+                  ? "border-foreground/25"
+                  : "border-input",
               triggerClassName
             )}
             style={
               hasSelection
-                ? { borderColor: accent.ring, boxShadow: `0 0 0 1px ${accent.ring}` }
-                : undefined
+                ? {
+                    borderColor: accent.ring,
+                    // Compose the accent ring over the raised shadow so a
+                    // selected field stays tactile (kabarık) instead of
+                    // collapsing flat.
+                    boxShadow: raised
+                      ? `0 0 0 1px ${accent.ring}, ${RAISED_SHADOW}`
+                      : `0 0 0 1px ${accent.ring}`,
+                  }
+                : raised
+                  ? { boxShadow: RAISED_SHADOW }
+                  : undefined
             }
           >
+            {leadingIcon && (
+              <span className="shrink-0 grid place-items-center -ml-0.5">
+                {leadingIcon}
+              </span>
+            )}
             {hasSelection ? (
               compact ? (
                 /* Compact: single truncated chip for the first
