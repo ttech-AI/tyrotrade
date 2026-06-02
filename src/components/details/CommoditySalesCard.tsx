@@ -164,19 +164,24 @@ export function CommoditySalesCard({ project }: Props) {
           </div>
         </div>
 
-        {/* Estimated stats — 3 equal columns so each label/value pair has
-            the same breathing room. Compact-currency keeps big numbers
-            short ($13.9M instead of $13,906,035) without sacrificing
-            information. Full value lives in the title attribute for
-            hover. */}
+        {/* "Tahmini" tek bir zarif başlığa alındı (üstte, ince ayraç
+            çizgisiyle) — böylece üç kutu etiketi "Tahmini"yi tekrar
+            etmeden tek kısa satır kalır: Miktar / Ürün Bedeli / Bedel/
+            Miktar. */}
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground shrink-0">
+            Tahmini
+          </span>
+          <span className="flex-1 h-px bg-border/50" aria-hidden />
+        </div>
         <div className="grid grid-cols-3 gap-2">
           <CompactStat
-            label="Tahmini Miktar"
+            label="Miktar"
             value={`${formatNumber(estimatedTons, 0)} t`}
             title={`${formatNumber(estimatedTons, 2)} ton`}
           />
           <CompactStat
-            label="Tahmini Ürün Bedeli"
+            label="Ürün Bedeli"
             // formatCompactCurrency already returns a string with the
             // currency symbol baked in (e.g. "$13,9 Mn"). With the icon
             // prefix this would duplicate the mark, so strip non-digit
@@ -188,7 +193,7 @@ export function CommoditySalesCard({ project }: Props) {
             icon={<CurrencyIcon currency={valueCurrency} />}
           />
           <CompactStat
-            label="Tahmini Fiyat/Miktar"
+            label="Bedel/Miktar"
             value={
               estimatedPricePerTon > 0
                 ? `${formatNumber(estimatedPricePerTon, 0)} / t`
@@ -234,11 +239,9 @@ function CompactStat({
       className="px-2 py-1.5 rounded-xl bg-card/50 border border-border/40 min-w-0"
       title={title}
     >
-      {/* Wrap to 2 lines instead of truncating — uzun etiketler
-          ("Tahmini Ürün Bedeli", "Tahmini Fiyat/Miktar") tam görünür.
-          min-h iki satır rezerve eder, böylece tek-satırlık etiketler
-          (Tahmini Miktar) ile değer satırları aynı hizada kalır. */}
-      <div className="text-[9.5px] uppercase tracking-wider text-muted-foreground leading-[1.2] line-clamp-2 min-h-[22px]">
+      {/* Tek satır — "Tahmini" başlığa taşındığı için etiketler kısa
+          (Miktar / Ürün Bedeli / Bedel/Miktar) ve tek satıra sığar. */}
+      <div className="text-[9.5px] uppercase tracking-wide text-muted-foreground truncate">
         {label}
       </div>
       <div className="flex items-center gap-1 mt-0.5 min-w-0">
