@@ -406,19 +406,19 @@ const STATUS_ICON_BY_LABEL: Record<
 > = {
   "to be nominated": {
     icon: HourglassIcon,
-    color: "rgb(100 116 139)", // slate — waiting in queue
+    color: "rgb(251 146 60)", // orange-400 — waiting for vessel assignment
   },
   nominated: {
     icon: BookmarkCheck02Icon,
-    color: "rgb(2 132 199)", // sky — planned + assigned
+    color: "rgb(110 231 183)", // emerald-300 — vessel assigned, pale mint
   },
   commenced: {
     icon: Activity03Icon,
-    color: "rgb(217 119 6)", // amber — voyage in motion
+    color: "rgb(6 95 70)", // emerald-800 — voyage in motion, deep forest green
   },
   completed: {
     icon: CheckmarkCircle02Icon,
-    color: "rgb(5 150 105)", // emerald — operationally done
+    color: "rgb(20 184 166)", // teal-500 — operationally done
   },
   closed: {
     // Archive box reads as "filed away / case closed" more clearly
