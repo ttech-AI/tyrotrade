@@ -1,6 +1,8 @@
 import * as React from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Receipt, TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { BalanceScaleIcon } from "@hugeicons/core-free-icons";
 import { GlassPanel } from "@/components/glass/GlassPanel";
 import { AccentIconBadge, TONE_EXPENSE } from "./AccentIconBadge";
 import {
@@ -88,7 +90,7 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
         {/* Header — same iconography pattern as the sibling cards */}
         <div className="flex items-start gap-2.5 mb-3.5">
           <AccentIconBadge size="sm" tone={TONE_EXPENSE}>
-            <Receipt className="size-4" strokeWidth={2} />
+            <HugeiconsIcon icon={BalanceScaleIcon} size={16} strokeWidth={2} />
           </AccentIconBadge>
           <div className="min-w-0 flex-1">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -255,7 +257,13 @@ function BarRow({
 }) {
   return (
     <div className="flex items-center gap-2.5 min-w-0" title={tooltip}>
-      <span className="w-[74px] shrink-0 text-[9.5px] uppercase tracking-wider text-muted-foreground">
+      <span
+        // lang="en": bar labels are English ("Realized"/"Planned"). CSS
+        // `uppercase` in the page's tr locale turned "Realized" into
+        // "REALİZED" (i→İ); lang="en" forces "REALIZED".
+        lang="en"
+        className="w-[74px] shrink-0 text-[9.5px] uppercase tracking-wider text-muted-foreground"
+      >
         {label}
       </span>
       <div
