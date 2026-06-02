@@ -227,7 +227,9 @@ export function ProjectsPage() {
           aria-hidden
         />
       }
-      triggerClassName="w-full px-3"
+      // Ferah iç: px-3.5 + gap-2 (ikon↔placeholder nefes alır) + 14px
+      // yazı (best-practice okunur boyut), search input ile aynı dil.
+      triggerClassName="w-full px-3.5 gap-2 text-[14px]"
     />
   );
 

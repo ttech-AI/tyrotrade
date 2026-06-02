@@ -111,9 +111,9 @@ export function ProjectList({
     <div className="relative w-full min-w-0">
       <HugeiconsIcon
         icon={Search01Icon}
-        size={15}
+        size={16}
         strokeWidth={2.25}
-        className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none z-[1]"
+        className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none z-[1]"
         style={{ color: accent.solid }}
       />
       <input
@@ -123,7 +123,9 @@ export function ProjectList({
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Proje, gemi, liman, tedarikçi..."
         className={cn(
-          "w-full h-9 pl-9 pr-7 rounded-full text-[13px] outline-none",
+          // İkon 16px + yazı 14px (best-practice), pl-10 ile ikon↔metin
+          // arası ferah boşluk. Segment quick-pick ile aynı dil.
+          "w-full h-9 pl-10 pr-7 rounded-full text-[14px] outline-none",
           "bg-white/70 backdrop-blur-xl backdrop-saturate-150",
           "ring-1 ring-foreground/15 hover:ring-foreground/30 focus:ring-2 focus:ring-ring",
           "placeholder:text-muted-foreground/70 transition-shadow"

@@ -163,10 +163,11 @@ export function MultiSelectCombobox({
                 : "rounded-lg min-h-10 px-3 py-2 flex-wrap",
               hasSelection
                 ? "border-foreground/20"
-                : // Raised: thicker neutral stroke so the empty field
-                  // still reads as a prominent control, not a faint ghost.
+                : // Raised: borderless — definition comes from the soft
+                  // raised shadow alone (matches the search input's
+                  // floating-pill look). A hard stroke read as "boğuk".
                   raised
-                  ? "border-foreground/25"
+                  ? "border-transparent"
                   : "border-input",
               triggerClassName
             )}
@@ -187,7 +188,7 @@ export function MultiSelectCombobox({
             }
           >
             {leadingIcon && (
-              <span className="shrink-0 grid place-items-center -ml-0.5">
+              <span className="shrink-0 grid place-items-center">
                 {leadingIcon}
               </span>
             )}
