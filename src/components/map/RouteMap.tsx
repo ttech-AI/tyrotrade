@@ -655,7 +655,7 @@ export function RouteMap({ project }: RouteMapProps) {
         </div>
 
         {project && (
-          <div className="absolute top-3 right-3 z-[3] flex flex-col gap-2 pointer-events-none">
+          <div className="absolute top-3 right-3 z-[3] flex flex-col items-end gap-2 pointer-events-none">
             <GlassPanel tone="strong" className="rounded-xl pointer-events-auto">
               <div className="flex flex-col p-1">
                 <Tooltip>
@@ -740,7 +740,7 @@ export function RouteMap({ project }: RouteMapProps) {
             {aisStale && (
               <GlassPanel
                 tone="strong"
-                className="rounded-lg pointer-events-auto self-end"
+                className="rounded-lg pointer-events-auto"
               >
                 <div className="flex items-center gap-1.5 px-2 py-1 text-[10.5px] font-medium text-amber-700">
                   <Clock className="size-3 shrink-0" strokeWidth={2.5} />
