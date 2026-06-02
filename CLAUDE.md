@@ -17,7 +17,7 @@ There is no test runner configured. `npm run lint` runs the TypeScript compiler 
 
 ## What this app is
 
-TYRO International Trade ("tyrotrade") — a dashboard for Tiryaki's international commodity trade operations: buying grain / oilseed at one port, shipping it to another via vessel or truck, tracking budget vs. actuals across the voyage. The data model mirrors the Dynamics 365 F&O **TRYK Projeler** module (project header + vessel plan + project lines + cost estimate + actuals). Active scope is filtered server-side to `mserp_dlvmode eq 'Gemi' and mserp_tryprojectsegment ne null` (~320 sea projects).
+TYRO International Trade ("tyrotrade") — a dashboard for Tiryaki's international commodity trade operations: buying grain / oilseed at one port, shipping it to another via vessel or truck, tracking budget vs. actuals across the voyage. The data model mirrors the Dynamics 365 F&O **TRYK Projeler** module (project header + vessel plan + project lines + cost estimate + actuals). Active scope is filtered server-side by `PROJECTS_FILTER` (`refreshAll.ts`) to `mserp_tryprojectsegment ne null` OR-ed with a `PROJECT_ID_EXCEPTIONS` allowlist (currently `ORGANIK01`) — ~840 projects. The earlier `mserp_dlvmode eq 'Gemi'` sea-only restriction was **removed** so Karayolu / Konteyner / sub-projects with a segment also surface; don't reintroduce it.
 
 Main app surfaces (each is its own page module):
 
@@ -36,7 +36,7 @@ tyrotrade itself uses **sky-navy** (`#38bdf8 → #2563eb → #1e3a8a` via `.text
 
 ## Architecture
 
-**Stack:** React 19 + TypeScript 5.7 + Vite 6 + Tailwind v4 (`@tailwindcss/vite`, `@theme inline` tokens in `src/globals.css` — no `tailwind.config.js`) + shadcn/ui new-york style + react-router 7 (HashRouter) + MapLibre GL via `react-map-gl/maplibre` + Turf for sea-route geometry + MSAL.js for Dataverse auth + framer-motion + recharts. Path alias: `@/*` → `src/*`.
+**Stack:** React 19 + TypeScript 5.7 + Vite 6 + Tailwind v4 (`@tailwindcss/vite`, `@theme inline` tokens in `src/globals.css` — no `tailwind.config.js`) + shadcn/ui new-york style + react-router 7 (HashRouter) + MapLibre GL via `react-map-gl/maplibre` + Turf for sea-route geometry + MSAL.js for Dataverse auth + framer-motion + recharts + React Three Fiber / drei (`three`) for the login `GlobeScene` / `OrigamiVesselScene` only. Path alias: `@/*` → `src/*`.
 
 ### 🔒 READ-ONLY invariant
 
@@ -101,13 +101,12 @@ This is the most important section to internalise. Real F&O data flows through f
 
 **Per-project on-demand hooks.** `useProjectInvoices`, `useProjectExpenseLines`, `useProjectActualExpense`, `useProjectFull` fetch project-scoped data when a single project is selected. They DON'T go through the `tyro:dv:*` cache — they fetch on every project change with in-memory state and a `cancelled` flag in the effect cleanup. This avoids cache quota issues on small per-project datasets. Every `await` in these hooks must be followed by `if (cancelled) return` or stale state will leak across project switches.
 
-**Derived synthetic caches (lazy-loaded by their consumer page).** Some pages need a tenant-wide aggregation that's too slow to run inside the main refresh chain. The current example is `tyro:dv:actualExpenseRollup` (used by Trade Cost — see `useActualExpenseRollup`): a 4-stage pipeline (inventdimb → dist → expense-line + parallel refmap) that takes ~30-60 s across all 224 active projects. It's NOT a real Dataverse entity set — `writeCache` just accepts any string key. Pattern:
+**Derived synthetic caches (manual-trigger, lazy-rendered by their consumer page).** Some pages need a tenant-wide aggregation that's too slow to run inside the main refresh chain. The current example is `tyro:dv:actualExpenseRollup` (used by Trade Cost — see `useActualExpenseRollup`): a 4-stage pipeline (inventdimb → dist → expense-line + parallel refmap) that takes ~30-60 s across every active project. It's NOT a real Dataverse entity set — `writeCache` just accepts any string key. Pattern:
 
-- Lazy auto-fetch on page mount when the cache is empty or older than 6 h.
-- Manual "Yenile" button on the page re-runs it explicitly.
-- The main `refreshAllEntities` chain calls `clearCache(ACTUAL_EXPENSE_ROLLUP_CACHE)` at the end so the next Trade Cost visit re-runs the pipeline (the underlying invoice/expense rows just changed). The `tyro:cache-updated` event from `clearCache` makes the same-tab consumer drop its rows immediately.
+- **Manual trigger only.** There is no auto-fetch on page mount — the earlier "lazy auto-fetch when stale / older than 6 h" effect (and its `isStale` / `STALE_AFTER_MS` helpers) was **removed**. The page renders whatever is in cache; the user re-runs the pipeline explicitly via the "Yenile" button (`refetch()`).
+- The main `refreshAllEntities` chain calls `clearCache(ACTUAL_EXPENSE_ROLLUP_CACHE)` at the end so the cache is dropped after a Veri Yönetimi refresh (the underlying invoice/expense rows just changed). The `tyro:cache-updated` event from `clearCache` makes the same-tab consumer drop its rows immediately, and the Trade Cost page then shows its empty/stale state until the user hits Yenile.
 
-If you add another expensive aggregation, follow this lazy pattern instead of growing the refresh chain.
+If you add another expensive aggregation, follow this manual-trigger pattern instead of growing the refresh chain.
 
 ### F&O / `mserp_*` entity conventions
 
@@ -161,13 +160,27 @@ The refmap step is best-effort: a failure logs a warning and the chain proceeds 
 The Tahmini × Gerçekleşen comparison page is structurally distinct enough to be worth documenting:
 
 - **Page module**: `src/pages/PLCostPage.tsx`. Internal identifiers (file name, hook name, types) preserved the legacy "PL Cost" naming for code-search continuity; the UI label is "Trade Cost". Don't rename the files.
-- **Cache + progress**: `useActualExpenseRollup()` is the only hook the page reads expense numbers from. While `isFetching` is true (initial mount with empty cache, post-Veri-Yönetimi invalidation, or manual "Yenile"), the entire content area is replaced by `PLCostProgress` — a chain-of-thought "AI thinking" panel that narrates each of the five rollup stages. The headline phrase rotates with the currently-running stage (`STAGE_META[stage].aiPhrase`). No background-spinner state — every active fetch is a full takeover so the user always sees what's happening.
+- **Cache + progress**: `useActualExpenseRollup()` is the only hook the page reads expense numbers from. The rollup is **manual-trigger** (no mount auto-fetch); while `isFetching` is true (only ever from a user-pressed "Yenile" / `refetch()`), the entire content area is replaced by `PLCostProgress` — a chain-of-thought "AI thinking" panel that narrates each of the five rollup stages. On a cold/empty cache the page shows an empty state with a Yenile call-to-action rather than auto-running. The headline phrase rotates with the currently-running stage (`STAGE_META[stage].aiPhrase`). No background-spinner state — every active fetch is a full takeover so the user always sees what's happening.
 - **Tree builder**: `buildPLCostTree(projects, rollupRows, viewMode)` in `src/lib/selectors/plCost.ts` produces a 4-level hierarchy — `Segment → Voyage Status → Vessel|Project → Expense Line`. `viewMode` ("vessel" / "project") only changes the L3 grouping key. Parent metrics are bottom-up sums; derived ratios (R/E %, R/E Ton %) are re-derived at every level by `finaliseMetrics`.
 - **Sortable columns**: `sortTree(nodes, key, dir)` in `PLCostTable.tsx` recurses through every level so each parent's children reorder in place. Sort state lives in the table; click toggles asc ↔ desc, switching column resets to that column's natural default (alpha → asc, numeric → desc). Nulls always sort to the end regardless of direction.
 - **Smart insights ribbon**: `generateSmartInsights(tree)` in `src/lib/selectors/plInsights.ts` produces up to five segment-level callouts (En Dengeli / En Masraflı / En Az Masraflı / Tahminden En Çok Sapan / Tahminden En Az Sapan). Diversification logic: each slot iterates its own ranked candidate list and picks the highest-ranked segment that isn't already consumed by a higher-priority slot — every slot reliably surfaces a distinct segment instead of silently dropping when its #1 candidate collides.
 - **Detail panel deep links**: `PLCostDetailPanel` turns any visible projectNo (`PRJ000…`, `TRKTHL01305`, etc. via `/^[A-Z]{3,}\d{3,}$/` heuristic) into `<Link to="/projects/X" state={{ focusProjectNo: X }}>`. `ProjectsPage` consumes that state once and pre-filters the left rail to one project so the user lands with no ambiguity about which project just opened.
 - **Quick filters**: 6 multiselect comboboxes (`PLCostQuickFilters`) share the same `ProjectFilterState` as the popover-style `AdvancedFilter` button next to them — edits in one surface mirror the other. Triggers use `MultiSelectCombobox` in **compact mode** (`compact={true}` prop): fixed `h-9 rounded-full` height, single selected chip + "+N" overflow pill instead of stacking chips down. This mode only exists for tight toolbars; default (wrap-and-grow `min-h-10 rounded-lg`) is preserved for AdvancedFilter popover and Dashboard.
 - **Trade Cost-specific filter defaults**: `makeEmptyFilters({ period: "all", includeWithoutShipPlan: true })` — period defaults to "all" because Tahmini × Gerçekleşen lifecycles span multiple fiscal years. The AdvancedFilter on this page passes `periodDefault="all"` so its active-filter badge doesn't fire on the page's own default.
+
+### Unified filter system (shared across all data pages)
+
+Dashboard, Vessel Projects, Veri Yönetimi, and Trade Cost all speak ONE filter shape — don't reinvent per-page filter state.
+
+- **`src/lib/filters/projectFilters.ts`** is the single source of truth. `ProjectFilterState` holds a `period` + `fyKey` (financial-year aware — see `src/lib/dashboard/financialPeriod.ts`, Tiryaki FY runs 1 Jul → 30 Jun, labelled `"25-26"`) plus categorical `Set<string>` fields (statuses, groups, incoterms, segments, voyageStatuses, traders, mainTraders, companies, suppliers, buyers, vessels, loadingPorts, dischargePorts, projectNos) and an `includeWithoutShipPlan` toggle.
+- `makeEmptyFilters(opts)` builds the default — pass `{ period, includeWithoutShipPlan }` per page (Dashboard + Trade Cost default `period: "all"`; the FY default is `"fy"` + current FY).
+- `applyProjectFilter(projects, state, now)` runs period cull first, then categorical narrowing. Defensive: every Set field is `?? EMPTY`-guarded so a stale/partial state shape can't white-screen. `PROJECT_ID_EXCEPTIONS` bypass the period + ship-plan gates.
+- `extractAvailableOptions(projects)` returns the distinct sorted values per field for the comboboxes. **Gotcha:** to populate a single field's quick-pick without that field self-pruning, compute options from `applyProjectFilter(raw, { ...filters, <thatField>: new Set() })` — e.g. the Vessel Projects segment quick-pick derives its options from the set filtered by everything *except* segment, so picking one segment doesn't make the others vanish.
+- **UI components**: `AdvancedFilter` (`src/components/filters/AdvancedFilter.tsx`, the popover with all dimensions; `iconOnly` + `collapsible` props), `PeriodFilter` (`src/components/filters/PeriodFilter.tsx`, the period/FY chip strip), and `MultiSelectCombobox` (`src/components/ui/multi-select-combobox.tsx`, with `compact` for tight toolbars and `raised` + `leadingIcon` for a prominent standalone field). Each page passes its own `periodDefault` to `AdvancedFilter` so the active-filter badge doesn't count the page's own default period as a user edit.
+
+### TYRO AI chatbot (Gemini)
+
+Right-side drawer (`TyroAiDrawer`) answering natural-language questions over the filtered project set. Direct Gemini REST (`src/lib/ai/gemini.ts`, no SDK), Turkish system prompt (`systemPrompt.ts`), and a compact data summary built by `buildContext.ts` from the same selectors the UI uses (read-only — never claims to mutate). API key + model live in `useSettings()` / `userSettings.ts` (localStorage `tyro:settings`, hardcoded default key, overridable on `/settings`). The AskAiButton + drawer use a fixed emerald-teal tone (`TONE_AI`), not the theme accent.
 
 ### Mock data pipeline (offline / dev mode)
 
@@ -219,7 +232,9 @@ Wordmark is always lowercase: "tyro" (black on light, white on dark) + "trade" (
 
 `src/components/layout/sidebar-context.tsx` tracks `pinned` (persisted under `tyro:sidebar:pinned`) and `hovering`. Effective expanded state = `pinned || hovering`. `AppShell.tsx`'s `DesktopSidebarSlot` drives `hovering` with a 180ms close delay to avoid flicker. Mobile uses a shadcn `Sheet` drawer instead of hover.
 
-The Sistem group (below the main nav, above the footer) carries two sibling-app shortcuts above Yardım: **TYRO AI** (button — opens the right-side AI drawer) and **TYRO Stock** (external link — opens the WMS sibling app in a new tab). They live in the sidebar instead of the topbar so the topbar stays compact; the AI drawer state is lifted to `ShellInner` and the sidebar receives an `onOpenAi` callback. The TYRO Stock row uses the origami `<Logo palette="aurora" />` as its icon (a tiny sibling-app brand mark); TYRO AI uses the same `AiBrain02Icon` the drawer header carries so the click visually rhymes with the drawer that opens. Render via `SidebarToolItem` — the icon prop is `iconNode: ReactNode` (any element, not a HugeIcon-only signature), with an optional `accentDot` for monochrome glyphs.
+Nav is grouped via `NAV_GROUPS` (Operasyon / Analiz / Yönetim / Sistem). The top three render in the scrolling nav; the **Sistem** group renders inline at the bottom (above the footer) because it mixes heterogeneous rows: the **tyroStock** external link (`SidebarToolItem`, opens the WMS sibling app in a new tab, origami `<Logo palette="aurora" />` icon), the **Yardım** + **Ayarlar** nav items, the `ThemeSwitcher`, and the `ProfileMenu`. The TYRO AI / chat drawer is **not** in the sidebar — it opens from the topbar "TYRO Chat" button (`AskAiButton`, fixed emerald-teal `TONE_AI`). `SidebarToolItem`'s icon prop is `iconNode: ReactNode` (any element, not a HugeIcon-only signature), with an optional `accentDot` for monochrome glyphs.
+
+Active nav state is intentionally understated (Linear/Notion style): `bg-[var(--sb-active-bg)]` tint + `font-semibold` + the icon (only) tinted `var(--sb-pin-active)` + `aria-current="page"` — no inset bar / ring. `ProfileMenu` sits one notch taller (h-12) than nav rows to read as an identity anchor, not another nav entry.
 
 ### Field labels + inspector configuration
 
@@ -234,4 +249,4 @@ The Sistem group (below the main nav, above the footer) carries two sibling-app 
 - **When changing brand / accent colours**, update `globals.css` tokens and `useThemeAccent()` mappings — don't hardcode hex values in component files. Existing hardcoded references (sidebar gradient stops, logo SVG fills) are intentional.
 - **When adding a new Dataverse fetch**, ask: does this row apply to all projects (→ master cache via `refreshAll.ts`) or just one (→ per-project on-demand hook)? Don't grow the master-cache list lightly — localStorage quota is real, and 320-project × N-rows multiplications hit 5 MB faster than expected.
 - **Don't auto-stick fields into `$select`.** When schema changes are flagged, verify field existence on a sample row first — the diagnostic-enriched 400 toast surfaces the rejected field name. Speculative additions are the most common source of "everything stopped loading" regressions.
-- **Phase plan history** lives at `C:\Users\Cenk\.claude\plans\`. The active plan file is dynamic-named (e.g. `web-uygulamas-yapaca-m-mobil-gentle-coral.md`). Phases A–L are largely shipped; new structural work usually starts a new plan rather than amending the existing one.
+- **Phase plan history** lives at `C:\Users\Cenk\.claude\plans\`. The active plan file is dynamic-named (e.g. `web-uygulamas-yapaca-m-mobil-gentle-coral.md`). Phases A–N are largely shipped (N = Trade Cost / `/pl-cost`); new structural work usually starts a new plan rather than amending the existing one.
