@@ -9,8 +9,7 @@ import {
   formatNumber,
 } from "@/lib/format";
 import { selectEstimateTotal } from "@/lib/selectors/project";
-import { toUsdAtDate } from "@/lib/finance/fxRates";
-import { useProjectActualExpense } from "@/hooks/useProjectActualExpense";
+import { useProjectExpenseLines } from "@/hooks/useProjectExpenseLines";
 import type { Project } from "@/lib/dataverse/entities";
 
 interface Props {
@@ -38,34 +37,35 @@ interface Props {
  */
 export function ExpectedRealizedExpenseCard({ project }: Props) {
   const reduceMotion = useReducedMotion();
-  const { rows, isFetching, fetchedAt } = useProjectActualExpense(
-    project.projectNo
-  );
+  const expenseLineQuery = useProjectExpenseLines(project.projectNo);
+  const isFetching = expenseLineQuery.isFetching;
 
   const expectedUsd = selectEstimateTotal(project);
 
+  // Realized expense — SAME source + math as BudgetSalesCard's
+  // "Gerçekleşen Gider": the 3-step `useProjectExpenseLines` chain,
+  // summing the signed `mserp_amountcur_usd` (+ Vendor cost, − Customer
+  // reflection; tax / FX-adjustment codes already excluded inside the
+  // hook). Guarantees this card's realized total matches the Realized
+  // P&L breakdown exactly — the earlier `useProjectActualExpense`
+  // (freight dist-line) source double-counted into the millions.
   const realized = React.useMemo(() => {
     let usdTotal = 0;
-    const byCurrency = new Map<string, number>();
-    for (const r of rows) {
-      const amount = Number(r.mserp_lineamount);
-      if (!Number.isFinite(amount) || amount === 0) continue;
-      const currency = String(r.mserp_currencycode ?? "USD")
-        .trim()
-        .toUpperCase();
-      const date =
-        typeof r.mserp_datefinancial === "string"
-          ? r.mserp_datefinancial
-          : null;
-      usdTotal += toUsdAtDate(amount, currency, date);
-      byCurrency.set(currency, (byCurrency.get(currency) ?? 0) + amount);
+    let rowCount = 0;
+    for (const r of expenseLineQuery.rows) {
+      const raw = r["mserp_amountcur_usd"];
+      if (raw === undefined || raw === null || !Number.isFinite(Number(raw)))
+        continue;
+      const amount = Number(raw);
+      if (amount === 0) continue;
+      usdTotal += amount;
+      rowCount++;
     }
-    const currencies = [...byCurrency.entries()].sort((a, b) => b[1] - a[1]);
-    return { usdTotal, byCurrency: currencies, rowCount: rows.length };
-  }, [rows]);
+    return { usdTotal, rowCount };
+  }, [expenseLineQuery.rows]);
 
   const hasExpected = expectedUsd > 0;
-  const hasRealized = realized.usdTotal > 0;
+  const hasRealized = realized.rowCount > 0;
   const variance = realized.usdTotal - expectedUsd;
   /** Realized ÷ expected, as a percentage. Null when either side is
    *  missing (no meaningful ratio). The donut centre shows this. */
@@ -95,7 +95,7 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
               Gider Karşılaştırması
             </div>
             <div className="text-[13px] font-semibold leading-snug">
-              Tahmini × Gerçekleşen
+              Planned × Realized Cost
             </div>
           </div>
           {isFetching && (
@@ -110,7 +110,7 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
         <div className="flex items-center gap-4">
           <div className="flex-1 min-w-0 space-y-3">
             <BarRow
-              label="Gerçekleşen"
+              label="Realized"
               widthPct={realizedW}
               fill={tone.solid}
               value={
@@ -118,23 +118,16 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
                   ? formatCompactCurrency(realized.usdTotal, "USD")
                   : isFetching
                     ? "…"
-                    : fetchedAt
-                      ? "$0"
-                      : "—"
+                    : "$0"
               }
               valueTone={tone.text}
               reduceMotion={!!reduceMotion}
               tooltip={
-                realized.byCurrency.length > 0
-                  ? `${formatCurrency(realized.usdTotal, "USD")} · ` +
-                    realized.byCurrency
-                      .map(([c, v]) => `${c}: ${formatNumber(v, 0)}`)
-                      .join(" · ")
-                  : undefined
+                hasRealized ? formatCurrency(realized.usdTotal, "USD") : undefined
               }
             />
             <BarRow
-              label="Tahmini"
+              label="Planned"
               widthPct={expectedW}
               fill="rgba(100,116,139,0.55)"
               value={hasExpected ? formatCompactCurrency(expectedUsd, "USD") : "—"}
@@ -183,9 +176,7 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
 
         {realized.rowCount > 0 && (
           <div className="text-[10px] text-muted-foreground mt-2 italic">
-            {realized.rowCount} gerçekleşen masraf satırı
-            {realized.byCurrency.length > 1 &&
-              ` · ${realized.byCurrency.length} para birimi (USD'ye çevrildi)`}
+            {realized.rowCount} gerçekleşen masraf kaydı
           </div>
         )}
       </div>
@@ -298,11 +289,20 @@ function BarRow({
 
 /* ─────────── Ratio donut ─────────── */
 
+/** Compact donut-centre label. Caps at ±999% so a tiny-planned-cost
+ *  blow-up (e.g. 155.000%) can't overflow the ring. */
+function ratioLabel(pct: number | null): string {
+  if (pct == null) return "—";
+  if (Math.abs(pct) >= 1000) return `${pct < 0 ? "−" : ""}%999+`;
+  return `%${Math.round(pct)}`;
+}
+
 /**
  * Radial ratio donut — realized ÷ expected %. The arc fills over a
  * 0-150% domain (so 100% sits ~2/3 round and "over budget" reads as a
- * fuller, redder ring); the centre prints the exact %. A 100% tick is
- * not drawn — the colour already says under/over.
+ * fuller, redder ring); the centre prints the % (capped via
+ * `ratioLabel`). A 100% tick is not drawn — the colour already says
+ * under/over.
  */
 function RatioDonut({
   pct,
@@ -357,10 +357,10 @@ function RatioDonut({
       </svg>
       <div className="absolute inset-0 grid place-items-center">
         <span
-          className="text-[15px] font-bold tabular-nums leading-none"
+          className="text-[13px] font-bold tabular-nums leading-none px-1 text-center"
           style={{ color: pct != null ? textColor : "rgb(148 163 184)" }}
         >
-          {pct != null ? `%${formatNumber(pct, 0)}` : "—"}
+          {ratioLabel(pct)}
         </span>
       </div>
     </div>
