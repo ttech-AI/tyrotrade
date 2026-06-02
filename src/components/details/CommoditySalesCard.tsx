@@ -176,7 +176,7 @@ export function CommoditySalesCard({ project }: Props) {
             title={`${formatNumber(estimatedTons, 2)} ton`}
           />
           <CompactStat
-            label="Tahmini Bedel"
+            label="Tahmini Ürün Bedeli"
             // formatCompactCurrency already returns a string with the
             // currency symbol baked in (e.g. "$13,9 Mn"). With the icon
             // prefix this would duplicate the mark, so strip non-digit
@@ -188,7 +188,7 @@ export function CommoditySalesCard({ project }: Props) {
             icon={<CurrencyIcon currency={valueCurrency} />}
           />
           <CompactStat
-            label="Tahmini Fiyat"
+            label="Tahmini Fiyat/Miktar"
             value={
               estimatedPricePerTon > 0
                 ? `${formatNumber(estimatedPricePerTon, 0)} / t`
