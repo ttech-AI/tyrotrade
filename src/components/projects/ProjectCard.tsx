@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ArrowRight, Route } from "lucide-react";
+import { ArrowRight, Route, Ship } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { BubbleChatIcon } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
@@ -76,6 +76,13 @@ export function ProjectCard({ project, selected, onClick, onQuickAsk }: ProjectC
   const tone = STATUS_TONE[status] ?? FALLBACK_TONE;
   const lp = project.vesselPlan?.loadingPort.name;
   const dp = project.vesselPlan?.dischargePort.name;
+  // Gemi adı — numeric-only RecID sızıntısı (F&O) ve "—" placeholder'ı
+  // ele; gerçek gemi adı yoksa satır hiç render edilmez.
+  const rawVessel = project.vesselPlan?.vesselName ?? "";
+  const vesselName =
+    rawVessel && rawVessel !== "—" && !/^\d[\d\s,.]*$/.test(rawVessel.trim())
+      ? rawVessel
+      : null;
 
   return (
     <div className="relative group">
@@ -141,13 +148,14 @@ export function ProjectCard({ project, selected, onClick, onQuickAsk }: ProjectC
         )}
       </div>
 
-      {/* Row 2 — title (wraps up to 2 lines, then ellipsis) */}
-      <h3 className="relative text-[14.5px] font-semibold leading-snug mt-1 line-clamp-2 break-words">
+      {/* Row 2 — title. Tam wrap: ellipsis YOK, ad sığmazsa aşağı
+          satıra kayar (panel genişledi, çok satırlı adlar artık
+          tamamen okunur). */}
+      <h3 className="relative text-[14.5px] font-semibold leading-snug mt-1 break-words">
         {project.projectName}
       </h3>
 
-      {/* Row 3 — route (tonnage removed; the trailing slot now hosts
-          the hover-only TYRO Chat ikon, see button below). */}
+      {/* Row 3 — route (kalkış → varış limanı). */}
       <div className="relative mt-1.5 flex items-center gap-1.5 min-w-0 text-[11.5px] text-muted-foreground">
         <Route
           className="size-3 shrink-0 opacity-60 text-muted-foreground"
@@ -157,10 +165,29 @@ export function ProjectCard({ project, selected, onClick, onQuickAsk }: ProjectC
         <span className="truncate min-w-0">{lp}</span>
         <ArrowRight className="size-3 shrink-0 opacity-50" />
         <span className="truncate min-w-0">{dp}</span>
-        {/* Reserved trailing slot — size matches the chat ikon so the
-            route text never reflows on hover. */}
-        <span className="ml-auto size-6 shrink-0" aria-hidden />
+        {/* Gemi adı yoksa rota en alt satır olur — chat ikonu (hover)
+            altında metin kalmasın diye reserved trailing slot. */}
+        {!vesselName && <span className="ml-auto size-6 shrink-0" aria-hidden />}
       </div>
+
+      {/* Row 4 — gemi adı (yalnızca gerçek bir ad varsa). Rotanın
+          hemen altında, çapa/gemi ikonuyla. Trailing slot, hover'da
+          beliren TYRO Chat ikonunun altına metin kaçmasın diye. */}
+      {vesselName && (
+        <div className="relative mt-1 flex items-center gap-1.5 min-w-0 text-[11.5px] text-muted-foreground">
+          <Ship
+            className="size-3 shrink-0 opacity-60 text-muted-foreground"
+            strokeWidth={2}
+            aria-hidden
+          />
+          <span className="truncate min-w-0 font-medium text-foreground/70">
+            {vesselName}
+          </span>
+          {/* Reserved trailing slot — chat ikonu boyutunda, hover'da
+              metin reflow olmasın. */}
+          <span className="ml-auto size-6 shrink-0" aria-hidden />
+        </div>
+      )}
 
       {/* Status caption — only shown when selected */}
       {selected && (

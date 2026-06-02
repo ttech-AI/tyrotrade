@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Layers } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Search01Icon, Cancel01Icon } from "@hugeicons/core-free-icons";
 import { GlassPanel } from "@/components/glass/GlassPanel";
@@ -138,9 +139,29 @@ export function ProjectList({
           )}
         </div>
         {(segmentTrigger || filterTrigger) && (
-          <div className="flex items-center gap-1.5 mt-1.5">
-            {segmentTrigger && <div className="flex-1 min-w-0">{segmentTrigger}</div>}
-            {filterTrigger}
+          <div className="mt-2.5">
+            {/* Segment, bu sayfanın birincil filtre boyutu: ekipler her
+                perşembe toplantısında segment bazlı projelerini sırayla
+                geçiyor. Accent renkli ikon + etiket ile öne çıkarıldı —
+                kullanıcı tek bakışta "buradan segmentimi seçerim" diyor. */}
+            {segmentTrigger && (
+              <div
+                className="flex items-center gap-1.5 mb-1.5 px-0.5 text-[11px] font-semibold uppercase tracking-wider"
+                style={{ color: accent.solid }}
+              >
+                <Layers className="size-3.5" strokeWidth={2.25} aria-hidden />
+                <span>Segment</span>
+                <span className="font-normal normal-case tracking-normal text-[10.5px] text-muted-foreground/70">
+                  · ekip filtresi
+                </span>
+              </div>
+            )}
+            <div className="flex items-center gap-1.5">
+              {segmentTrigger && (
+                <div className="flex-1 min-w-0">{segmentTrigger}</div>
+              )}
+              {filterTrigger}
+            </div>
           </div>
         )}
       </div>

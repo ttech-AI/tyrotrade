@@ -192,10 +192,23 @@ export function ProjectsPage() {
   // and the AdvancedFilter trigger so users don't have to open the
   // full popover to slice by segment.
   const accent = useThemeAccent();
-  const segmentOptions = React.useMemo(
-    () => extractAvailableOptions(rawProjects).segments,
-    [rawProjects]
-  );
+  // Segment seçenekleri = mevcut filtrede (dönem, sefer durumu, grup,
+  // şirket, vs.) görünen kayıtlardaki segmentler — TÜM segmentler değil.
+  // Segment seçiminin KENDİSİ hariç tutulur (`segments: empty`), aksi
+  // halde bir segment seçince diğerleri dropdown'dan kaybolurdu. Sonuç:
+  // her ekip yalnızca scope'unda gerçekten projesi olan segmentleri
+  // görür — perşembe toplantısında "boş segment" tıklamak yok.
+  const segmentOptions = React.useMemo(() => {
+    const scoped = applyProjectFilter(
+      rawProjects,
+      { ...filters, segments: new Set<string>() },
+      now
+    );
+    return extractAvailableOptions(scoped).segments;
+    // `now` her render'da yenilenir ama string-eşit stabil — `projects`
+    // memosuyla aynı pattern.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawProjects, filters]);
   const segmentTrigger = (
     <MultiSelectCombobox
       options={segmentOptions}
@@ -258,7 +271,7 @@ export function ProjectsPage() {
   }
 
   return (
-    <div className="h-full grid grid-cols-[224px_minmax(0,1fr)_320px] xl:grid-cols-[260px_minmax(0,1fr)_360px] 2xl:grid-cols-[296px_minmax(0,1fr)_400px] gap-3">
+    <div className="h-full grid grid-cols-[280px_minmax(0,1fr)_320px] xl:grid-cols-[324px_minmax(0,1fr)_360px] 2xl:grid-cols-[364px_minmax(0,1fr)_400px] gap-3">
       <div className="min-h-0 min-w-0 overflow-hidden">
         <ProjectList
           projects={projects}
