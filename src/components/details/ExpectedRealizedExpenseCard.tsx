@@ -1,4 +1,5 @@
 import * as React from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Receipt, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { GlassPanel } from "@/components/glass/GlassPanel";
 import { AccentIconBadge, TONE_EXPENSE } from "./AccentIconBadge";
@@ -17,25 +18,26 @@ interface Props {
 }
 
 /**
- * Tahmini vs Gerçekleşen Gider — side-by-side comparison card on the
- * Vessel Projects right rail, sitting directly under the
- * `CommoditySalesCard` ("Taşınan Ürün" block).
+ * Tahmini × Gerçekleşen Gider — premium comparison card on the Vessel
+ * Projects right rail, directly under `CommoditySalesCard` ("Taşınan
+ * Ürün"). Two horizontal bars (realized vs expected, shared scale) on
+ * the left + a radial ratio donut (realized ÷ expected %) on the right,
+ * with a tone-coloured variance pill below.
  *
  *   Expected  ← `selectEstimateTotal(project)` — already USD per the
- *               F&O entity model (`mserp_expamountusdd` is normalised
- *               to USD per ton on the Tahmini Gider entity).
- *   Realized  ← Σ rows from `mserp_tryaifrtexpenselinedistlineentities`
- *               for the project, converted to USD at each row's
- *               `mserp_datefinancial` via the historical FX table so
- *               TRY / EUR / RUB postings land at their period rate
+ *               F&O entity model (`mserp_expamountusdd`).
+ *   Realized  ← Σ `mserp_tryaifrtexpenselinedistlineentities` rows for
+ *               the project, each converted to USD at its
+ *               `mserp_datefinancial` via the historical FX table
  *               (matches the dashboard P&L rollups).
  *
- * Variance (realized − expected):
- *   - negative → saved vs estimate (emerald) — under budget = GOOD
- *   - positive → over estimate    (rose)   — over budget  = BAD
- *   - zero / no estimate → slate "on target"
+ * Expense semantics — LOWER is better:
+ *   realized < expected (ratio < 100%) → under budget (emerald)
+ *   realized > expected (ratio > 100%) → over budget  (rose)
+ *   on target / unknown                → slate
  */
 export function ExpectedRealizedExpenseCard({ project }: Props) {
+  const reduceMotion = useReducedMotion();
   const { rows, isFetching, fetchedAt } = useProjectActualExpense(
     project.projectNo
   );
@@ -44,9 +46,6 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
 
   const realized = React.useMemo(() => {
     let usdTotal = 0;
-    /** Native-currency buckets so we can show breakdown in the
-     *  tooltip — useful when the project posted across mixed
-     *  currencies (rare but happens). */
     const byCurrency = new Map<string, number>();
     for (const r of rows) {
       const amount = Number(r.mserp_lineamount);
@@ -61,65 +60,33 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
       usdTotal += toUsdAtDate(amount, currency, date);
       byCurrency.set(currency, (byCurrency.get(currency) ?? 0) + amount);
     }
-    const currencies = [...byCurrency.entries()].sort(
-      (a, b) => b[1] - a[1]
-    );
+    const currencies = [...byCurrency.entries()].sort((a, b) => b[1] - a[1]);
     return { usdTotal, byCurrency: currencies, rowCount: rows.length };
   }, [rows]);
 
   const hasExpected = expectedUsd > 0;
   const hasRealized = realized.usdTotal > 0;
   const variance = realized.usdTotal - expectedUsd;
+  /** Realized ÷ expected, as a percentage. Null when either side is
+   *  missing (no meaningful ratio). The donut centre shows this. */
+  const ratioPct = hasExpected ? (realized.usdTotal / expectedUsd) * 100 : null;
   const variancePct =
     hasExpected && hasRealized ? (variance / expectedUsd) * 100 : null;
 
-  /* Color rule (expense semantics — lower is better):
-   *   under budget (variance < 0) → emerald
-   *   over budget  (variance > 0) → rose
-   *   on target / unknown          → slate */
-  const varTone = !hasExpected || !hasRealized
-    ? {
-        text: "rgb(71 85 105)", // slate-600
-        bg: "rgba(100,116,139,0.12)",
-        ring: "rgba(100,116,139,0.30)",
-        Icon: Minus,
-        label: hasRealized
-          ? "Tahmini gider girilmemiş"
-          : hasExpected
-            ? "Henüz gerçekleşen yok"
-            : "Veri yok",
-      }
-    : variance < 0
-      ? {
-          text: "rgb(4 120 87)", // emerald-700
-          bg: "rgba(16,185,129,0.12)",
-          ring: "rgba(16,185,129,0.30)",
-          Icon: TrendingDown,
-          label: "Bütçenin altında",
-        }
-      : variance > 0
-        ? {
-            text: "rgb(159 18 57)", // rose-700
-            bg: "rgba(244,63,94,0.12)",
-            ring: "rgba(244,63,94,0.30)",
-            Icon: TrendingUp,
-            label: "Bütçenin üstünde",
-          }
-        : {
-            text: "rgb(71 85 105)",
-            bg: "rgba(100,116,139,0.12)",
-            ring: "rgba(100,116,139,0.30)",
-            Icon: Minus,
-            label: "Hedefinde",
-          };
+  /* Shared bar scale — the larger side fills the track, the other is
+   * proportional. Guard against /0 so empty projects don't NaN. */
+  const scaleMax = Math.max(expectedUsd, realized.usdTotal, 1);
+  const realizedW = hasRealized ? (realized.usdTotal / scaleMax) * 100 : 0;
+  const expectedW = hasExpected ? (expectedUsd / scaleMax) * 100 : 0;
 
-  const VarIcon = varTone.Icon;
+  const tone = pickTone(hasExpected, hasRealized, variance);
+  const VarIcon = tone.Icon;
 
   return (
     <GlassPanel tone="default" className="rounded-2xl">
       <div className="p-4">
         {/* Header — same iconography pattern as the sibling cards */}
-        <div className="flex items-start gap-2.5 mb-3">
+        <div className="flex items-start gap-2.5 mb-3.5">
           <AccentIconBadge size="sm" tone={TONE_EXPENSE}>
             <Receipt className="size-4" strokeWidth={2} />
           </AccentIconBadge>
@@ -128,7 +95,7 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
               Gider Karşılaştırması
             </div>
             <div className="text-[13px] font-semibold leading-snug">
-              Tahmini vs Gerçekleşen
+              Tahmini × Gerçekleşen
             </div>
           </div>
           {isFetching && (
@@ -139,45 +106,56 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
           )}
         </div>
 
-        {/* Two stats side-by-side: Expected | Realized */}
-        <div className="grid grid-cols-2 gap-2 mb-2.5">
-          <BigStat
-            label="Tahmini"
-            valueUsd={expectedUsd}
-            placeholder={hasExpected ? null : "—"}
-          />
-          <BigStat
-            label="Gerçekleşen"
-            valueUsd={realized.usdTotal}
-            placeholder={
-              hasRealized
-                ? null
-                : isFetching
-                  ? "..."
-                  : fetchedAt
-                    ? "0"
-                    : "—"
-            }
-            tooltip={
-              realized.byCurrency.length > 0
-                ? realized.byCurrency
-                    .map(
-                      ([c, v]) =>
-                        `${c}: ${formatNumber(v, 0)}`
-                    )
-                    .join(" · ")
-                : undefined
-            }
-          />
+        {/* Bars (left) + ratio donut (right) */}
+        <div className="flex items-center gap-4">
+          <div className="flex-1 min-w-0 space-y-3">
+            <BarRow
+              label="Gerçekleşen"
+              widthPct={realizedW}
+              fill={tone.solid}
+              value={
+                hasRealized
+                  ? formatCompactCurrency(realized.usdTotal, "USD")
+                  : isFetching
+                    ? "…"
+                    : fetchedAt
+                      ? "$0"
+                      : "—"
+              }
+              valueTone={tone.text}
+              reduceMotion={!!reduceMotion}
+              tooltip={
+                realized.byCurrency.length > 0
+                  ? `${formatCurrency(realized.usdTotal, "USD")} · ` +
+                    realized.byCurrency
+                      .map(([c, v]) => `${c}: ${formatNumber(v, 0)}`)
+                      .join(" · ")
+                  : undefined
+              }
+            />
+            <BarRow
+              label="Tahmini"
+              widthPct={expectedW}
+              fill="rgba(100,116,139,0.55)"
+              value={hasExpected ? formatCompactCurrency(expectedUsd, "USD") : "—"}
+              valueTone="rgb(71 85 105)"
+              reduceMotion={!!reduceMotion}
+              tooltip={
+                hasExpected ? formatCurrency(expectedUsd, "USD") : undefined
+              }
+            />
+          </div>
+
+          <RatioDonut pct={ratioPct} color={tone.solid} textColor={tone.text} />
         </div>
 
-        {/* Variance pill — full-width, tone reflects expense direction */}
+        {/* Variance pill — tone reflects expense direction */}
         <div
-          className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl"
+          className="mt-3.5 flex items-center justify-between gap-2 px-3 py-2 rounded-xl"
           style={{
-            backgroundColor: varTone.bg,
-            boxShadow: `inset 0 0 0 1px ${varTone.ring}`,
-            color: varTone.text,
+            backgroundColor: tone.bg,
+            boxShadow: `inset 0 0 0 1px ${tone.ring}`,
+            color: tone.text,
           }}
           title={
             hasExpected && hasRealized
@@ -187,7 +165,7 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
         >
           <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider">
             <VarIcon className="size-3.5" strokeWidth={2.5} />
-            {varTone.label}
+            {tone.label}
           </span>
           {hasExpected && hasRealized && (
             <span className="text-[13px] font-bold tabular-nums">
@@ -215,29 +193,175 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
   );
 }
 
-/* ─────────── Helpers ─────────── */
+/* ─────────── Tone ─────────── */
 
-function BigStat({
+interface ExpTone {
+  solid: string;
+  text: string;
+  bg: string;
+  ring: string;
+  Icon: typeof Minus;
+  label: string;
+}
+
+function pickTone(
+  hasExpected: boolean,
+  hasRealized: boolean,
+  variance: number
+): ExpTone {
+  const slate: ExpTone = {
+    solid: "rgb(100 116 139)",
+    text: "rgb(71 85 105)",
+    bg: "rgba(100,116,139,0.12)",
+    ring: "rgba(100,116,139,0.30)",
+    Icon: Minus,
+    label: !hasRealized
+      ? hasExpected
+        ? "Henüz gerçekleşen yok"
+        : "Veri yok"
+      : "Tahmini gider girilmemiş",
+  };
+  if (!hasExpected || !hasRealized) return slate;
+  if (variance < 0)
+    return {
+      solid: "rgb(5 150 105)", // emerald-600
+      text: "rgb(4 120 87)", // emerald-700
+      bg: "rgba(16,185,129,0.12)",
+      ring: "rgba(16,185,129,0.30)",
+      Icon: TrendingDown,
+      label: "Bütçenin altında",
+    };
+  if (variance > 0)
+    return {
+      solid: "rgb(225 29 72)", // rose-600
+      text: "rgb(159 18 57)", // rose-700
+      bg: "rgba(244,63,94,0.12)",
+      ring: "rgba(244,63,94,0.30)",
+      Icon: TrendingUp,
+      label: "Bütçenin üstünde",
+    };
+  return { ...slate, Icon: Minus, label: "Hedefinde" };
+}
+
+/* ─────────── Bar row ─────────── */
+
+function BarRow({
   label,
-  valueUsd,
-  placeholder,
+  widthPct,
+  fill,
+  value,
+  valueTone,
   tooltip,
+  reduceMotion,
 }: {
   label: string;
-  valueUsd: number;
-  placeholder: string | null;
+  widthPct: number;
+  fill: string;
+  value: string;
+  valueTone: string;
   tooltip?: string;
+  reduceMotion: boolean;
 }) {
   return (
-    <div
-      className="px-3 py-2 rounded-xl bg-card/50 border border-border/40 min-w-0"
-      title={tooltip ?? (placeholder ? undefined : formatCurrency(valueUsd, "USD"))}
-    >
-      <div className="text-[9.5px] uppercase tracking-wider text-muted-foreground truncate">
+    <div className="flex items-center gap-2.5 min-w-0" title={tooltip}>
+      <span className="w-[74px] shrink-0 text-[9.5px] uppercase tracking-wider text-muted-foreground">
         {label}
+      </span>
+      <div
+        className="flex-1 h-2.5 rounded-full overflow-hidden"
+        style={{
+          background: "rgba(15,23,42,0.06)",
+          boxShadow:
+            "inset 0 1px 1px 0 rgba(15,23,42,0.08), inset 0 -1px 0 0 rgba(255,255,255,0.6)",
+        }}
+      >
+        <motion.div
+          className="h-full rounded-full"
+          initial={reduceMotion ? false : { width: 0 }}
+          animate={{ width: `${Math.max(0, Math.min(100, widthPct))}%` }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          style={{
+            background: `linear-gradient(90deg, ${fill} 0%, color-mix(in oklab, ${fill} 80%, white 20%) 100%)`,
+            boxShadow: "inset 0 1px 0 0 rgba(255,255,255,0.35)",
+          }}
+        />
       </div>
-      <div className="text-[15px] font-bold tabular-nums mt-0.5 truncate">
-        {placeholder ?? formatCompactCurrency(valueUsd, "USD")}
+      <span
+        className="w-[56px] shrink-0 text-right text-[12.5px] font-bold tabular-nums"
+        style={{ color: valueTone }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+/* ─────────── Ratio donut ─────────── */
+
+/**
+ * Radial ratio donut — realized ÷ expected %. The arc fills over a
+ * 0-150% domain (so 100% sits ~2/3 round and "over budget" reads as a
+ * fuller, redder ring); the centre prints the exact %. A 100% tick is
+ * not drawn — the colour already says under/over.
+ */
+function RatioDonut({
+  pct,
+  color,
+  textColor,
+}: {
+  pct: number | null;
+  color: string;
+  textColor: string;
+}) {
+  const SIZE = 78;
+  const R = 30;
+  const STROKE = 9;
+  const C = 2 * Math.PI * R;
+  const DOMAIN = 150;
+  const frac = pct == null ? 0 : Math.max(0, Math.min(1, pct / DOMAIN));
+  const dash = frac * C;
+
+  return (
+    <div
+      className="relative shrink-0 grid place-items-center"
+      style={{ width: SIZE, height: SIZE }}
+      title={pct != null ? `Gerçekleşen / Tahmini = %${formatNumber(pct, 1)}` : undefined}
+    >
+      <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
+        {/* Track */}
+        <circle
+          cx={SIZE / 2}
+          cy={SIZE / 2}
+          r={R}
+          fill="none"
+          stroke="rgba(15,23,42,0.08)"
+          strokeWidth={STROKE}
+        />
+        {/* Value arc — starts at 12 o'clock, clockwise */}
+        {pct != null && (
+          <motion.circle
+            cx={SIZE / 2}
+            cy={SIZE / 2}
+            r={R}
+            fill="none"
+            stroke={color}
+            strokeWidth={STROKE}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
+            strokeDasharray={`${dash} ${C}`}
+            initial={{ strokeDasharray: `0 ${C}` }}
+            animate={{ strokeDasharray: `${dash} ${C}` }}
+            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+          />
+        )}
+      </svg>
+      <div className="absolute inset-0 grid place-items-center">
+        <span
+          className="text-[15px] font-bold tabular-nums leading-none"
+          style={{ color: pct != null ? textColor : "rgb(148 163 184)" }}
+        >
+          {pct != null ? `%${formatNumber(pct, 0)}` : "—"}
+        </span>
       </div>
     </div>
   );

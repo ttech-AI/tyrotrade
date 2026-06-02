@@ -7,9 +7,7 @@ import { ProjectsEmptyState } from "@/components/projects/ProjectsEmptyState";
 import { RouteMap } from "@/components/map/RouteMap";
 import { ProjectOverviewCard } from "@/components/details/ProjectOverviewCard";
 import { CommoditySalesCard } from "@/components/details/CommoditySalesCard";
-// `ExpectedRealizedExpenseCard` temporarily unmounted — kept in
-// `src/components/details/` for the next iteration. Re-import here
-// when the per-project expense math is verified end-to-end.
+import { ExpectedRealizedExpenseCard } from "@/components/details/ExpectedRealizedExpenseCard";
 import { BudgetSalesCard } from "@/components/details/BudgetSalesCard";
 import { BudgetPLCard } from "@/components/details/BudgetPLCard";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -272,6 +270,7 @@ export function ProjectsPage() {
               <div className="space-y-3 pb-4">
                 <ProjectOverviewCard project={selected} />
                 <CommoditySalesCard project={selected} />
+                <ExpectedRealizedExpenseCard project={selected} />
                 <BudgetSalesCard project={selected} />
                 <BudgetPLCard project={selected} />
               </div>
@@ -306,6 +305,7 @@ export function ProjectsPage() {
             <div className="space-y-3">
               <ProjectOverviewCard project={selected} />
               <CommoditySalesCard project={selected} />
+              <ExpectedRealizedExpenseCard project={selected} />
               <BudgetSalesCard project={selected} />
               <BudgetPLCard project={selected} />
             </div>
