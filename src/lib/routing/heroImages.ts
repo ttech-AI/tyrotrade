@@ -39,6 +39,28 @@ export const HERO_COMPLETED = pexels(6572431);
 /** Road / truck fallback for non-Gemi projects. */
 export const HERO_ROAD = unsplash("1532330393533-443990a51d10");
 
+/** Office — team of coworkers in an open-plan office. Used when a
+ *  project has no drawable route yet (both ports unresolved): the
+ *  voyage hasn't left the desk — nomination pending / contract phase —
+ *  so a ship/truck photo is misleading. "Hala ofis çalışmasında." */
+export const HERO_OFFICE = pexels(5324900);
+
+/** Port is "resolved" when it has a real name (not the "—" sentinel)
+ *  AND non-(0,0) coords. Mirrors `isPortDefined` in RouteMap so the
+ *  hero image and the map empty-state agree on what "no route" means. */
+function isPortResolved(
+  p?: { name?: string; lat?: number; lon?: number } | null
+): boolean {
+  if (!p) return false;
+  const hasName =
+    typeof p.name === "string" && p.name.trim().length > 0 && p.name !== "—";
+  const hasCoords =
+    typeof p.lat === "number" &&
+    typeof p.lon === "number" &&
+    (p.lat !== 0 || p.lon !== 0);
+  return hasName && hasCoords;
+}
+
 /**
  * Pick the hero image URL for a project based on its current voyage
  * stage. Honours an explicit override (`vesselPlan.heroImageUrl`) when
@@ -50,6 +72,15 @@ export function selectHeroImage(
 ): string {
   const explicit = project.vesselPlan?.heroImageUrl;
   if (explicit) return explicit;
+
+  // No drawable route — BOTH loading & discharge ports unresolved.
+  // These projects are still desk work (To Be Nominated / contract
+  // phase), so a vessel/truck photo reads as irrelevant. Show the
+  // office image instead — same "no route" signal the map uses for
+  // its "limanlar girilmemiş" empty state.
+  const lpResolved = isPortResolved(project.vesselPlan?.loadingPort);
+  const dpResolved = isPortResolved(project.vesselPlan?.dischargePort);
+  if (!lpResolved && !dpResolved) return HERO_OFFICE;
 
   if (!isSea(project)) return HERO_ROAD;
 
