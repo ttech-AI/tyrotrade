@@ -31,6 +31,16 @@ export interface RouteGeometry {
  * Results are cached in a module-level Map keyed by the port-pair string
  * so switching between projects with the same loading/discharge ports is
  * instant after the first compute.
+ *
+ * **The live AIS position deliberately does NOT shape this line.** An
+ * earlier version threaded the AIS fix through as a `viaPoint` and built a
+ * two-segment `LP → AIS → DP` searoute. That doubled the endpoint-snapping
+ * at the AIS junction (each segment connects the AIS point to its nearest
+ * marine-graph node with a *straight* connector that ignores land), so a
+ * fix sitting in a strait / near a coast / between islands produced a route
+ * that visibly crossed land. The hand-tuned corridor waypoints are already
+ * land-safe, so the route is always `LP → corridor → DP`; the AIS fix only
+ * drives the vessel marker + progress snap in `RouteMap` (`aisSnapped`).
  */
 
 type SeaRouteFn = (
@@ -68,16 +78,10 @@ function makeKey(
   lpLon: number,
   lpLat: number,
   dpLon: number,
-  dpLat: number,
-  viaLon?: number,
-  viaLat?: number
+  dpLat: number
 ): string {
   const r = (n: number) => n.toFixed(4);
-  const base = `${r(lpLon)},${r(lpLat)}|${r(dpLon)},${r(dpLat)}`;
-  if (viaLon !== undefined && viaLat !== undefined) {
-    return `${base}|via:${r(viaLon)},${r(viaLat)}`;
-  }
-  return base;
+  return `${r(lpLon)},${r(lpLat)}|${r(dpLon)},${r(dpLat)}`;
 }
 
 function makePoint(
@@ -116,8 +120,7 @@ function deriveGeometry(line: Feature<LineString>): RouteGeometry {
 }
 
 export function useRouteGeometry(
-  project: Project | null,
-  viaPoint?: { lon: number; lat: number } | null
+  project: Project | null
 ): RouteGeometry | null {
   const lp = project?.vesselPlan?.loadingPort;
   const dp = project?.vesselPlan?.dischargePort;
@@ -130,7 +133,7 @@ export function useRouteGeometry(
     !(dp.lat === 0 && dp.lon === 0);
 
   const cacheKey = portsValid
-    ? makeKey(lp.lon, lp.lat, dp.lon, dp.lat, viaPoint?.lon, viaPoint?.lat)
+    ? makeKey(lp.lon, lp.lat, dp.lon, dp.lat)
     : null;
 
   const [line, setLine] = React.useState<Feature<LineString> | null>(() => {
@@ -157,28 +160,11 @@ export function useRouteGeometry(
       .then((seaRoute) => {
         if (cancelled) return;
         try {
-          if (viaPoint) {
-            // Two-segment route: LP → viaPoint → DP
-            const seg1 = seaRoute(makePoint(lp.lon, lp.lat), makePoint(viaPoint.lon, viaPoint.lat), "kilometers");
-            const seg2 = seaRoute(makePoint(viaPoint.lon, viaPoint.lat), makePoint(dp.lon, dp.lat), "kilometers");
-            const c1 = seg1?.geometry?.coordinates;
-            const c2 = seg2?.geometry?.coordinates;
-            if (!c1?.length || !c2?.length) return;
-            // Merge: drop the duplicate via-point at the junction
-            const merged: Feature<LineString> = {
-              type: "Feature",
-              properties: {},
-              geometry: { type: "LineString", coordinates: [...c1, ...c2.slice(1)] },
-            };
-            lineCache.set(cacheKey, merged);
-            setLine(merged);
-          } else {
-            const route = seaRoute(makePoint(lp.lon, lp.lat), makePoint(dp.lon, dp.lat), "kilometers");
-            const coords = route?.geometry?.coordinates;
-            if (!coords || coords.length < 2) return;
-            lineCache.set(cacheKey, route);
-            setLine(route);
-          }
+          const route = seaRoute(makePoint(lp.lon, lp.lat), makePoint(dp.lon, dp.lat), "kilometers");
+          const coords = route?.geometry?.coordinates;
+          if (!coords || coords.length < 2) return;
+          lineCache.set(cacheKey, route);
+          setLine(route);
         } catch (err) {
           // eslint-disable-next-line no-console
           console.warn(`[useRouteGeometry] searoute-ts failed for ${cacheKey}, using corridor fallback:`, err);

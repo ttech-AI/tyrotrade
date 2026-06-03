@@ -180,7 +180,11 @@ export function RouteMap({ project }: RouteMapProps) {
     null
   );
   const accent = useThemeAccent();
-  const geom = useRouteGeometry(project, aisPos);
+  // Route geometry follows the land-safe corridor (LP → corridor → DP) only.
+  // The AIS fix is intentionally NOT fed in as a via-point — see the note in
+  // useRouteGeometry. AIS still drives the marker position + progress snap
+  // below (`aisSnapped`).
+  const geom = useRouteGeometry(project);
   const { progress, stage } = useRouteProgress(project);
 
   const fetchAisPosition = React.useCallback(async () => {
