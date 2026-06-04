@@ -71,7 +71,11 @@ export function LoginPage({ onLogin, isLoading }: LoginPageProps = {}) {
   return (
     <div className="min-h-screen w-screen md:h-screen md:overflow-hidden grid md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] bg-[#020617] text-foreground">
       {/* ── Left panel — brand + content + CTA ── */}
-      <div className="relative flex flex-col p-4 sm:p-10 lg:p-16 z-[1] md:min-h-screen">
+      {/* Vertical padding scales with viewport height (clamp on vh) so the
+          whole panel always fits one screen at md+ — even at >100% zoom or
+          short desktop windows — without scrolling. Horizontal padding stays
+          fixed per breakpoint. */}
+      <div className="relative flex flex-col px-4 sm:px-10 lg:px-16 py-4 md:py-[clamp(1rem,4vh,4rem)] z-[1] md:min-h-screen">
         {/* Subtle ambient glow behind content (only visible on mobile when
             scene is hidden) */}
         <div
@@ -121,14 +125,14 @@ export function LoginPage({ onLogin, isLoading }: LoginPageProps = {}) {
             initial={reduce ? false : { opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={T(0.15)}
-            className="mb-5 sm:mb-9 text-center md:text-left"
+            className="mb-5 md:mb-[clamp(0.75rem,3vh,2.25rem)] text-center md:text-left"
           >
-            <h1 className="text-[20px] sm:text-4xl font-bold tracking-tight leading-[1.2] text-white">
+            <h1 className="text-[20px] sm:text-4xl md:text-[length:clamp(1.5rem,4.2vh,2.25rem)] font-bold tracking-tight leading-[1.2] text-white">
               Uluslararası{" "}
               <span className="text-brand-gradient">Tedarik Zinciri</span>{" "}
               Platformu<span className="text-sky-400">.</span>
             </h1>
-            <p className="hidden md:block mt-3 sm:mt-4 text-[13.5px] sm:text-[15px] text-slate-400 leading-relaxed">
+            <p className="hidden md:block mt-[clamp(0.5rem,1.6vh,1rem)] text-[13.5px] sm:text-[15px] text-slate-400 leading-relaxed">
               Tedarikten teslimata, uluslararası ticaretin tüm operasyon
               süreçlerini tek panelden yönet.
             </p>
@@ -145,7 +149,7 @@ export function LoginPage({ onLogin, isLoading }: LoginPageProps = {}) {
                 transition: { staggerChildren: reduce ? 0 : 0.08, delayChildren: reduce ? 0 : 0.3 },
               },
             }}
-            className="flex flex-col gap-1.5 md:grid md:grid-cols-2 md:gap-2.5 mb-5 md:mb-10"
+            className="flex flex-col gap-1.5 md:grid md:grid-cols-2 md:gap-[clamp(0.5rem,1.4vh,0.625rem)] mb-5 md:mb-[clamp(0.75rem,3vh,2.5rem)]"
           >
             {FEATURES.map((f) => (
               <FeatureCell key={f.title} {...f} />
@@ -444,7 +448,7 @@ function FeatureCell({ icon, title, body }: Feature) {
       className={cn(
         "group hover:bg-white/[0.03] transition-colors",
         "flex items-center gap-2.5 px-3 py-2 rounded-full",
-        "md:block md:px-3 md:py-3 md:rounded-xl"
+        "md:block md:px-3 md:py-[clamp(0.5rem,1.6vh,0.75rem)] md:rounded-xl"
       )}
       style={{
         background:
