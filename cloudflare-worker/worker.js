@@ -26,7 +26,12 @@ export default {
     }
 
     // 1. Search
-    const searchUrl = `https://www.myshiptracking.com/vessels?name=${encodeURIComponent(name)}&side=false`;
+    // myshiptracking's name search treats hyphens/underscores literally and
+    // returns ZERO results for names like "BURCUM-I" (even though the vessel
+    // is listed as "BURCUM I"). Normalise separators to spaces for the query;
+    // the original `name` is still used for slug matching + the echoed reply.
+    const searchName = name.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim();
+    const searchUrl = `https://www.myshiptracking.com/vessels?name=${encodeURIComponent(searchName)}&side=false`;
     const searchHtml = await fetchHtml(searchUrl);
 
     const imoRegex = new RegExp(`/vessels/[^"\\s]*-imo-${imo}[^"\\s]*`, "g");
