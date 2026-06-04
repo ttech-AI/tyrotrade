@@ -91,7 +91,7 @@ export function ProjectsPage() {
   // Filtered + sorted in the same shape ProjectList renders so that
   // `projects[0]` (used by the auto-select effect below) always points
   // at the row the user sees on top of the left rail. Sort: segment
-  // ASC (empty bucketed last) → projectNo DESC inside each segment.
+  // ASC (empty bucketed last) → projectNo ASC inside each segment.
   // The free-text search filter still lives inside ProjectList (it
   // narrows `projects` further without changing the order).
   const projects = React.useMemo(() => {
@@ -102,7 +102,7 @@ export function ProjectsPage() {
       if (segA === "" && segB !== "") return 1;
       if (segA !== "" && segB === "") return -1;
       if (segA !== segB) return segA.localeCompare(segB, "tr");
-      return b.projectNo.localeCompare(a.projectNo);
+      return a.projectNo.localeCompare(b.projectNo);
     });
     // `now` recomputes per render but is string-equal stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -77,7 +77,7 @@ export function ProjectList({
   } | null>(null);
 
   // Sort already applied by ProjectsPage (segment ASC + projectNo
-  // DESC) so `projects[0]` there matches `visible[0]` here — the
+  // ASC) so `projects[0]` there matches `visible[0]` here — the
   // page-level auto-select effect depends on this parity. Here we
   // only do free-text search narrowing; order is preserved.
   const visible = React.useMemo(() => {
