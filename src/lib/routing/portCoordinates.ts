@@ -465,7 +465,7 @@ export const PORT_RECORDS: Record<string, PortRecord> = {
     country: "Ukraine",
     lon: 30.6473,
     lat: 46.301,
-    aliases: ["chornomorsk", "illichivsk"],
+    aliases: ["chornomorsk", "chernomorsk", "illichivsk", "ilyichevsk"],
   },
 
   // ── Mediterranean / Europe (continued) ───────────────────────────────────
