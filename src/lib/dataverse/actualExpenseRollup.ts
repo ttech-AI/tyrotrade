@@ -180,7 +180,7 @@ export async function fetchActualExpenseRollupForAllProjects(
   onProgress?.({ stage: "refmap", status: "running" });
 
   // Step 1 + R in parallel.
-  const [dimSettled, refMapSettled] = await Promise.allSettled([
+  const [dimSettled, refMapSettled, projNumSettled] = await Promise.allSettled([
     listAllByInChunked<Record<string, unknown>>(
       client,
       INVENTDIMB_ENTITY,
@@ -197,10 +197,45 @@ export async function fetchActualExpenseRollupForAllProjects(
         $select: "mserp_etgtryprojid,mserp_tryexpensetype,mserp_refexpenseid",
       }
     ),
+    // Step P (parallel): expense lines stamped directly with a project
+    // via the `mserp_projectnum` column — catches realised expenses NOT
+    // reachable through the inventdimid → distribution chain (voucher /
+    // manual costs like "BİNA ONARIM GİDERİ"). Mirrors the per-project
+    // hook's Step P so the Trade Cost aggregate and the project drill-
+    // down agree. Best-effort: failure logs a warning and the rollup
+    // falls back to the inventdimid chain alone.
+    listAllByInChunked<Record<string, unknown>>(
+      client,
+      EXPENSE_ENTITY,
+      "mserp_projectnum",
+      projids,
+      { $select: "mserp_projectnum,mserp_expensenum" }
+    ),
   ]);
 
   if (dimSettled.status === "rejected") throw dimSettled.reason;
   const dimResult = dimSettled.value;
+
+  // Step P → Map<projid, Set<expensenum>> (best-effort). Unioned with
+  // the dist-chain expensenums below so projectnum-only expenses join
+  // the same header / refmap / exclusion / sign enrichment + rollup.
+  const projToProjnumExpenseNums = new Map<string, Set<string>>();
+  if (projNumSettled.status === "fulfilled") {
+    for (const r of projNumSettled.value.value) {
+      const pid = String(r.mserp_projectnum ?? "").trim();
+      const en = String(r.mserp_expensenum ?? "").trim();
+      if (!pid || !en) continue;
+      if (!projToProjnumExpenseNums.has(pid))
+        projToProjnumExpenseNums.set(pid, new Set());
+      projToProjnumExpenseNums.get(pid)!.add(en);
+    }
+  } else {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[actualExpenseRollup] projectnum-direct fetch failed — using inventdimid chain only:",
+      projNumSettled.reason
+    );
+  }
 
   // Build refmap (best-effort). Map<projid, Map<expensetype, ref>>.
   const projRefMap = new Map<string, Map<string, string>>();
@@ -254,7 +289,10 @@ export async function fetchActualExpenseRollupForAllProjects(
         : 0,
   });
 
-  if (projToInventDimIds.size === 0) return [];
+  // Proceed if EITHER path yielded project links — a project may have
+  // only projectnum-direct expenses (no inventdimid at all).
+  if (projToInventDimIds.size === 0 && projToProjnumExpenseNums.size === 0)
+    return [];
 
   // Step 2: dist rows → expensenums, keyed by inventdimid.
   onProgress?.({ stage: "dist", status: "running" });
@@ -274,11 +312,16 @@ export async function fetchActualExpenseRollupForAllProjects(
     dimToExpenseNums.get(did)!.add(en);
   }
 
-  // Flat distinct expensenums.
+  // Flat distinct expensenums — union of the dist-chain expensenums AND
+  // the projectnum-direct expensenums, so Step 3 fetches rows + headers
+  // for both sources.
   const allExpenseNums = Array.from(
-    new Set(
-      Array.from(dimToExpenseNums.values()).flatMap((s) => Array.from(s))
-    )
+    new Set([
+      ...Array.from(dimToExpenseNums.values()).flatMap((s) => Array.from(s)),
+      ...Array.from(projToProjnumExpenseNums.values()).flatMap((s) =>
+        Array.from(s)
+      ),
+    ])
   );
 
   onProgress?.({
@@ -287,7 +330,7 @@ export async function fetchActualExpenseRollupForAllProjects(
     count: allExpenseNums.length,
   });
 
-  if (dimToExpenseNums.size === 0) return [];
+  if (allExpenseNums.length === 0) return [];
 
   // Step 3: authoritative expense-line rows + expense-table
   // headers in parallel. The header fetch supplies FX context
@@ -409,13 +452,25 @@ export async function fetchActualExpenseRollupForAllProjects(
       { totalUsd: number; rowCount: number; expenseNum: string; description: string }
     >
   >();
-  for (const [projid, dimIds] of projToInventDimIds) {
-    // Collect this project's expensenum set via its inventdimids.
+  // Iterate the union of projids with ANY expense link — via the
+  // inventdimid chain OR the projectnum-direct path. Projectnum-only
+  // projects (no inventdimid) would otherwise be skipped entirely.
+  const allLinkedProjids = new Set<string>([
+    ...projToInventDimIds.keys(),
+    ...projToProjnumExpenseNums.keys(),
+  ]);
+  for (const projid of allLinkedProjids) {
+    // Collect this project's expensenum set from BOTH sources.
     const projExpenseNums = new Set<string>();
-    for (const did of dimIds) {
-      const ens = dimToExpenseNums.get(did);
-      if (ens) for (const en of ens) projExpenseNums.add(en);
+    const dimIds = projToInventDimIds.get(projid);
+    if (dimIds) {
+      for (const did of dimIds) {
+        const ens = dimToExpenseNums.get(did);
+        if (ens) for (const en of ens) projExpenseNums.add(en);
+      }
     }
+    const pnEns = projToProjnumExpenseNums.get(projid);
+    if (pnEns) for (const en of pnEns) projExpenseNums.add(en);
     if (projExpenseNums.size === 0) continue;
 
     if (!rollup.has(projid)) rollup.set(projid, new Map());
