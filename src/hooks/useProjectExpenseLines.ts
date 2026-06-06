@@ -187,21 +187,50 @@ export function useProjectExpenseLines(
         //   for this project. Used purely to enrich Step 2 rows with a
         //   textual expense class (`OPEX`, `FREIGHT`, …). Refmap fetch
         //   is best-effort — if it fails we keep going with raw rows.
-        const [dimSettled, refMapSettled] = await Promise.allSettled([
-          client.listAll<Record<string, unknown>>(INVENTDIMB_ENTITY, {
-            $filter: `mserp_inventdimension2 eq '${projectNo}'`,
-            $select: "mserp_inventdimid",
-          }),
-          client.listAll<Record<string, unknown>>(EXPENSE_REFMAP_ENTITY, {
-            $filter: `mserp_etgtryprojid eq '${projectNo}'`,
-            $select: "mserp_tryexpensetype,mserp_refexpenseid",
-          }),
-        ]);
+        const [dimSettled, refMapSettled, projNumSettled] =
+          await Promise.allSettled([
+            client.listAll<Record<string, unknown>>(INVENTDIMB_ENTITY, {
+              $filter: `mserp_inventdimension2 eq '${projectNo}'`,
+              $select: "mserp_inventdimid",
+            }),
+            client.listAll<Record<string, unknown>>(EXPENSE_REFMAP_ENTITY, {
+              $filter: `mserp_etgtryprojid eq '${projectNo}'`,
+              $select: "mserp_tryexpensetype,mserp_refexpenseid",
+            }),
+            // Step P (parallel): expense lines directly stamped with this
+            // project via the new `mserp_projectnum` column. Catches
+            // realised expenses NOT reachable through the inventdimid →
+            // distribution chain (e.g. voucher/manual costs like "BİNA
+            // ONARIM GİDERİ"). Best-effort — its expensenums are unioned
+            // into the Step-2 set below; a failure just falls back to the
+            // inventdimid chain alone.
+            client.listAll<Record<string, unknown>>(EXPENSE_ENTITY, {
+              $filter: `mserp_projectnum eq '${projectNo}'`,
+              $select: "mserp_expensenum",
+            }),
+          ]);
         if (cancelled) return;
 
         // Step 0 is required — bail if it failed.
         if (dimSettled.status === "rejected") throw dimSettled.reason;
         const dimResult = dimSettled.value;
+
+        // Step P expensenums (best-effort) — unioned with the dist-chain
+        // expensenums before Step 2 so projectnum-only expenses join the
+        // same header / refmap / exclusion / sign enrichment.
+        const projNumExpensenums: string[] = [];
+        if (projNumSettled.status === "fulfilled") {
+          for (const r of projNumSettled.value.value) {
+            const n = String(r.mserp_expensenum ?? "").trim();
+            if (n) projNumExpensenums.push(n);
+          }
+        } else {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[useProjectExpenseLines] projectnum-direct fetch failed for ${projectNo} — using inventdimid chain only:`,
+            projNumSettled.reason
+          );
+        }
 
         // Step R is best-effort. Build the lookup either way.
         const refMap = new Map<string, string>();
@@ -227,16 +256,11 @@ export function useProjectExpenseLines(
           ),
         ];
 
-        if (inventDimIds.length === 0) {
-          // No inventdim link → no distribution rows → no expenses.
-          setRows([]);
-          setFetchedAt(new Date().toISOString());
-          return;
-        }
-
-        // Step 1: distribution rows for those inventdimids → distinct expensenums.
+        // Step 1: distribution rows for those inventdimids → expensenums.
         // Chunked IN to keep each URL under enterprise-proxy limits.
-        const distRows: Record<string, unknown>[] = [];
+        // Skipped when the project has no inventdimid link — its expenses
+        // (if any) then come solely from the projectnum-direct path.
+        const distExpensenums: string[] = [];
         for (let i = 0; i < inventDimIds.length; i += IN_CHUNK_SIZE) {
           const chunk = inventDimIds.slice(i, i + IN_CHUNK_SIZE);
           const inFilter = `Microsoft.Dynamics.CRM.In(PropertyName='mserp_inventdimid',PropertyValues=[${chunk
@@ -250,19 +274,21 @@ export function useProjectExpenseLines(
             }
           );
           if (cancelled) return;
-          distRows.push(...distResult.value);
+          for (const r of distResult.value) {
+            const n = String(r.mserp_expensenum ?? "").trim();
+            if (n) distExpensenums.push(n);
+          }
         }
 
+        // Union both expensenum sources — inventdimid → distribution
+        // chain AND the projectnum-direct path. De-duped so a voucher
+        // reachable both ways is fetched (and enriched) only once.
         const expensenums = [
-          ...new Set(
-            distRows
-              .map((r) => String(r.mserp_expensenum ?? "").trim())
-              .filter((s): s is string => s.length > 0)
-          ),
+          ...new Set([...distExpensenums, ...projNumExpensenums]),
         ];
 
         if (expensenums.length === 0) {
-          // Distribution rows existed but carried no expensenums.
+          // Neither path yielded an expensenum for this project.
           setRows([]);
           setFetchedAt(new Date().toISOString());
           return;

@@ -382,6 +382,11 @@ export const EXPENSE_LINE_COLUMNS = [
   "mserp_expenseid",
   "mserp_description",
   "mserp_amountcur",
+  // Direct project FK on the expense-line entity (added to the F&O
+  // schema 2026-06). Lets us catch realised expenses that aren't
+  // reachable through the inventdimid → distribution chain — see the
+  // projectnum-direct path ("Step P") in useProjectExpenseLines.
+  "mserp_projectnum",
 ] as const;
 
 /** mserp_tryaivendinvoicetransentities — Realised (actual) project
