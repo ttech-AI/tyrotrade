@@ -1,8 +1,9 @@
 import * as React from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { TrendingDown, TrendingUp, Minus } from "lucide-react";
+import { TrendingDown, TrendingUp, Minus, Loader2 } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { BalanceScaleIcon } from "@hugeicons/core-free-icons";
+import { cn } from "@/lib/utils";
 import { GlassPanel } from "@/components/glass/GlassPanel";
 import { AccentIconBadge, TONE_EXPENSE } from "./AccentIconBadge";
 import {
@@ -100,16 +101,26 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
               Planned × Realized Cost
             </div>
           </div>
-          {isFetching && (
-            <span
-              className="size-2 rounded-full bg-amber-500 animate-pulse mt-1.5"
-              title="Gerçekleşen masraf satırları yükleniyor"
-            />
-          )}
         </div>
 
-        {/* Bars (left) + ratio donut (right) */}
-        <div className="flex items-center gap-4">
+        {/* Data region — blurred + frosted "Güncelleniyor" overlay while
+            the realized-expense fetch is in flight (project switch). The
+            expected side updates instantly from the project prop, but
+            realized lags ~2-3s; without this the stale realized value
+            (and the variance / donut derived from it) would sit visible
+            then snap. Header above stays crisp so the card stays
+            identifiable mid-transition. */}
+        <div className="relative">
+          <div
+            className={cn(
+              "transition-[filter,opacity] duration-300 ease-out",
+              isFetching &&
+                "blur-[2.5px] opacity-50 pointer-events-none select-none"
+            )}
+            aria-busy={isFetching || undefined}
+          >
+            {/* Bars (left) + ratio donut (right) */}
+            <div className="flex items-center gap-4">
           <div className="flex-1 min-w-0 space-y-3">
             <BarRow
               label="Realized"
@@ -181,6 +192,26 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
             {realized.rowCount} gerçekleşen masraf kaydı
           </div>
         )}
+          </div>
+
+          {/* Frosted "updating" pill — fades in over the blurred numbers
+              while the realized fetch runs, fades out when it lands. A
+              calm, single focal point instead of numbers visibly flipping. */}
+          <div
+            className={cn(
+              "absolute inset-0 grid place-items-center transition-opacity duration-300 pointer-events-none",
+              isFetching ? "opacity-100" : "opacity-0"
+            )}
+          >
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/75 backdrop-blur-md ring-1 ring-foreground/10 shadow-[0_4px_14px_-6px_rgba(15,23,42,0.25)] text-[11px] font-medium text-muted-foreground">
+              <Loader2
+                className="size-3.5 animate-spin"
+                style={{ color: tone.solid }}
+              />
+              Güncelleniyor
+            </span>
+          </div>
+        </div>
       </div>
     </GlassPanel>
   );
