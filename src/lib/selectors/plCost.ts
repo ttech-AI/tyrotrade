@@ -153,6 +153,9 @@ export function buildPLCostTree(
   rollupRows: ActualExpenseRollupRow[],
   viewMode: ViewMode
 ): PLCostNode[] {
+  // Sentinel for the empty/null voyage-status bucket — kept in one place
+  // so the L2 groupBy fallback and the skip below never drift apart.
+  const EMPTY_VOYAGE_KEY = "—";
   // Index rollup rows by projectNo for O(1) per-project lookup.
   const rollupByProject = groupBy(rollupRows, (r) => r.projectNo);
 
@@ -168,10 +171,16 @@ export function buildPLCostTree(
     // L2: voyage status within segment
     const byVoyage = groupBy(
       segmentProjects,
-      (p) => p.vesselPlan?.vesselStatus || "—"
+      (p) => p.vesselPlan?.vesselStatus || EMPTY_VOYAGE_KEY
     );
 
     for (const [voyageKey, voyageProjects] of byVoyage) {
+      // Skip the empty/null voyage-status bucket — the breakdown shows
+      // ONLY real voyage statuses, not a catch-all "no status" group
+      // (projects without a vessel plan). Those projects drop out of the
+      // segment total too, so each segment stays equal to the sum of its
+      // visible voyage statuses (parent = Σ children).
+      if (voyageKey === EMPTY_VOYAGE_KEY) continue;
       const voyageMetrics: PLCostMetrics = { ...EMPTY_METRICS };
       const voyageChildren: PLCostNode[] = [];
       const voyageProjectNos: string[] = [];
@@ -290,6 +299,11 @@ export function buildPLCostTree(
       );
       break voyageChildren_sort;
     }
+
+    // A segment whose every project had an empty voyage status has no
+    // visible children after the skip above — drop it entirely rather
+    // than show an empty segment row.
+    if (segmentChildren.length === 0) continue;
 
     tree.push({
       id: segmentKey,
