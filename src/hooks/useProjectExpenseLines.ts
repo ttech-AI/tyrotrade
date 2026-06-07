@@ -93,6 +93,41 @@ const EXPENSE_REFMAP_ENTITY = "mserp_tryaiotherexpenseprojectlineentities";
  *  lookup. */
 const IN_CHUNK_SIZE = 50;
 
+/** F&O `mserp_posted` → tri-state. It's a NoYes OPTION-SET (not a
+ *  boolean): No = 200000000 (draft / not posted), Yes = 200000001
+ *  (posted to ledger). We also accept the `@FormattedValue` annotation
+ *  ("Evet"/"Hayır" or "Yes"/"No") and boolean / 1 / 0 fallbacks.
+ *  Returns true / false when unambiguous, null when missing/unknown.
+ *  Callers drop ONLY an explicit `false` (a draft); null never drops —
+ *  so a schema/parse hiccup can't silently zero realised expense. */
+function parsePosted(raw: unknown, formatted?: unknown): boolean | null {
+  // Prefer the human-readable @FormattedValue when present.
+  const f = String(formatted ?? "")
+    .trim()
+    .toLowerCase();
+  if (f === "yes" || f === "evet") return true;
+  if (f === "no" || f === "hayır" || f === "hayir") return false;
+  // Raw: NoYes option-set codes + boolean / numeric / string fallbacks.
+  if (raw === true || raw === 1 || raw === "1" || raw === 200000001)
+    return true;
+  if (raw === false || raw === 0 || raw === "0" || raw === 200000000)
+    return false;
+  const s = String(raw ?? "")
+    .trim()
+    .toLowerCase();
+  if (s === "yes" || s === "evet" || s === "true" || s === "200000001")
+    return true;
+  if (
+    s === "no" ||
+    s === "hayır" ||
+    s === "hayir" ||
+    s === "false" ||
+    s === "200000000"
+  )
+    return false;
+  return null;
+}
+
 export interface UseProjectExpenseLinesReturn {
   /** Authoritative expense-line rows for the current project. */
   rows: Record<string, unknown>[];
@@ -325,7 +360,7 @@ export function useProjectExpenseLines(
             client.listAll<Record<string, unknown>>(EXPENSE_TABLE_ENTITY, {
               $filter: inFilter,
               $select:
-                "mserp_expensenum,mserp_currencycode,mserp_exchratesecond,mserp_accounttype",
+                "mserp_expensenum,mserp_currencycode,mserp_exchratesecond,mserp_accounttype,mserp_posted",
             })
           );
         }
@@ -346,7 +381,12 @@ export function useProjectExpenseLines(
         // Customer (reflection).
         const headerByExpensenum = new Map<
           string,
-          { currency: string; rate: number; accountType: number | null }
+          {
+            currency: string;
+            rate: number;
+            accountType: number | null;
+            posted: boolean | null;
+          }
         >();
         for (const settled of headerSettled) {
           if (settled.status !== "fulfilled") continue;
@@ -360,6 +400,10 @@ export function useProjectExpenseLines(
               currency: cur || "USD",
               rate: Number.isFinite(rate) ? rate : 1,
               accountType: Number.isFinite(at) ? at : null,
+              posted: parsePosted(
+                h.mserp_posted,
+                h["mserp_posted@OData.Community.Display.V1.FormattedValue"]
+              ),
             });
           }
         }
@@ -397,6 +441,7 @@ export function useProjectExpenseLines(
         let droppedNoHeaderCount = 0;
         let droppedUnknownAccountTypeCount = 0;
         let droppedForeignProjectCount = 0;
+        let droppedDraftCount = 0;
         for (const r of all) {
           const code = String(r.mserp_expenseid ?? "").trim();
           if (code && EXCLUDED_EXPENSE_IDS.has(code)) {
@@ -420,6 +465,14 @@ export function useProjectExpenseLines(
             : undefined;
           if (!header) {
             droppedNoHeaderCount += 1;
+            continue;
+          }
+          // Only ledger-POSTED expenses count toward realised. Drafts
+          // (mserp_posted = No) are excluded. Tri-state: only an
+          // explicit false drops — null/unknown keeps the line so a
+          // schema/parse hiccup never silently zeroes realised.
+          if (header.posted === false) {
+            droppedDraftCount += 1;
             continue;
           }
           const sign =
@@ -455,11 +508,12 @@ export function useProjectExpenseLines(
           droppedExcludedCount +
           droppedNoHeaderCount +
           droppedUnknownAccountTypeCount +
-          droppedForeignProjectCount;
+          droppedForeignProjectCount +
+          droppedDraftCount;
         if (droppedTotal > 0) {
           // eslint-disable-next-line no-console
           console.info(
-            `[useProjectExpenseLines] ${projectNo}: kept ${enriched.length}/${all.length} lines (dropped ${droppedExcludedCount} excluded-id, ${droppedNoHeaderCount} no-header, ${droppedUnknownAccountTypeCount} unknown-accounttype, ${droppedForeignProjectCount} foreign-projectnum).`
+            `[useProjectExpenseLines] ${projectNo}: kept ${enriched.length}/${all.length} lines (dropped ${droppedExcludedCount} excluded-id, ${droppedNoHeaderCount} no-header, ${droppedUnknownAccountTypeCount} unknown-accounttype, ${droppedForeignProjectCount} foreign-projectnum, ${droppedDraftCount} draft).`
           );
         }
 

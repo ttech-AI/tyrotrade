@@ -102,6 +102,38 @@ const EXCLUDED_EXPENSE_IDS = new Set<string>([
   "790052",
 ]);
 
+/** F&O `mserp_posted` → tri-state. NoYes OPTION-SET (not boolean):
+ *  No = 200000000 (draft), Yes = 200000001 (posted to ledger). Also
+ *  accepts the `@FormattedValue` ("Evet"/"Hayır") + boolean / 1 / 0.
+ *  Returns true / false when unambiguous, null when missing/unknown.
+ *  Callers drop ONLY explicit `false`; null never drops. Same helper
+ *  lives in `useProjectExpenseLines.ts`. */
+function parsePosted(raw: unknown, formatted?: unknown): boolean | null {
+  const f = String(formatted ?? "")
+    .trim()
+    .toLowerCase();
+  if (f === "yes" || f === "evet") return true;
+  if (f === "no" || f === "hayır" || f === "hayir") return false;
+  if (raw === true || raw === 1 || raw === "1" || raw === 200000001)
+    return true;
+  if (raw === false || raw === 0 || raw === "0" || raw === 200000000)
+    return false;
+  const s = String(raw ?? "")
+    .trim()
+    .toLowerCase();
+  if (s === "yes" || s === "evet" || s === "true" || s === "200000001")
+    return true;
+  if (
+    s === "no" ||
+    s === "hayır" ||
+    s === "hayir" ||
+    s === "false" ||
+    s === "200000000"
+  )
+    return false;
+  return null;
+}
+
 /* ─────────── Progress reporting ─────────── */
 
 /** Logical stage names for the rollup pipeline. UI surfaces these as
@@ -354,7 +386,7 @@ export async function fetchActualExpenseRollupForAllProjects(
       allExpenseNums,
       {
         $select:
-          "mserp_expensenum,mserp_currencycode,mserp_exchratesecond,mserp_accounttype",
+          "mserp_expensenum,mserp_currencycode,mserp_exchratesecond,mserp_accounttype,mserp_posted",
       }
     )
       .then((r) => ({ status: "fulfilled" as const, value: r }))
@@ -367,7 +399,12 @@ export async function fetchActualExpenseRollupForAllProjects(
   // need accounttype to decide the sign (Vendor +, Customer −).
   const headerByExpenseNum = new Map<
     string,
-    { currency: string; rate: number; accountType: number | null }
+    {
+      currency: string;
+      rate: number;
+      accountType: number | null;
+      posted: boolean | null;
+    }
   >();
   if (headerSettled.status === "fulfilled") {
     for (const h of headerSettled.value.value) {
@@ -380,6 +417,10 @@ export async function fetchActualExpenseRollupForAllProjects(
         currency: cur || "USD",
         rate: Number.isFinite(rate) ? rate : 1,
         accountType: Number.isFinite(at) ? at : null,
+        posted: parsePosted(
+          h.mserp_posted,
+          h["mserp_posted@OData.Community.Display.V1.FormattedValue"]
+        ),
       });
     }
   } else {
@@ -410,6 +451,7 @@ export async function fetchActualExpenseRollupForAllProjects(
   let droppedExcludedCount = 0;
   let droppedNoHeaderCount = 0;
   let droppedUnknownAccountTypeCount = 0;
+  let droppedDraftCount = 0;
   for (const r of expResult.value) {
     const en = String(r.mserp_expensenum ?? "").trim();
     if (!en) continue;
@@ -421,6 +463,12 @@ export async function fetchActualExpenseRollupForAllProjects(
     const header = headerByExpenseNum.get(en);
     if (!header) {
       droppedNoHeaderCount += 1;
+      continue;
+    }
+    // Only ledger-POSTED expenses count; drafts (mserp_posted = No /
+    // 200000000) are excluded. Tri-state: only explicit false drops.
+    if (header.posted === false) {
+      droppedDraftCount += 1;
       continue;
     }
     if (
@@ -436,11 +484,12 @@ export async function fetchActualExpenseRollupForAllProjects(
   const droppedTotal =
     droppedExcludedCount +
     droppedNoHeaderCount +
-    droppedUnknownAccountTypeCount;
+    droppedUnknownAccountTypeCount +
+    droppedDraftCount;
   if (droppedTotal > 0) {
     // eslint-disable-next-line no-console
     console.info(
-      `[actualExpenseRollup] kept ${expResult.value.length - droppedTotal}/${expResult.value.length} lines (dropped ${droppedExcludedCount} excluded-id, ${droppedNoHeaderCount} no-header, ${droppedUnknownAccountTypeCount} unknown-accounttype).`
+      `[actualExpenseRollup] kept ${expResult.value.length - droppedTotal}/${expResult.value.length} lines (dropped ${droppedExcludedCount} excluded-id, ${droppedNoHeaderCount} no-header, ${droppedUnknownAccountTypeCount} unknown-accounttype, ${droppedDraftCount} draft).`
     );
   }
 
