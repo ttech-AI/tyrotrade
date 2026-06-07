@@ -6,7 +6,6 @@ import {
   RefreshIcon,
   BoatIcon,
   Briefcase01Icon,
-  WrenchIcon,
   BadgeDollarSignIcon,
 } from "@hugeicons/core-free-icons";
 import {
@@ -229,16 +228,17 @@ export function PLCostPage() {
           />
         </GlassPanel>
       ) : rollup.isEmpty ? (
-        // Geliştirme aşamasında — gerçek pipeline'ı kullanıcıya
-        // göstermek yerine zarif bir "yapım aşamasında" duyurusu
-        // sergiliyoruz. `hasProjects` bayrağı hâlâ Veri Yönetimi'ne
-        // yönlendirme metnini ayarlamak için iletilir (proje cache'i
-        // hiç dolmamışsa farklı ton).
-        <DevelopmentNotice
-          accentColor={accent.solid}
+        // Cache boş (ilk ziyaret / Veri Yönetimi sonrası invalidation).
+        // Kullanıcıya ne hesaplanacağını anlatan sade bir boş durum +
+        // tek "Hesapla" CTA'sı. Tıklayınca rollup başlar (isFetching →
+        // PLCostProgress devralır), biter bitmez tree render edilir.
+        // `hasProjects` master proje cache'inden gelir (filtre değil) —
+        // veri hiç yüklenmediyse Hesapla yerine Veri Yönetimi'ne yönlendirir.
+        <ComputePrompt
           accentRing={accent.ring}
           accentGradient={accent.gradient}
-          hasProjects={projects.length > 0}
+          hasProjects={rawProjects.length > 0}
+          onCompute={handleRefresh}
         />
       ) : (
         <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden">
@@ -487,38 +487,36 @@ function ErrorState({
 }
 
 /**
- * Trade Cost sayfası için "geliştirme aşamasında" duyurusu.
+ * Trade Cost boş durumu — rollup cache boşken (ilk ziyaret / Veri
+ * Yönetimi sonrası invalidation). Kullanıcıya ne hesaplanacağını
+ * anlatır + tek bir "Hesapla" CTA'sı sunar. Tıklayınca tenant-wide
+ * gerçekleşen-gider sweep'i başlar (~30-60 sn); başlarken sayfa
+ * otomatik olarak `PLCostProgress`'e, biterken Tahmini × Gerçekleşen
+ * ağacına geçer (isEmpty=false). Sonuç önbelleğe alınır → tekrar
+ * açıldığında anında gelir.
  *
- * Sayfanın asıl pipeline + tree görünümü yapım aşamasında — kullanıcı
- * "Hesapla" butonunu görüp prematur tetiklemek yerine, ne için
- * çalıştığımızı + ne zaman aktif olacağını açıklayan zarif bir
- * placeholder görür. `hasProjects=false` iken (master refresh yok)
- * Veri Yönetimi'ne yönlendirme küçük bir uyarı olarak alta düşer.
- *
- * `onCompute` prop'u geçici beta erişimi için saklı tutuluyor — şu
- * an "Hesapla" butonu render edilmiyor; ileride beta tester'lar için
- * bir geçit eklemek gerekirse zaten elimizde.
+ * `hasProjects=false` iken (master proje cache'i hiç dolmamış) Hesapla
+ * yerine Veri Yönetimi'ne yönlendirir — çekilecek proje yok.
  */
-function DevelopmentNotice({
-  accentColor,
+function ComputePrompt({
   accentRing,
   accentGradient,
   hasProjects,
+  onCompute,
 }: {
-  accentColor: string;
   accentRing: string;
   accentGradient: string;
   hasProjects: boolean;
+  onCompute: () => void;
 }) {
-  void accentColor; // reserved for future beta-tester gate
   return (
     <GlassPanel tone="default" className="flex-1 min-h-0 rounded-2xl">
       <div className="h-full flex items-center justify-center p-8">
         <div className="max-w-lg w-full text-center space-y-5">
-          {/* Yapım aşaması rozet — accent gradient + wrench */}
-          <div className="relative inline-flex">
+          {/* Accent gradient rozet */}
+          <div className="inline-flex">
             <span
-              className="size-16 rounded-2xl grid place-items-center text-white relative shadow-lg"
+              className="size-16 rounded-2xl grid place-items-center text-white shadow-lg"
               style={{
                 background: accentGradient,
                 boxShadow: `0 10px 28px -8px ${accentRing}, inset 0 1px 0 0 rgba(255,255,255,0.30)`,
@@ -530,82 +528,58 @@ function DevelopmentNotice({
                 strokeWidth={1.75}
               />
             </span>
-            {/* Küçük wrench tag — "in progress" mikro-işaret */}
-            <span
-              className="absolute -bottom-1.5 -right-1.5 size-7 rounded-xl grid place-items-center bg-amber-500 text-white shadow-md ring-2 ring-white"
-              aria-hidden
-            >
-              <HugeiconsIcon icon={WrenchIcon} size={14} strokeWidth={2} />
-            </span>
           </div>
 
-          {/* Headline + sublabel */}
+          {/* Headline + açıklama */}
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-700 text-[10.5px] font-semibold uppercase tracking-[0.12em]">
-              <span className="size-1.5 rounded-full bg-amber-500 animate-pulse" />
-              Geliştirme Aşamasında
-            </div>
             <h2 className="text-xl font-bold tracking-tight text-foreground">
-              Trade Cost yapım aşamasında
+              Tahmini × Gerçekleşen Maliyet
             </h2>
             <p className="text-[13.5px] text-muted-foreground leading-relaxed max-w-md mx-auto">
-              Tahmini × Gerçekleşen masraf analizi şu anda{" "}
-              <span className="font-semibold text-foreground">aktif geliştirme</span>{" "}
-              halinde. Segment → Voyage Status → Proje → Masraf kalemi
-              hiyerarşisinde detaylı kırılım, akıllı içgörü şeritleri ve
-              drill-down panelleri yakın zamanda burada olacak.
+              Her segment için{" "}
+              <span className="font-semibold text-foreground">Tahmini Gider</span>{" "}
+              ve{" "}
+              <span className="font-semibold text-foreground">
+                Gerçekleşen Gider
+              </span>{" "}
+              karşılaştırması. Hesapla'ya bastığında tüm projelerin
+              gerçekleşen masrafları çekilir
+              {hasProjects ? " (~30-60 sn)" : ""}; sonuç önbelleğe alınır,
+              tekrar açtığında anında gelir.
             </p>
           </div>
 
-          {/* Roadmap mini-list */}
-          <div className="bg-foreground/[0.025] border border-border/40 rounded-xl px-4 py-3.5 text-left">
-            <div className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-muted-foreground mb-2">
-              Yakında
-            </div>
-            <ul className="space-y-1.5 text-[12.5px]">
-              <li className="flex items-start gap-2">
-                <span className="text-emerald-600 mt-[3px]">✓</span>
-                <span className="text-foreground/80">
-                  Per-(proje, masraf) Gerçekleşen Gider toplamı pipeline'ı
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-emerald-600 mt-[3px]">✓</span>
-                <span className="text-foreground/80">
-                  Tahmini × Gerçekleşen sapma metrikleri + smart insights
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-amber-600 mt-[3px]">◯</span>
-                <span className="text-muted-foreground">
-                  FX-aware bütçe normalizasyonu, çoklu para birimi
-                </span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-amber-600 mt-[3px]">◯</span>
-                <span className="text-muted-foreground">
-                  Excel export + segment-bazlı dönem karşılaştırması
-                </span>
-              </li>
-            </ul>
-          </div>
-
-          {!hasProjects && (
-            <div className="text-[12px] text-muted-foreground/80 pt-1">
+          {hasProjects ? (
+            <button
+              type="button"
+              onClick={onCompute}
+              className="inline-flex items-center gap-2 h-11 px-6 rounded-full text-white font-semibold text-[14px] shadow-md transition-transform hover:scale-[1.03] active:scale-95"
+              style={{
+                background: accentGradient,
+                boxShadow: `0 6px 18px -6px ${accentRing}, inset 0 1px 0 0 rgba(255,255,255,0.25)`,
+              }}
+            >
+              <HugeiconsIcon icon={RefreshIcon} size={17} strokeWidth={2} />
+              Hesapla
+            </button>
+          ) : (
+            <div className="text-[13px] text-muted-foreground/90 pt-1">
               Henüz proje verisi yüklenmedi.{" "}
               <Link
                 to="/data"
                 className="font-semibold text-foreground hover:underline inline-flex items-center gap-1"
               >
-                <HugeiconsIcon
-                  icon={Database01Icon}
-                  size={12}
-                  strokeWidth={2}
-                />
+                <HugeiconsIcon icon={Database01Icon} size={13} strokeWidth={2} />
                 Veri Yönetimi'ne git
               </Link>
             </div>
           )}
+
+          {/* Ne göreceğini anlatan ince alt-satır */}
+          <p className="text-[11.5px] text-muted-foreground/70 leading-relaxed">
+            Segment → Voyage Status → Proje/Gemi → Masraf kalemi
+            hiyerarşisi, sapma metrikleri ve drill-down paneli ile.
+          </p>
         </div>
       </div>
     </GlassPanel>
