@@ -1,6 +1,10 @@
 import * as React from "react";
 import { getDataverseClient } from "@/lib/dataverse";
 import { EXPENSE_LINE_COLUMNS } from "@/lib/dataverse/columnOrder";
+import {
+  CACHE_UPDATED_EVENT,
+  type CacheUpdatedDetail,
+} from "@/lib/storage/entityCache";
 
 /** Inventory-dimension entity — maps a project number (carried in
  *  `mserp_inventdimension2`) to the set of `mserp_inventdimid` keys
@@ -128,6 +132,63 @@ function parsePosted(raw: unknown, formatted?: unknown): boolean | null {
   return null;
 }
 
+/* ─────────── Per-project in-memory LRU cache ───────────
+ *
+ * The realised-expense chain is 3 sequential network phases
+ * (inventdimid → dist → expense-line), ~2-5 s per project on the
+ * enterprise proxy. Selecting a project you've already opened this
+ * session shouldn't pay that again, so the enriched result is memoised
+ * by projectNo — revisits are instant (no network). Bounded LRU so a
+ * long Thursday review session doesn't grow memory unbounded.
+ *
+ * Invalidation: a full "Verileri Güncelle" rewrites the projects master
+ * cache (`mserp_etgtryprojecttableentities`). That's the one entitySet a
+ * refresh touches but ordinary project navigation never does (the
+ * per-project estimate / invoice / purchase hooks write their OWN keys).
+ * On that signal the whole cache is dropped so realised totals can't go
+ * stale after the user re-pulls data. */
+const PROJECTS_MASTER_ENTITY = "mserp_etgtryprojecttableentities";
+const MAX_CACHE_ENTRIES = 60;
+
+interface CachedExpenseResult {
+  rows: Record<string, unknown>[];
+  fetchedAt: string;
+}
+
+const expenseLineCache = new Map<string, CachedExpenseResult>();
+
+function cacheGet(projectNo: string): CachedExpenseResult | undefined {
+  const hit = expenseLineCache.get(projectNo);
+  if (hit) {
+    // LRU touch — move to the most-recently-used end.
+    expenseLineCache.delete(projectNo);
+    expenseLineCache.set(projectNo, hit);
+  }
+  return hit;
+}
+
+function cacheSet(projectNo: string, entry: CachedExpenseResult): void {
+  expenseLineCache.delete(projectNo);
+  expenseLineCache.set(projectNo, entry);
+  while (expenseLineCache.size > MAX_CACHE_ENTRIES) {
+    const oldest = expenseLineCache.keys().next().value;
+    if (oldest === undefined) break;
+    expenseLineCache.delete(oldest);
+  }
+}
+
+if (typeof window !== "undefined") {
+  // Same-tab full refresh — drop everything (realised data re-pulled).
+  window.addEventListener(CACHE_UPDATED_EVENT, (e) => {
+    const detail = (e as CustomEvent<CacheUpdatedDetail>).detail;
+    if (detail?.entitySet === PROJECTS_MASTER_ENTITY) expenseLineCache.clear();
+  });
+  // Cross-tab full refresh.
+  window.addEventListener("storage", (e) => {
+    if (e.key === `tyro:dv:${PROJECTS_MASTER_ENTITY}`) expenseLineCache.clear();
+  });
+}
+
 export interface UseProjectExpenseLinesReturn {
   /** Authoritative expense-line rows for the current project. */
   rows: Record<string, unknown>[];
@@ -192,8 +253,11 @@ export interface UseProjectExpenseLinesReturn {
  * refmap entities act as filter / lookup intermediaries only — their
  * raw rows aren't surfaced anywhere.
  *
- * In-memory state only (no localStorage cache). The hook re-fetches
- * on every project change; same-project re-renders use cached state.
+ * Results are memoised in a bounded per-project in-memory LRU cache
+ * (see the cache block above): the first visit pays the ~2-5 s chain,
+ * any revisit this session is instant with no network. The cache is
+ * dropped wholesale when a full data refresh rewrites the projects
+ * master cache, so realised totals never go stale.
  */
 export function useProjectExpenseLines(
   projectNo: string | null | undefined
@@ -207,6 +271,15 @@ export function useProjectExpenseLines(
     if (!projectNo) {
       setRows([]);
       setError(null);
+      return;
+    }
+    // Cache hit → instant, skip the whole 3-phase chain.
+    const cached = cacheGet(projectNo);
+    if (cached) {
+      setRows(cached.rows);
+      setFetchedAt(cached.fetchedAt);
+      setError(null);
+      setIsFetching(false);
       return;
     }
     let cancelled = false;
@@ -541,8 +614,10 @@ export function useProjectExpenseLines(
           );
         }
 
+        const completedAt = new Date().toISOString();
+        cacheSet(projectNo, { rows: enriched, fetchedAt: completedAt });
         setRows(enriched);
-        setFetchedAt(new Date().toISOString());
+        setFetchedAt(completedAt);
       } catch (err) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : String(err);
