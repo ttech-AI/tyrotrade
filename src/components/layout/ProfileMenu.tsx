@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { useThemeAccent } from "./theme-accent";
 import { isAuthConfigured } from "@/lib/auth/msal";
 import { shouldUseMock } from "@/lib/dataverse";
+import { useUserPhoto } from "@/hooks/useUserPhoto";
 
 interface ProfileMenuProps {
   /** When true, render the full row with name + email beside the avatar.
@@ -60,6 +61,9 @@ export function ProfileMenu({ expanded }: ProfileMenuProps) {
   const NAME = (account?.name ?? "").trim() || FALLBACK_NAME;
   const EMAIL = (account?.username ?? "").trim() || FALLBACK_EMAIL;
   const INITIALS = computeInitials(NAME, EMAIL);
+  // Microsoft 365 profile photo (Graph) — null until loaded / when none
+  // set, in which case the gradient + initials avatar shows instead.
+  const photoUrl = useUserPhoto(account?.homeAccountId);
 
   const handleLogout = () => {
     if (isAuthConfigured && !shouldUseMock()) {
@@ -75,7 +79,17 @@ export function ProfileMenu({ expanded }: ProfileMenuProps) {
     window.location.hash = "#/login";
   };
 
-  const avatar = (
+  const avatar = photoUrl ? (
+    <img
+      src={photoUrl}
+      alt=""
+      aria-hidden
+      className="size-9 rounded-full object-cover shrink-0 shadow-sm"
+      style={{
+        boxShadow: `0 0 0 1.5px ${accent.ring}, 0 1px 2px rgba(0,0,0,0.18)`,
+      }}
+    />
+  ) : (
     <span
       className="size-9 rounded-full grid place-items-center text-white text-[11.5px] font-semibold shrink-0 shadow-sm"
       style={{
@@ -142,15 +156,26 @@ export function ProfileMenu({ expanded }: ProfileMenuProps) {
         )}
       >
         <div className="relative px-4 py-3 border-b border-white/30 flex items-center gap-3">
-          <span
-            className="size-11 rounded-full grid place-items-center text-white text-sm font-semibold shrink-0 shadow-sm"
-            style={{
-              background: accent.gradient,
-              boxShadow: `0 0 0 2px ${accent.ring}, 0 1px 2px rgba(0,0,0,0.08)`,
-            }}
-          >
-            {INITIALS}
-          </span>
+          {photoUrl ? (
+            <img
+              src={photoUrl}
+              alt=""
+              className="size-11 rounded-full object-cover shrink-0 shadow-sm"
+              style={{
+                boxShadow: `0 0 0 2px ${accent.ring}, 0 1px 2px rgba(0,0,0,0.08)`,
+              }}
+            />
+          ) : (
+            <span
+              className="size-11 rounded-full grid place-items-center text-white text-sm font-semibold shrink-0 shadow-sm"
+              style={{
+                background: accent.gradient,
+                boxShadow: `0 0 0 2px ${accent.ring}, 0 1px 2px rgba(0,0,0,0.08)`,
+              }}
+            >
+              {INITIALS}
+            </span>
+          )}
           <div className="min-w-0 flex-1">
             <div className="text-sm font-semibold truncate">{NAME}</div>
             <div className="text-[11px] text-muted-foreground truncate">
