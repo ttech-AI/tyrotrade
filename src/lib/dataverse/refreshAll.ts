@@ -755,7 +755,11 @@ export async function refreshAllEntities(
         const result = await listAllByInChunked<Record<string, unknown>>(
           client,
           ENTITY_SETS.expense,
-          "mserp_etgtryprojid",
+          // Plan-detail FK, NOT mserp_etgtryprojid: estimate rows are
+          // stamped on tryplanprojectid (etgtryprojid header rows can be
+          // stale — PRJ000002632 had header 4.0 vs plan 5.5). Aggregation
+          // key below reads the same field.
+          "mserp_tryplanprojectid",
           projids,
           {
             $select: EXPENSE_COLUMNS.join(","),
@@ -774,7 +778,8 @@ export async function refreshAllEntities(
           }
         >();
         for (const row of result.value) {
-          const projectNo = String(row.mserp_etgtryprojid ?? "").trim();
+          // Key by the plan-detail FK (matches the filter above).
+          const projectNo = String(row.mserp_tryplanprojectid ?? "").trim();
           if (!projectNo) continue;
           const expenseTypeCode = String(
             row.mserp_tryexpensetype ?? ""

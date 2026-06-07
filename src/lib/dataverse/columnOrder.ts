@@ -281,7 +281,16 @@ export const SHIP_DISPLAY_COLUMNS = [
  *  Composer groups rows by `mserp_tryexpensetype` so the right-panel
  *  EstimatedExpenseCard summarises by expense type. */
 export const EXPENSE_COLUMNS = [
+  // Estimate rows carry the project link in EITHER mserp_etgtryprojid
+  // (legacy/header rows) OR mserp_tryplanprojectid (plan-detail rows) —
+  // the two are mutually exclusive per row. The estimate ("Tahmini
+  // Gider") filters on the PLAN field: for some projects the header row
+  // is stale (e.g. PRJ000002632 → header 4.0 vs plan-detail 5.5), so the
+  // plan-detail rows are the source of truth. Both kept in $select for
+  // the inspector; the refresh aggregate + per-project hook key/filter
+  // on mserp_tryplanprojectid.
   "mserp_etgtryprojid",
+  "mserp_tryplanprojectid",
   "mserp_tryexpensetype",
   "mserp_expamountusdd",
 ] as const;

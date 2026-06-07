@@ -511,7 +511,9 @@ export function DataManagementPage() {
           const result = await listAllByInChunked<Record<string, unknown>>(
             client,
             ENTITY_SETS.expense,
-            "mserp_etgtryprojid",
+            // Plan-detail FK (not etgtryprojid header — can be stale).
+            // Mirror of refreshAll.ts; key below reads the same field.
+            "mserp_tryplanprojectid",
             projids,
             { $select: EXPENSE_COLUMNS.join(","), $count: true }
           );
@@ -526,7 +528,7 @@ export function DataManagementPage() {
             }
           >();
           for (const row of result.value) {
-            const projectNo = String(row.mserp_etgtryprojid ?? "").trim();
+            const projectNo = String(row.mserp_tryplanprojectid ?? "").trim();
             if (!projectNo) continue;
             const expenseTypeCode = String(
               row.mserp_tryexpensetype ?? ""

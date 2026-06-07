@@ -57,7 +57,10 @@ export function useProjectEstimatedExpense(
         const result = await client.listAll<Record<string, unknown>>(
           ENTITY_SET,
           {
-            $filter: `mserp_etgtryprojid eq '${projectNo}'`,
+            // Plan-detail FK (estimate rows live on tryplanprojectid;
+            // etgtryprojid header rows can be stale). Matches the refresh
+            // aggregate + the comparison card's "Tahmini" total.
+            $filter: `mserp_tryplanprojectid eq '${projectNo}'`,
             $select: EXPENSE_COLUMNS.join(","),
             $count: true,
           }
@@ -98,7 +101,7 @@ export function useProjectEstimatedExpense(
       };
     }
     const projectRows = all.filter(
-      (r) => r["mserp_etgtryprojid"] === projectNo
+      (r) => r["mserp_tryplanprojectid"] === projectNo
     );
     return {
       rows: projectRows,
