@@ -159,8 +159,15 @@ export function buildPLCostTree(
   // Index rollup rows by projectNo for O(1) per-project lookup.
   const rollupByProject = groupBy(rollupRows, (r) => r.projectNo);
 
+  // Only projects WITH a Tahmini (estimate) value belong in the report.
+  // A project with no estimated expense is dropped entirely — not shown
+  // at any breakdown level and excluded from segment/root totals — since
+  // the Tahmini × Gerçekleşen comparison needs a forecast to compare
+  // against. (selectEstimateTotal → costEstimate.totalUsd, 0 when absent.)
+  const estimatedProjects = projects.filter((p) => selectEstimateTotal(p) > 0);
+
   // L1: segment
-  const bySegment = groupBy(projects, (p) => p.segment || "—");
+  const bySegment = groupBy(estimatedProjects, (p) => p.segment || "—");
   const tree: PLCostNode[] = [];
 
   for (const [segmentKey, segmentProjects] of bySegment) {

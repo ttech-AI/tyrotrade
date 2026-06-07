@@ -25,6 +25,7 @@ import {
   type ViewMode,
   type PLCostNode,
 } from "@/lib/selectors/plCost";
+import { selectEstimateTotal } from "@/lib/selectors/project";
 import { PLCostTable } from "@/components/pl-cost/PLCostTable";
 import { PLCostKpiTiles } from "@/components/pl-cost/PLCostKpiTiles";
 import { PLCostProgress } from "@/components/pl-cost/PLCostProgress";
@@ -81,11 +82,18 @@ export function PLCostPage() {
   );
   const totalProjects = projects.length;
 
-  // Projid scope for the rollup = exactly the filtered projects. Running
-  // the realised-expense sweep over this subset (a segment ~60 projects)
-  // instead of all ~850 is the difference between seconds and minutes.
+  // Projid scope for the rollup = the filtered projects that ALSO have a
+  // Tahmini (estimate) value. Two reasons: (1) projects with no forecast
+  // are excluded from the report anyway (buildPLCostTree drops them), so
+  // fetching their realised expense is wasted work; (2) running the sweep
+  // over this subset (a segment ~60 projects) instead of all ~850 is the
+  // difference between seconds and minutes.
   const filteredProjids = React.useMemo(
-    () => projects.map((p) => p.projectNo).filter(Boolean),
+    () =>
+      projects
+        .filter((p) => selectEstimateTotal(p) > 0)
+        .map((p) => p.projectNo)
+        .filter(Boolean),
     [projects]
   );
   // Does the cached rollup already cover every filtered project? If yes
