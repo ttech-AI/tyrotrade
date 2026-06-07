@@ -12,12 +12,14 @@ permissions:
 
 concurrency:
   group: pages
-  # Rapid back-to-back pushes were colliding: a new run's deploy hit the
-  # Pages API while the previous commit's server-side deployment was still
-  # in progress (400 "in progress deployment"). cancel-in-progress=true
-  # makes the latest push win — older in-flight runs are cancelled — which
-  # is the right trade-off for fast iteration (only the newest matters).
-  cancel-in-progress: true
+  # GitHub's official Pages template: queue runs, do NOT cancel an
+  # in-progress one. cancel-in-progress=true backfired — killing a run
+  # mid-deploy orphans its server-side Pages deployment in "in progress",
+  # which then 400-blocks the next push ("due to in progress deployment").
+  # Letting each deploy finish its poll cleanly avoids the orphan; the
+  # remaining collisions are GitHub Pages' own server-side lag on the
+  # custom domain, which clears on its own — just re-run/re-push.
+  cancel-in-progress: false
 
 jobs:
   build:
