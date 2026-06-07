@@ -809,31 +809,22 @@ function computeProjectTons(
   vesselPlan: VesselPlan | undefined,
   lines: ProjectLine[]
 ): number {
-  // Prefer the project line tonnage so estimated expense scales the
-  // same way Tahmini Satış / Tahmini Alım do (both sum
-  // `Σ (line.quantityKg / 1000) × unitPrice`). Mixing voyage tonnage
-  // here would produce an off-axis Tahmini Gider when the vessel
-  // booking covers a different load size than the project lines —
-  // typically because the vessel is shared across multiple projects.
-  // Falls back to vessel plan only when there are no priced lines.
-  const totalQty = lines.reduce((acc, l) => acc + l.quantityKg, 0);
+  // Tahmini Gider scales by the SHIP PLAN's planned tonnage
+  // (`mserp_cargoquantity` → voyageTotalTonnage), reliably in MT across
+  // every project. This is deliberately DIFFERENT from Tahmini Satış /
+  // Tahmini Alım, which scale by the project LINE quantity
+  // (`Σ line.quantityKg / 1000 × unitPrice`): per the user, the expense
+  // forecast tracks the vessel booking, the sales/purchase forecast
+  // tracks the contracted line quantity. Using the ship tonnage here
+  // also sidesteps the line-qty unit anomaly (some projects enter the
+  // line qty in MT instead of KG, e.g. PRJ000002641 → 3000 not
+  // 3,000,000), since the cargo quantity is always MT.
   const voyage = vesselPlan?.voyageTotalTonnage ?? 0;
-  if (totalQty > 0) {
-    const tonsFromKg = totalQty / 1000; // assume line qty is in KG (the norm)
-    // Data-entry anomaly guard: a handful of projects have the line qty
-    // entered in MT instead of KG (e.g. PRJ000002641 → qty 3000 for a
-    // 3000 MT cargo, not 3,000,000). Dividing by 1000 then yields 3 t
-    // and scales Tahmini Gider/Satış 1000× too small. The ship voyage
-    // tonnage (mserp_cargoquantity) is reliably MT across all projects,
-    // so when the KG-assumption tons comes out ~1000× smaller than the
-    // voyage tonnage, the qty was MT — use it verbatim.
-    if (voyage > 0 && tonsFromKg > 0 && voyage / tonsFromKg >= 100) {
-      return totalQty;
-    }
-    return tonsFromKg;
-  }
   if (voyage > 0) return voyage;
-  return 0;
+  // Fallback only when there's no ship plan at all — derive from the
+  // project lines (KG → MT).
+  const totalQty = lines.reduce((acc, l) => acc + l.quantityKg, 0);
+  return totalQty > 0 ? totalQty / 1000 : 0;
 }
 
 /* ─────────── Expenses → CostEstimateLine[] (per-line totals) ─────────── */
