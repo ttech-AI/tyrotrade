@@ -84,18 +84,16 @@ const REFMAP_ENTITY = "mserp_tryaiotherexpenseprojectlineentities";
 
 /** F&O `mserp_expenseid` codes excluded from realised operational
  *  P&L. Same set + names that live in `useProjectExpenseLines.ts`
- *  so the per-project drill-down and the Trade Cost aggregate
- *  agree on which codes are filtered out:
- *    - "710017" — FIYAT FARKLARI / SATINALMA FIYAT FARKLARI
- *    - "710041" — SATIS FIYAT FARKLARI
- *    - "730030" — ITHALAT BULK KDV
- *    - "731016" — ITHALAT - DAMGA VERGISI
- *    - "790051" — ITHALAT - HAZINE FIYAT FARKI
- *    - "790052" — IHRACAT - HAZINE FIYAT FARKI
+ *  so the per-project drill-down and the Trade Cost aggregate agree.
+ *  Pass-through TAXES / treasury transfers only — the price-difference
+ *  codes 710017 / 710041 were removed (Power BI counts them; their
+ *  direction is handled by the Vendor/Customer × isReturned sign):
+ *    - "730030" — ITHALAT BULK KDV (vergi)
+ *    - "731016" — ITHALAT - DAMGA VERGISI (vergi)
+ *    - "790051" — ITHALAT - HAZINE FIYAT FARKI (hazine transferi)
+ *    - "790052" — IHRACAT - HAZINE FIYAT FARKI (hazine transferi)
  *  Extend in both files together. */
 const EXCLUDED_EXPENSE_IDS = new Set<string>([
-  "710017",
-  "710041",
   "730030",
   "731016",
   "790051",
@@ -132,6 +130,20 @@ function parsePosted(raw: unknown, formatted?: unknown): boolean | null {
   )
     return false;
   return null;
+}
+
+/** F&O `mserp_isreturned` (header) → boolean. NoYes OPTION-SET (Yes =
+ *  200000001 = returned). A returned line FLIPS the Vendor/Customer
+ *  sign — returned Vendor cost reduces realised (−), returned Customer
+ *  reflection adds back (+). Non-Yes → not returned. Same helper lives
+ *  in `useProjectExpenseLines.ts`; verified vs Power BI on PRJ000002000. */
+function isReturnedYes(raw: unknown, formatted?: unknown): boolean {
+  const f = String(formatted ?? "")
+    .trim()
+    .toLowerCase();
+  if (f === "yes" || f === "evet") return true;
+  if (f === "no" || f === "hayır" || f === "hayir") return false;
+  return raw === true || raw === 1 || raw === "1" || raw === 200000001;
 }
 
 /* ─────────── Progress reporting ─────────── */
@@ -386,17 +398,17 @@ export async function fetchActualExpenseRollupForAllProjects(
       allExpenseNums,
       {
         $select:
-          "mserp_expensenum,mserp_currencycode,mserp_exchratesecond,mserp_accounttype,mserp_posted",
+          "mserp_expensenum,mserp_currencycode,mserp_exchratesecond,mserp_accounttype,mserp_posted,mserp_isreturned",
       }
     )
       .then((r) => ({ status: "fulfilled" as const, value: r }))
       .catch((reason) => ({ status: "rejected" as const, reason })),
   ]);
 
-  // Build expensenum → { currency, rate, accountType } map from
-  // header rows. If the whole fetch failed (rare — proxy/5xx),
-  // the map stays empty and every line gets dropped since we
-  // need accounttype to decide the sign (Vendor +, Customer −).
+  // Build expensenum → { currency, rate, accountType, posted, isReturned }
+  // map from header rows. If the whole fetch failed (rare — proxy/5xx),
+  // the map stays empty and every line gets dropped since we need
+  // accounttype + isReturned to decide the sign.
   const headerByExpenseNum = new Map<
     string,
     {
@@ -404,6 +416,7 @@ export async function fetchActualExpenseRollupForAllProjects(
       rate: number;
       accountType: number | null;
       posted: boolean | null;
+      isReturned: boolean;
     }
   >();
   if (headerSettled.status === "fulfilled") {
@@ -420,6 +433,10 @@ export async function fetchActualExpenseRollupForAllProjects(
         posted: parsePosted(
           h.mserp_posted,
           h["mserp_posted@OData.Community.Display.V1.FormattedValue"]
+        ),
+        isReturned: isReturnedYes(
+          h.mserp_isreturned,
+          h["mserp_isreturned@OData.Community.Display.V1.FormattedValue"]
         ),
       });
     }
@@ -541,7 +558,11 @@ export async function fetchActualExpenseRollupForAllProjects(
       // only kept rows whose expensenum is in headerByExpenseNum
       // with a Vendor/Customer accountType).
       const header = headerByExpenseNum.get(en)!;
-      const sign = header.accountType === ACCOUNT_TYPE_VENDOR ? +1 : -1;
+      // Base Vendor(+)/Customer(−), flipped when the line is returned
+      // (returned Vendor cost reduces realised, returned Customer
+      // reflection adds back). Matches Power BI — verified PRJ000002000.
+      const base = header.accountType === ACCOUNT_TYPE_VENDOR ? +1 : -1;
+      const sign = header.isReturned ? -base : base;
       // Projectnum-only lines (not reachable via this project's
       // inventdimid chain) get a final dimension cross-check below.
       const projnumOnly = !dimDerivedEns.has(en);

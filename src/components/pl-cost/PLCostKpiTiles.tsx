@@ -114,7 +114,7 @@ export function PLCostKpiTiles({
           tooltip={{
             title: "Toplam Gerçekleşen Gider",
             body:
-              "F&O fatura/expense kayıtlarından gelen gerçekleşen gider toplamı. Inventdimb → distribution → expense-line zincirinden aggregate edilir. 710041 (Satış Fiyat Farkı) negatif kontribüsyon olarak işlenir, yani toplamı düşürür. Bu rakam tahmine yaklaştıkça proje performansı tutarlıdır.",
+              "F&O fatura/expense kayıtlarından gelen gerçekleşen gider toplamı. Inventdimb → distribution → expense-line zincirinden aggregate edilir. Her satırın işareti Vendor(+)/Customer(−) bazına göre, iade (isReturned) ise ters çevrilerek hesaplanır — Power BI ile birebir. Vergi/hazine kodları (KDV, Damga) hariç tutulur. Bu rakam tahmine yaklaştıkça proje performansı tutarlıdır.",
             formula: "Σ rollup.totalUsd (PRJ × expense)",
           }}
         />

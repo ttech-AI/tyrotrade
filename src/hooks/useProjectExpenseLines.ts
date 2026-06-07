@@ -60,21 +60,21 @@ const ACCOUNT_TYPE_CUSTOMER = 200000001;
  *  itself is strictly numeric, so a label rename in F&O won't
  *  re-admit the row.
  *
- *  Excluded set:
- *    - "710017" — FIYAT FARKLARI / SATINALMA FIYAT FARKLARI
- *    - "710041" — SATIS FIYAT FARKLARI
- *    - "730030" — ITHALAT BULK KDV
- *    - "731016" — ITHALAT - DAMGA VERGISI
- *    - "790051" — ITHALAT - HAZINE FIYAT FARKI
- *    - "790052" — IHRACAT - HAZINE FIYAT FARKI
+ *  Excluded set — pass-through TAXES / treasury transfers only. The
+ *  price-difference codes 710017 (FIYAT FARKLARI) and 710041 (SATIS
+ *  FIYAT FARKLARI) used to be here, but Power BI counts them in
+ *  realised expense (verified on PRJ000002000), so they were removed —
+ *  their direction is now handled by the Vendor/Customer × isReturned
+ *  sign below, not by exclusion:
+ *    - "730030" — ITHALAT BULK KDV (vergi)
+ *    - "731016" — ITHALAT - DAMGA VERGISI (vergi)
+ *    - "790051" — ITHALAT - HAZINE FIYAT FARKI (hazine transferi)
+ *    - "790052" — IHRACAT - HAZINE FIYAT FARKI (hazine transferi)
  *
- *  Extend this set as new pass-through / FX-adjustment codes
- *  surface; the same constant lives in `actualExpenseRollup.ts`
- *  so the per-project drill-down and the Trade Cost aggregate
- *  stay in sync. */
+ *  Extend this set as new pass-through / tax codes surface; the same
+ *  constant lives in `actualExpenseRollup.ts` so the per-project
+ *  drill-down and the Trade Cost aggregate stay in sync. */
 const EXCLUDED_EXPENSE_IDS = new Set<string>([
-  "710017",
-  "710041",
   "730030",
   "731016",
   "790051",
@@ -130,6 +130,22 @@ function parsePosted(raw: unknown, formatted?: unknown): boolean | null {
   )
     return false;
   return null;
+}
+
+/** F&O `mserp_isreturned` (header) → boolean. NoYes OPTION-SET: Yes =
+ *  200000001 (returned), No = 200000000. A "returned" line FLIPS the
+ *  Vendor/Customer sign — a returned Vendor cost reduces realised (−),
+ *  a returned Customer reflection adds back (+). Anything that isn't an
+ *  explicit Yes is treated as not-returned (false), so a missing value
+ *  defaults to the normal Vendor+/Customer− direction. Verified against
+ *  Power BI on PRJ000002000 (total reconciled to the cent). */
+function isReturnedYes(raw: unknown, formatted?: unknown): boolean {
+  const f = String(formatted ?? "")
+    .trim()
+    .toLowerCase();
+  if (f === "yes" || f === "evet") return true;
+  if (f === "no" || f === "hayır" || f === "hayir") return false;
+  return raw === true || raw === 1 || raw === "1" || raw === 200000001;
 }
 
 /* ─────────── Per-project in-memory LRU cache ───────────
@@ -307,7 +323,7 @@ async function runExpenseChain(
       client.listAll<Record<string, unknown>>(EXPENSE_TABLE_ENTITY, {
         $filter: inFilter,
         $select:
-          "mserp_expensenum,mserp_currencycode,mserp_exchratesecond,mserp_accounttype,mserp_posted",
+          "mserp_expensenum,mserp_currencycode,mserp_exchratesecond,mserp_accounttype,mserp_posted,mserp_isreturned",
       })
     );
   }
@@ -327,6 +343,7 @@ async function runExpenseChain(
       rate: number;
       accountType: number | null;
       posted: boolean | null;
+      isReturned: boolean;
     }
   >();
   for (const settled of headerSettled) {
@@ -344,6 +361,10 @@ async function runExpenseChain(
         posted: parsePosted(
           h.mserp_posted,
           h["mserp_posted@OData.Community.Display.V1.FormattedValue"]
+        ),
+        isReturned: isReturnedYes(
+          h.mserp_isreturned,
+          h["mserp_isreturned@OData.Community.Display.V1.FormattedValue"]
         ),
       });
     }
@@ -398,16 +419,20 @@ async function runExpenseChain(
       droppedDraftCount += 1;
       continue;
     }
-    const sign =
+    const base =
       header.accountType === ACCOUNT_TYPE_VENDOR
         ? +1
         : header.accountType === ACCOUNT_TYPE_CUSTOMER
           ? -1
           : 0;
-    if (sign === 0) {
+    if (base === 0) {
       droppedUnknownAccountTypeCount += 1;
       continue;
     }
+    // isReturned flips the Vendor/Customer base sign: a returned Vendor
+    // cost reduces realised (−), a returned Customer reflection adds
+    // back (+). Matches Power BI (verified on PRJ000002000).
+    const sign = header.isReturned ? -base : base;
 
     const out: Record<string, unknown> = { ...r };
     const ref = code ? refMap.get(code) : undefined;
