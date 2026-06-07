@@ -6,6 +6,12 @@ import { cn } from "@/lib/utils";
 import { type Project } from "@/lib/dataverse/entities";
 import { useThemeAccent } from "@/components/layout/theme-accent";
 import { TYRO_CHAT_TONE } from "@/components/layout/TyroChatButton";
+import { prefetchProjectExpenseLines } from "@/hooks/useProjectExpenseLines";
+
+/** Hover→click intent delay before warming the realised-expense cache.
+ *  Long enough that cards the pointer merely sweeps over don't each fire
+ *  a fetch; short enough to be done by the time the user clicks. */
+const PREFETCH_INTENT_MS = 180;
 
 interface ProjectCardProps {
   project: Project;
@@ -82,11 +88,39 @@ export function ProjectCard({ project, selected, onClick, onQuickAsk }: ProjectC
       ? rawVessel
       : null;
 
+  // Hover prefetch — warm the realised-expense chain so the right-rail
+  // "Gider Karşılaştırması" card is already (or nearly) ready by the
+  // time the user clicks. Debounced by intent; a passing sweep doesn't
+  // fetch. prefetchProjectExpenseLines is a no-op if already cached /
+  // in flight, so this is cheap to fire.
+  const prefetchTimer = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+  const startPrefetch = React.useCallback(() => {
+    prefetchTimer.current = setTimeout(
+      () => prefetchProjectExpenseLines(project.projectNo),
+      PREFETCH_INTENT_MS
+    );
+  }, [project.projectNo]);
+  const cancelPrefetch = React.useCallback(() => {
+    if (prefetchTimer.current) {
+      clearTimeout(prefetchTimer.current);
+      prefetchTimer.current = null;
+    }
+  }, []);
+  React.useEffect(() => cancelPrefetch, [cancelPrefetch]); // clear on unmount
+
   return (
-    <div className="relative group">
+    <div
+      className="relative group"
+      onMouseEnter={startPrefetch}
+      onMouseLeave={cancelPrefetch}
+    >
     <button
       type="button"
       onClick={onClick}
+      // Keyboard navigation is deliberate intent → prefetch immediately.
+      onFocus={() => prefetchProjectExpenseLines(project.projectNo)}
       aria-current={selected ? "true" : undefined}
       className={cn(
         "group relative w-full min-w-0 max-w-full text-left rounded-xl px-3 py-2.5 transition-colors overflow-hidden",
