@@ -816,11 +816,23 @@ function computeProjectTons(
   // booking covers a different load size than the project lines —
   // typically because the vessel is shared across multiple projects.
   // Falls back to vessel plan only when there are no priced lines.
-  const totalKg = lines.reduce((acc, l) => acc + l.quantityKg, 0);
-  if (totalKg > 0) return totalKg / 1000;
-  if (vesselPlan && vesselPlan.voyageTotalTonnage > 0) {
-    return vesselPlan.voyageTotalTonnage;
+  const totalQty = lines.reduce((acc, l) => acc + l.quantityKg, 0);
+  const voyage = vesselPlan?.voyageTotalTonnage ?? 0;
+  if (totalQty > 0) {
+    const tonsFromKg = totalQty / 1000; // assume line qty is in KG (the norm)
+    // Data-entry anomaly guard: a handful of projects have the line qty
+    // entered in MT instead of KG (e.g. PRJ000002641 → qty 3000 for a
+    // 3000 MT cargo, not 3,000,000). Dividing by 1000 then yields 3 t
+    // and scales Tahmini Gider/Satış 1000× too small. The ship voyage
+    // tonnage (mserp_cargoquantity) is reliably MT across all projects,
+    // so when the KG-assumption tons comes out ~1000× smaller than the
+    // voyage tonnage, the qty was MT — use it verbatim.
+    if (voyage > 0 && tonsFromKg > 0 && voyage / tonsFromKg >= 100) {
+      return totalQty;
+    }
+    return tonsFromKg;
   }
+  if (voyage > 0) return voyage;
   return 0;
 }
 

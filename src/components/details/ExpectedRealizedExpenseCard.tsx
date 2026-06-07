@@ -20,6 +20,19 @@ interface Props {
 }
 
 /**
+ * Adaptive money format for the comparison bars / variance pill.
+ * Thousands are shown in FULL (e.g. "$9.000", "$786.000") — the compact
+ * "Bin" abbreviation ("9 B") reads as confusing at this scale. Only at
+ * 1M+ — where the full string would overflow the value slot — do we fall
+ * back to the compact form ("$1,2 Mn").
+ */
+function fmtMoney(usd: number): string {
+  return Math.abs(usd) < 1_000_000
+    ? formatCurrency(usd, "USD", { maximumFractionDigits: 0 })
+    : formatCompactCurrency(usd, "USD");
+}
+
+/**
  * Tahmini × Gerçekleşen Gider — premium comparison card on the Vessel
  * Projects right rail, directly under `CommoditySalesCard` ("Taşınan
  * Ürün"). Two horizontal bars (realized vs expected, shared scale) on
@@ -128,7 +141,7 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
               fill={tone.solid}
               value={
                 hasRealized
-                  ? formatCompactCurrency(realized.usdTotal, "USD")
+                  ? fmtMoney(realized.usdTotal)
                   : isFetching
                     ? "…"
                     : "$0"
@@ -143,7 +156,7 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
               label="Planned"
               widthPct={expectedW}
               fill="rgba(100,116,139,0.55)"
-              value={hasExpected ? formatCompactCurrency(expectedUsd, "USD") : "—"}
+              value={hasExpected ? fmtMoney(expectedUsd) : "—"}
               valueTone="rgb(71 85 105)"
               reduceMotion={!!reduceMotion}
               tooltip={
@@ -176,7 +189,7 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
           {hasExpected && hasRealized && (
             <span className="text-[13px] font-bold tabular-nums">
               {variance >= 0 ? "+" : "−"}
-              {formatCompactCurrency(Math.abs(variance), "USD")}
+              {fmtMoney(Math.abs(variance))}
               {variancePct != null && (
                 <span className="text-[11.5px] font-semibold opacity-80 ml-1.5">
                   ({variance >= 0 ? "+" : "−"}
@@ -317,7 +330,7 @@ function BarRow({
         />
       </div>
       <span
-        className="w-[56px] shrink-0 text-right text-[12.5px] font-bold tabular-nums"
+        className="min-w-[56px] shrink-0 text-right text-[12.5px] font-bold tabular-nums"
         style={{ color: valueTone }}
       >
         {value}
