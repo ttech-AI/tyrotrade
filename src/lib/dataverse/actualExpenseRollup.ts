@@ -508,16 +508,25 @@ export async function fetchActualExpenseRollupForAllProjects(
     ...projToInventDimIds.keys(),
     ...projToProjnumExpenseNums.keys(),
   ]);
+  // Projectnum-only lines whose dimension string doesn't carry the
+  // project (mistagged projectnum) — dropped from realised.
+  let droppedDimMismatchCount = 0;
   for (const projid of allLinkedProjids) {
-    // Collect this project's expensenum set from BOTH sources.
+    // Collect this project's expensenum set from BOTH sources, but keep
+    // the inventdimid-derived set separate: those expensenums are
+    // project-dimensioned (inventdimension2 = this project) → trusted.
+    // Expensenums coming ONLY via the projectnum stamp get a final
+    // dimension cross-check in the row loop below.
     const projExpenseNums = new Set<string>();
+    const dimDerivedEns = new Set<string>();
     const dimIds = projToInventDimIds.get(projid);
     if (dimIds) {
       for (const did of dimIds) {
         const ens = dimToExpenseNums.get(did);
-        if (ens) for (const en of ens) projExpenseNums.add(en);
+        if (ens) for (const en of ens) dimDerivedEns.add(en);
       }
     }
+    for (const en of dimDerivedEns) projExpenseNums.add(en);
     const pnEns = projToProjnumExpenseNums.get(projid);
     if (pnEns) for (const en of pnEns) projExpenseNums.add(en);
     if (projExpenseNums.size === 0) continue;
@@ -533,6 +542,9 @@ export async function fetchActualExpenseRollupForAllProjects(
       // with a Vendor/Customer accountType).
       const header = headerByExpenseNum.get(en)!;
       const sign = header.accountType === ACCOUNT_TYPE_VENDOR ? +1 : -1;
+      // Projectnum-only lines (not reachable via this project's
+      // inventdimid chain) get a final dimension cross-check below.
+      const projnumOnly = !dimDerivedEns.has(en);
       for (const exr of expRows) {
         // Cross-contamination guard: a line reached via a shared
         // inventdimid / expensenum may belong to a DIFFERENT project —
@@ -541,6 +553,19 @@ export async function fetchActualExpenseRollupForAllProjects(
         // attributed to THIS project.
         const linePid = String(exr.mserp_projectnum ?? "").trim();
         if (linePid && linePid !== projid) continue;
+        // Final dimension cross-check — projectnum-ONLY lines only.
+        // A line reached solely via the mserp_projectnum stamp is trusted
+        // only if this project number appears in its financial-dimension
+        // string. Mistagged projectnum → dimension lacks the project →
+        // drop. (Inventdimid-chain lines are project-dimensioned already
+        // and skip this check — matches useProjectExpenseLines.)
+        if (projnumOnly) {
+          const ddv = String(exr.mserp_defaultdimensiondisplayvalue ?? "");
+          if (!ddv.includes(projid)) {
+            droppedDimMismatchCount += 1;
+            continue;
+          }
+        }
         const expenseId = String(exr.mserp_expenseid ?? "").trim();
         if (!expenseId) continue;
         const description = String(exr.mserp_description ?? "").trim();
@@ -570,6 +595,13 @@ export async function fetchActualExpenseRollupForAllProjects(
         }
       }
     }
+  }
+
+  if (droppedDimMismatchCount > 0) {
+    // eslint-disable-next-line no-console
+    console.info(
+      `[actualExpenseRollup] dropped ${droppedDimMismatchCount} projectnum-only line(s) failing the dimension cross-check (mistagged projectnum).`
+    );
   }
 
   // Flatten + refmap join.

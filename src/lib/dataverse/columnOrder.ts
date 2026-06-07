@@ -396,6 +396,15 @@ export const EXPENSE_LINE_COLUMNS = [
   // reachable through the inventdimid → distribution chain — see the
   // projectnum-direct path ("Step P") in useProjectExpenseLines.
   "mserp_projectnum",
+  // Financial-dimension display string (e.g.
+  // "TRB-SRB|TRD-OPR/TH|||C04330|||||PRJ000002570|||||"). Used as a
+  // FINAL cross-check on projectnum-ONLY lines: if a line reached solely
+  // via the mserp_projectnum stamp doesn't carry this project number in
+  // its dimension string, the projectnum was mistagged and the line is
+  // dropped from realised. Fetched in $select (no separate contains
+  // query → no server-side timeout). Lines reached via the inventdimid
+  // chain are project-dimensioned already and skip this check.
+  "mserp_defaultdimensiondisplayvalue",
 ] as const;
 
 /** mserp_tryaivendinvoicetransentities — Realised (actual) project

@@ -315,6 +315,14 @@ export function useProjectExpenseLines(
           }
         }
 
+        // Expensenums reached via the inventdimid → distribution chain
+        // are project-dimensioned by construction (inventdimension2 =
+        // this project), so they're trusted as-is. Expensenums found
+        // ONLY via the projectnum stamp (Step P) rest solely on
+        // mserp_projectnum, which can be mistagged — those get a final
+        // dimension cross-check in the enrichment loop below.
+        const distSet = new Set(distExpensenums);
+
         // Union both expensenum sources — inventdimid → distribution
         // chain AND the projectnum-direct path. De-duped so a voucher
         // reachable both ways is fetched (and enriched) only once.
@@ -442,6 +450,7 @@ export function useProjectExpenseLines(
         let droppedUnknownAccountTypeCount = 0;
         let droppedForeignProjectCount = 0;
         let droppedDraftCount = 0;
+        let droppedDimMismatchCount = 0;
         for (const r of all) {
           const code = String(r.mserp_expenseid ?? "").trim();
           if (code && EXCLUDED_EXPENSE_IDS.has(code)) {
@@ -460,6 +469,20 @@ export function useProjectExpenseLines(
             continue;
           }
           const expensenum = String(r.mserp_expensenum ?? "").trim();
+          // Final dimension cross-check — projectnum-ONLY lines only.
+          // A line reached SOLELY via the mserp_projectnum stamp (not the
+          // inventdimid chain) is trusted only if this project number
+          // also appears in its financial-dimension string. If projectnum
+          // was mistagged, the dimension won't carry this project → drop
+          // it from realised. Lines reached via the inventdimid chain are
+          // project-dimensioned already, so they skip this check.
+          if (expensenum && !distSet.has(expensenum)) {
+            const ddv = String(r.mserp_defaultdimensiondisplayvalue ?? "");
+            if (!ddv.includes(projectNo)) {
+              droppedDimMismatchCount += 1;
+              continue;
+            }
+          }
           const header = expensenum
             ? headerByExpensenum.get(expensenum)
             : undefined;
@@ -509,11 +532,12 @@ export function useProjectExpenseLines(
           droppedNoHeaderCount +
           droppedUnknownAccountTypeCount +
           droppedForeignProjectCount +
-          droppedDraftCount;
+          droppedDraftCount +
+          droppedDimMismatchCount;
         if (droppedTotal > 0) {
           // eslint-disable-next-line no-console
           console.info(
-            `[useProjectExpenseLines] ${projectNo}: kept ${enriched.length}/${all.length} lines (dropped ${droppedExcludedCount} excluded-id, ${droppedNoHeaderCount} no-header, ${droppedUnknownAccountTypeCount} unknown-accounttype, ${droppedForeignProjectCount} foreign-projectnum, ${droppedDraftCount} draft).`
+            `[useProjectExpenseLines] ${projectNo}: kept ${enriched.length}/${all.length} lines (dropped ${droppedExcludedCount} excluded-id, ${droppedNoHeaderCount} no-header, ${droppedUnknownAccountTypeCount} unknown-accounttype, ${droppedForeignProjectCount} foreign-projectnum, ${droppedDraftCount} draft, ${droppedDimMismatchCount} dim-mismatch).`
           );
         }
 
