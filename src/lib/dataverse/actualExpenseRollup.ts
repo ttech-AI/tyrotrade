@@ -485,6 +485,13 @@ export async function fetchActualExpenseRollupForAllProjects(
       const header = headerByExpenseNum.get(en)!;
       const sign = header.accountType === ACCOUNT_TYPE_VENDOR ? +1 : -1;
       for (const exr of expRows) {
+        // Cross-contamination guard: a line reached via a shared
+        // inventdimid / expensenum may belong to a DIFFERENT project —
+        // its authoritative `mserp_projectnum` then names that other
+        // project. Empty projectnum is fine; a foreign one must not be
+        // attributed to THIS project.
+        const linePid = String(exr.mserp_projectnum ?? "").trim();
+        if (linePid && linePid !== projid) continue;
         const expenseId = String(exr.mserp_expenseid ?? "").trim();
         if (!expenseId) continue;
         const description = String(exr.mserp_description ?? "").trim();

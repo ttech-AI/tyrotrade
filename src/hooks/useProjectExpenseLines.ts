@@ -396,10 +396,22 @@ export function useProjectExpenseLines(
         let droppedExcludedCount = 0;
         let droppedNoHeaderCount = 0;
         let droppedUnknownAccountTypeCount = 0;
+        let droppedForeignProjectCount = 0;
         for (const r of all) {
           const code = String(r.mserp_expenseid ?? "").trim();
           if (code && EXCLUDED_EXPENSE_IDS.has(code)) {
             droppedExcludedCount += 1;
+            continue;
+          }
+          // Cross-contamination guard: a line reached via a shared
+          // inventdimid / expensenum may actually belong to a DIFFERENT
+          // project — its authoritative `mserp_projectnum` then names
+          // that other project. Empty projectnum is fine (can't
+          // disqualify), but a foreign project number must not count
+          // toward THIS project's realised expense.
+          const linePid = String(r.mserp_projectnum ?? "").trim();
+          if (linePid && linePid !== projectNo) {
+            droppedForeignProjectCount += 1;
             continue;
           }
           const expensenum = String(r.mserp_expensenum ?? "").trim();
@@ -442,11 +454,12 @@ export function useProjectExpenseLines(
         const droppedTotal =
           droppedExcludedCount +
           droppedNoHeaderCount +
-          droppedUnknownAccountTypeCount;
+          droppedUnknownAccountTypeCount +
+          droppedForeignProjectCount;
         if (droppedTotal > 0) {
           // eslint-disable-next-line no-console
           console.info(
-            `[useProjectExpenseLines] ${projectNo}: kept ${enriched.length}/${all.length} lines (dropped ${droppedExcludedCount} excluded-id, ${droppedNoHeaderCount} no-header, ${droppedUnknownAccountTypeCount} unknown-accounttype).`
+            `[useProjectExpenseLines] ${projectNo}: kept ${enriched.length}/${all.length} lines (dropped ${droppedExcludedCount} excluded-id, ${droppedNoHeaderCount} no-header, ${droppedUnknownAccountTypeCount} unknown-accounttype, ${droppedForeignProjectCount} foreign-projectnum).`
           );
         }
 
