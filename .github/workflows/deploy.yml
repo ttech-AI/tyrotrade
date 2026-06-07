@@ -12,7 +12,12 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: false
+  # Rapid back-to-back pushes were colliding: a new run's deploy hit the
+  # Pages API while the previous commit's server-side deployment was still
+  # in progress (400 "in progress deployment"). cancel-in-progress=true
+  # makes the latest push win — older in-flight runs are cancelled — which
+  # is the right trade-off for fast iteration (only the newest matters).
+  cancel-in-progress: true
 
 jobs:
   build:
