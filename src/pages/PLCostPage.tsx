@@ -81,6 +81,22 @@ export function PLCostPage() {
   );
   const totalProjects = projects.length;
 
+  // Projid scope for the rollup = exactly the filtered projects. Running
+  // the realised-expense sweep over this subset (a segment ~60 projects)
+  // instead of all ~850 is the difference between seconds and minutes.
+  const filteredProjids = React.useMemo(
+    () => projects.map((p) => p.projectNo).filter(Boolean),
+    [projects]
+  );
+  // Does the cached rollup already cover every filtered project? If yes
+  // we render straight from cache; if the filter widened past the last
+  // run, fall back to the ComputePrompt so numbers are never partial.
+  const coversFilter = React.useMemo(() => {
+    if (filteredProjids.length === 0) return false;
+    const computed = new Set(rollup.computedProjids);
+    return filteredProjids.every((id) => computed.has(id));
+  }, [filteredProjids, rollup.computedProjids]);
+
   // Build the tree only once per (projects × rollup × viewMode) combo.
   const tree = React.useMemo<PLCostNode[]>(() => {
     if (rollup.isEmpty || projects.length === 0) return [];
@@ -129,8 +145,10 @@ export function PLCostPage() {
   // panel (which already covers the same content slot).
   const handleRefresh = React.useCallback(() => {
     if (rollup.isFetching) return;
-    rollup.refresh();
-  }, [rollup]);
+    // Scope the sweep to the filtered projects — the page only ever
+    // renders this subset, so computing more would be wasted minutes.
+    rollup.refresh(filteredProjids);
+  }, [rollup, filteredProjids]);
 
   // Detail panel: selected node id (path) + lookup helper.
   const [selectedNodeId, setSelectedNodeId] = React.useState<string | null>(
@@ -227,17 +245,20 @@ export function PLCostPage() {
             totalProjects={totalProjects}
           />
         </GlassPanel>
-      ) : rollup.isEmpty ? (
-        // Cache boş (ilk ziyaret / Veri Yönetimi sonrası invalidation).
-        // Kullanıcıya ne hesaplanacağını anlatan sade bir boş durum +
-        // tek "Hesapla" CTA'sı. Tıklayınca rollup başlar (isFetching →
-        // PLCostProgress devralır), biter bitmez tree render edilir.
-        // `hasProjects` master proje cache'inden gelir (filtre değil) —
-        // veri hiç yüklenmediyse Hesapla yerine Veri Yönetimi'ne yönlendirir.
+      ) : rollup.isEmpty || !coversFilter ? (
+        // Cache boş (ilk ziyaret / Veri Yönetimi sonrası invalidation)
+        // VEYA filtre son hesaplanan kapsamı aşıyor → sade boş durum +
+        // "Hesapla" CTA'sı. Tıklayınca rollup SADECE filtrelenmiş
+        // projeler için çalışır (isFetching → PLCostProgress devralır),
+        // biter bitmez tree render edilir. `hasProjects` master proje
+        // cache'inden gelir; veri hiç yüklenmediyse Veri Yönetimi'ne
+        // yönlendirir. `stale` = cache dolu ama filtre kapsanmıyor.
         <ComputePrompt
           accentRing={accent.ring}
           accentGradient={accent.gradient}
           hasProjects={rawProjects.length > 0}
+          count={filteredProjids.length}
+          stale={!rollup.isEmpty && !coversFilter}
           onCompute={handleRefresh}
         />
       ) : (
@@ -502,13 +523,22 @@ function ComputePrompt({
   accentRing,
   accentGradient,
   hasProjects,
+  count,
+  stale,
   onCompute,
 }: {
   accentRing: string;
   accentGradient: string;
   hasProjects: boolean;
+  /** Number of currently-filtered projects the compute will scope to. */
+  count: number;
+  /** Cache exists but the current filter widened past it → re-run. */
+  stale: boolean;
   onCompute: () => void;
 }) {
+  // Rough wall-clock hint scaled by scope — a segment is seconds, the
+  // whole tenant is minutes. Encourages narrowing the filter.
+  const heavy = count > 150;
   return (
     <GlassPanel tone="default" className="flex-1 min-h-0 rounded-2xl">
       <div className="h-full flex items-center justify-center p-8">
@@ -536,16 +566,32 @@ function ComputePrompt({
               Tahmini × Gerçekleşen Maliyet
             </h2>
             <p className="text-[13.5px] text-muted-foreground leading-relaxed max-w-md mx-auto">
-              Her segment için{" "}
-              <span className="font-semibold text-foreground">Tahmini Gider</span>{" "}
-              ve{" "}
-              <span className="font-semibold text-foreground">
-                Gerçekleşen Gider
-              </span>{" "}
-              karşılaştırması. Hesapla'ya bastığında tüm projelerin
-              gerçekleşen masrafları çekilir
-              {hasProjects ? " (~30-60 sn)" : ""}; sonuç önbelleğe alınır,
-              tekrar açtığında anında gelir.
+              {stale ? (
+                <>
+                  Filtre değişti — yeni kapsam için yeniden hesapla. Hesapla,
+                  yalnızca{" "}
+                  <span className="font-semibold text-foreground">
+                    filtrelenmiş {count} proje
+                  </span>{" "}
+                  için gerçekleşen masrafları çeker.
+                </>
+              ) : (
+                <>
+                  Her segment için{" "}
+                  <span className="font-semibold text-foreground">
+                    Tahmini Gider
+                  </span>{" "}
+                  ve{" "}
+                  <span className="font-semibold text-foreground">
+                    Gerçekleşen Gider
+                  </span>{" "}
+                  karşılaştırması. Hesapla, yalnızca{" "}
+                  <span className="font-semibold text-foreground">
+                    filtrelenmiş {count} proje
+                  </span>{" "}
+                  için çalışır; sonuç önbelleğe alınır.
+                </>
+              )}
             </p>
           </div>
 
@@ -560,7 +606,7 @@ function ComputePrompt({
               }}
             >
               <HugeiconsIcon icon={RefreshIcon} size={17} strokeWidth={2} />
-              Hesapla
+              Hesapla ({count})
             </button>
           ) : (
             <div className="text-[13px] text-muted-foreground/90 pt-1">
@@ -572,6 +618,15 @@ function ComputePrompt({
                 <HugeiconsIcon icon={Database01Icon} size={13} strokeWidth={2} />
                 Veri Yönetimi'ne git
               </Link>
+            </div>
+          )}
+
+          {/* Hız ipucu — geniş kapsam yavaş; segment seçimi saniyeler. */}
+          {hasProjects && heavy && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 text-amber-700 text-[12px] font-medium">
+              <span className="size-1.5 rounded-full bg-amber-500" />
+              {count} proje uzun sürebilir — üstten bir segment seçerek
+              saniyelere indirebilirsin.
             </div>
           )}
 

@@ -37,6 +37,10 @@ export interface StageProgress {
 export interface UseActualExpenseRollupReturn {
   /** Flat realised-expense rollup rows (per projectNo × expenseId). */
   rows: ActualExpenseRollupRow[];
+  /** ProjectNos the cached rollup was last computed for. Lets the page
+   *  tell whether the current filtered set is fully covered (→ render
+   *  from cache) or extends beyond it (→ prompt a scoped re-compute). */
+  computedProjids: string[];
   /** ISO timestamp of the most recent successful fetch, or null. */
   fetchedAt: string | null;
   /** True when the cache is missing entirely (first visit / cleared). */
@@ -49,10 +53,17 @@ export interface UseActualExpenseRollupReturn {
    *  UI. Reset to all-pending when a fresh fetch starts; updates as
    *  each stage transitions through `running` → `done`. */
   stages: StageProgress[];
-  /** Manually trigger a fetch (page's test "Yenile" button) —
-   *  bypasses the staleness check. */
-  refresh: () => void;
+  /** Manually trigger a fetch. Pass the scoped projid list (the
+   *  currently-filtered projects) to compute ONLY those — dramatically
+   *  faster than the full tenant sweep. Omit to recompute every active
+   *  project (cache-derived, the slow path). */
+  refresh: (projids?: string[]) => void;
 }
+
+/** Sibling cache holding the projid SCOPE the rollup was computed for.
+ *  Written in the same tick as the rollup cache, so the snapshot memo
+ *  (keyed on the rollup fingerprint) reads a consistent pair. */
+const ROLLUP_SCOPE_CACHE = "actualExpenseRollupScope";
 
 const INITIAL_STAGES: StageProgress[] = ROLLUP_STAGES.map((stage) => ({
   stage,
@@ -90,8 +101,10 @@ export function useActualExpenseRollup(): UseActualExpenseRollupReturn {
     const cached = readCache<ActualExpenseRollupRow>(
       ACTUAL_EXPENSE_ROLLUP_CACHE
     );
+    const scope = readCache<string>(ROLLUP_SCOPE_CACHE);
     return {
       rows: cached?.value ?? [],
+      computedProjids: scope?.value ?? [],
       fetchedAt: cached?.fetchedAt ?? null,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -117,53 +130,67 @@ export function useActualExpenseRollup(): UseActualExpenseRollupReturn {
   );
 
   /** Run the 4-stage pipeline + write the result to cache. Surface
-   *  isFetching/error/stages to the caller. */
-  const runFetch = React.useCallback(async () => {
-    setIsFetching(true);
-    setError(null);
-    setStages(INITIAL_STAGES);
-    try {
-      const client = getDataverseClient();
-      // Re-read the active project IDs at fetch time (the projects
-      // cache may have been refreshed in the background between
-      // mounts). Include sub-project IDs in the same union — voyage
-      // legs book their own realised-expense rows under the same
-      // FK columns the rollup pipeline scans, so omitting them would
-      // silently undercount the Trade Cost report.
-      const projidCache = readCache<Record<string, unknown>>(
-        "mserp_etgtryprojecttableentities"
-      );
-      const subProjidCache = readCache<Record<string, unknown>>(
-        "mserp_trysubprojectentities"
-      );
-      const idSet = new Set<string>();
-      for (const r of projidCache?.value ?? []) {
-        const id = r.mserp_projid as string | undefined;
-        if (id) idSet.add(id);
-      }
-      for (const r of subProjidCache?.value ?? []) {
-        const id = r.mserp_subprojectid as string | undefined;
-        if (id) idSet.add(id);
-      }
-      const projids = [...idSet];
+   *  isFetching/error/stages to the caller. `projidsOverride` scopes
+   *  the run to a subset (the page passes the filtered projects) —
+   *  the single biggest perf lever, since the full tenant sweep over
+   *  ~850 projects takes minutes while a segment (~60) takes seconds. */
+  const runFetch = React.useCallback(
+    async (projidsOverride?: string[]) => {
+      setIsFetching(true);
+      setError(null);
+      setStages(INITIAL_STAGES);
+      try {
+        const client = getDataverseClient();
+        let projids: string[];
+        if (projidsOverride && projidsOverride.length > 0) {
+          // Scoped run — exactly the projects the page is showing.
+          projids = [...new Set(projidsOverride.filter(Boolean))];
+        } else {
+          // Full sweep (no scope): re-read every active project ID from
+          // cache, incl. sub-projects (voyage legs book realised rows
+          // under their own FK). Slow — minutes on this tenant.
+          const projidCache = readCache<Record<string, unknown>>(
+            "mserp_etgtryprojecttableentities"
+          );
+          const subProjidCache = readCache<Record<string, unknown>>(
+            "mserp_trysubprojectentities"
+          );
+          const idSet = new Set<string>();
+          for (const r of projidCache?.value ?? []) {
+            const id = r.mserp_projid as string | undefined;
+            if (id) idSet.add(id);
+          }
+          for (const r of subProjidCache?.value ?? []) {
+            const id = r.mserp_subprojectid as string | undefined;
+            if (id) idSet.add(id);
+          }
+          projids = [...idSet];
+        }
 
-      const rollup = await fetchActualExpenseRollupForAllProjects(
-        client,
-        projids,
-        applyProgress
-      );
-      writeCache(ACTUAL_EXPENSE_ROLLUP_CACHE, {
-        fetchedAt: new Date().toISOString(),
-        value: rollup,
-      });
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.warn("[useActualExpenseRollup] fetch failed:", err);
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setIsFetching(false);
-    }
-  }, [applyProgress]);
+        const rollup = await fetchActualExpenseRollupForAllProjects(
+          client,
+          projids,
+          applyProgress
+        );
+        const fetchedAt = new Date().toISOString();
+        writeCache(ACTUAL_EXPENSE_ROLLUP_CACHE, {
+          fetchedAt,
+          value: rollup,
+        });
+        // Record the scope so the page knows which filtered sets this
+        // cache covers (written second so the rollup fingerprint bump
+        // picks up a consistent pair).
+        writeCache(ROLLUP_SCOPE_CACHE, { fetchedAt, value: projids });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.warn("[useActualExpenseRollup] fetch failed:", err);
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setIsFetching(false);
+      }
+    },
+    [applyProgress]
+  );
 
   // Auto-fetch DISABLED — user feedback: 30-60s pipeline page mount'a
   // tetiklenince sayfayı "kilitliyor" hissi veriyordu. Şimdi sadece
@@ -173,13 +200,14 @@ export function useActualExpenseRollup(): UseActualExpenseRollupReturn {
 
   return {
     rows: snapshot.rows,
+    computedProjids: snapshot.computedProjids,
     fetchedAt: snapshot.fetchedAt,
     isEmpty: snapshot.rows.length === 0,
     isFetching,
     error,
     stages,
-    refresh: () => {
-      void runFetch();
+    refresh: (projids?: string[]) => {
+      void runFetch(projids);
     },
   };
 }
