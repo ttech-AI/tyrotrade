@@ -281,6 +281,20 @@ function isUmmQasr(k: string): boolean {
   return k === "ummqasr";
 }
 
+/**
+ * North Persian Gulf head leg — Umm Qasr (top of the Khor Abdullah
+ * channel) → open North Gulf, rounding the Al-Faw peninsula, up to the
+ * Khor Musa approach for Bandar Imam Khomeini. A straight line between
+ * the two slices across the Faw delta land; this leg keeps the route in
+ * the navigation channels and open water. Direction-symmetric via the
+ * reverse pass in `selectCorridor`.
+ */
+const GULF_HEAD_LEG: Waypoint[] = [
+  wp(48.4, 29.55, "Khor Abdullah"),
+  wp(49.0, 29.45, "North Gulf"),
+  wp(49.2, 30.0, "Khor Musa approach"),
+];
+
 const isAzov = (k: string) => AZOV_PORTS.has(k);
 const isBlackSea = (k: string) => BLACK_SEA_PORTS.has(k);
 const isMarmara = (k: string) => MARMARA_PORTS.has(k);
@@ -576,6 +590,12 @@ function pickForward(o: string, d: string): Waypoint[] | null {
   }
   if (isUkAtlantic(o) && isUmmQasr(d)) {
     return [...UK_TO_GIB, ...MED_TO_SUEZ, ...SUEZ_TO_GULF];
+  }
+
+  /* ─────────── North Persian Gulf head (intra-Gulf) ─────────── */
+
+  if (isUmmQasr(o) && d === "bandarimamkhomeini") {
+    return [...GULF_HEAD_LEG];
   }
 
   return null;
