@@ -249,18 +249,18 @@ function ContractStrip({
     items.push({ label: "Ödeme", value: paymentParts.join(" – ") });
   if (items.length === 0) return null;
   return (
-    <div className="mt-2 pt-2 border-t border-border/40 flex items-baseline gap-x-2 gap-y-1 flex-wrap text-[10.5px]">
+    <div className="mt-2 pt-2 border-t border-border/40 flex items-baseline gap-x-2 flex-nowrap whitespace-nowrap overflow-hidden text-[10px]">
       {items.map((it, i) => (
-        <span key={it.label} className="inline-flex items-baseline gap-1">
+        <span key={it.label} className="inline-flex items-baseline gap-1 min-w-0">
           {i > 0 && (
-            <span aria-hidden className="text-foreground/30 mr-1">
+            <span aria-hidden className="text-foreground/30 mr-1 shrink-0">
               ·
             </span>
           )}
-          <span className="uppercase tracking-wider text-muted-foreground text-[9px] font-medium">
+          <span className="uppercase tracking-wider text-muted-foreground text-[8.5px] font-medium shrink-0">
             {it.label}
           </span>
-          <span className="font-semibold text-foreground tabular-nums">
+          <span className="font-semibold text-foreground tabular-nums truncate">
             {it.value}
           </span>
         </span>
