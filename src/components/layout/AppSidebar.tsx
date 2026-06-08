@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Link, useMatch } from "react-router-dom";
+import { useMsal } from "@azure/msal-react";
 import {
   Ship,
   Database,
@@ -26,6 +27,17 @@ import { Logo } from "@/components/brand/Logo";
 import { useSidebar } from "./sidebar-context";
 import { ThemeSwitcher } from "./ThemeSwitcher";
 import { ProfileMenu } from "./ProfileMenu";
+import { shouldUseMock } from "@/lib/dataverse";
+
+/** Anasayfa (`/`) ve Trade Cost (`/pl-cost`) nav öğeleri yalnızca bu
+ *  maillerle giriş yapan kullanıcılarda görünür; diğer herkeste menüden
+ *  gizlenir. Karşılaştırma küçük harfe normalize edilerek yapılır. */
+const RESTRICTED_NAV_EMAILS = new Set([
+  "ceyda.degerli@tiryaki.com.tr",
+  "cenk.sayli@tiryaki.com.tr",
+  "pinar.kurtunluoglu@tiryaki.com.tr",
+]);
+const RESTRICTED_NAV_ROUTES = new Set(["/", "/pl-cost"]);
 
 /** Wrapper to make HugeIcons compatible with the lucide-style ElementType nav signature.
  *  strokeWidth 1.75 lighter weight — matches SaaS sidebar conventions
@@ -105,12 +117,34 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const { expanded, pinned, togglePin, theme } = useSidebar();
   const showLabels = embedded || expanded;
+
+  // Email-bazlı görünürlük: Anasayfa + Trade Cost yalnızca izinli
+  // maillerde görünür. Mock/dev modunda gerçek kimlik olmadığı için
+  // kısıtlama uygulanmaz (yerel geliştirme tüm menüleri görür).
+  const { accounts, instance } = useMsal();
+  const email = (
+    (accounts[0] ?? instance.getActiveAccount())?.username ?? ""
+  )
+    .trim()
+    .toLowerCase();
+  const canSeeRestricted = shouldUseMock() || RESTRICTED_NAV_EMAILS.has(email);
+
   // First 3 groups (Operasyon / Analiz / Yönetim) render in the
   // scrolling nav area. Last group (Sistem) renders at the bottom
   // pinned to the profile + theme switcher. Sistem items are unpacked
   // because they share the bottom block with sibling-app shortcuts +
   // theme switcher (heterogeneous content, not a clean NavSection).
-  const topGroups = NAV_GROUPS.slice(0, 3);
+  // Filter restricted routes out; drop a group that ends up empty so no
+  // orphan section header renders (Sistem stays NAV_GROUPS[3], untouched
+  // because it holds no restricted routes).
+  const topGroups = NAV_GROUPS.slice(0, 3)
+    .map((g) => ({
+      ...g,
+      items: g.items.filter(
+        (it) => canSeeRestricted || !RESTRICTED_NAV_ROUTES.has(it.to)
+      ),
+    }))
+    .filter((g) => g.items.length > 0);
   const systemGroup = NAV_GROUPS[3];
 
   return (
@@ -213,6 +247,7 @@ export function AppSidebar({
             </div>
           )}
           {/* Sibling-app shortcuts above the Yardım nav item. */}
+          {/* tyroStock dış-link kısayolu geçici olarak gizlendi.
           <SidebarToolItem
             kind="link"
             href="https://tyrowms.github.io/"
@@ -221,7 +256,7 @@ export function AppSidebar({
             showLabel={showLabels}
             tooltip="tyroStock'u yeni sekmede aç"
             onClick={onItemClick}
-          />
+          /> */}
           <NavItemLink
             item={systemGroup.items[0]}
             showLabel={showLabels}

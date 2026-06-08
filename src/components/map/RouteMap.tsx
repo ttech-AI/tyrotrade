@@ -50,7 +50,8 @@ import { DEFAULT_STYLE } from "@/lib/map/style";
 import { useRouteGeometry } from "@/hooks/useRouteGeometry";
 import { useRouteProgress } from "@/hooks/useRouteProgress";
 import { formatDate } from "@/lib/format";
-import type { Project } from "@/lib/dataverse/entities";
+import type { Project, Port } from "@/lib/dataverse/entities";
+import { lookupCountry } from "@/lib/routing/countryCoordinates";
 import { useThemeAccent } from "@/components/layout/theme-accent";
 import { isPositionStale, positionAgeDays } from "@/lib/routing/positionAge";
 import { shouldUseMock } from "@/lib/dataverse";
@@ -125,6 +126,42 @@ function isPortDefined(p: {
     typeof p.lon === "number" &&
     (p.lat !== 0 || p.lon !== 0);
   return hasName && hasCoords;
+}
+
+/** A best-effort geographic anchor for one side of the voyage, used only
+ *  when the full route can't be drawn (port coordinates missing). Falls
+ *  back from an exact port to a country-level point so the operator still
+ *  sees *roughly* where this leg sits. `precise` distinguishes the two so
+ *  the marker can render differently (solid port pin vs. dashed country
+ *  pill). */
+interface PlaceMarker {
+  lon: number;
+  lat: number;
+  precise: boolean;
+  /** Port name when precise, country name when country-level. */
+  label: string;
+  /** Country line shown under the label (empty when it equals label). */
+  country: string;
+}
+
+/** Resolve whatever location we can for a port: exact coords if the port
+ *  resolved through the dictionary, else the country centroid, else null. */
+function resolvePlaceMarker(port: Port | null | undefined): PlaceMarker | null {
+  if (!port) return null;
+  if (isPortDefined(port)) {
+    return {
+      lon: port.lon,
+      lat: port.lat,
+      precise: true,
+      label: port.name,
+      country: port.country && port.country !== "—" ? port.country : "",
+    };
+  }
+  const c = lookupCountry(port.country);
+  if (c) {
+    return { lon: c.lon, lat: c.lat, precise: false, label: c.name, country: "" };
+  }
+  return null;
 }
 
 /** Stage-specific glyph for the status chip. Picks the icon that
@@ -445,6 +482,14 @@ export function RouteMap({ project }: RouteMapProps) {
           : "discharge"
       : null;
 
+  // Fallback anchors for when the route can't be drawn: pin whatever we
+  // DO have (a resolved port, or failing that the country). The route
+  // line stays off; this is purely "show me where this leg roughly is".
+  const lpMarker = resolvePlaceMarker(project?.vesselPlan?.loadingPort);
+  const dpMarker = resolvePlaceMarker(project?.vesselPlan?.dischargePort);
+  const placeMode =
+    !!project?.vesselPlan && !portsDefined && !!(lpMarker || dpMarker);
+
   return (
     <TooltipProvider delayDuration={200} disableHoverableContent>
       <div className="relative h-full rounded-3xl overflow-hidden glass">
@@ -587,6 +632,11 @@ export function RouteMap({ project }: RouteMapProps) {
                 }}
               />
             </Map>
+          ) : placeMode ? (
+            // Route can't be drawn (port coordinates missing) but we have
+            // at least one anchor — show a no-route map with whatever
+            // port/country pins we could resolve.
+            <PlaceMarkersMap loading={lpMarker} discharge={dpMarker} />
           ) : (
             <EmptyState
               kind={
@@ -658,7 +708,21 @@ export function RouteMap({ project }: RouteMapProps) {
           </GlassPanel>
         </div>
 
-        {project && (
+        {/* Place-mode note — route couldn't be drawn, pins are approximate. */}
+        {placeMode && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[3] pointer-events-none">
+            <GlassPanel tone="strong" className="rounded-full pointer-events-auto">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-amber-700">
+                <MapPinOff className="size-3.5 shrink-0" strokeWidth={2.25} />
+                <span className="whitespace-nowrap">
+                  Rota çizilemedi · liman koordinatı yok — yaklaşık konum
+                </span>
+              </div>
+            </GlassPanel>
+          </div>
+        )}
+
+        {project && geom && portsDefined && (
           <div className="absolute top-3 right-3 z-[3] flex flex-col items-end gap-2 pointer-events-none">
             <GlassPanel tone="strong" className="rounded-xl pointer-events-auto">
               <div className="flex flex-col p-1">
@@ -1278,6 +1342,157 @@ function PortPin({ kind }: { kind: "loading" | "discharge" }) {
         <Icon className="size-3.5" />
       </div>
     </div>
+  );
+}
+
+/** Country-level approximate pin — a dashed pill with the country name,
+ *  colour-coded by leg (amber = loading, emerald = discharge). The dashed
+ *  border + small foot dot signal "this is a rough country anchor, not an
+ *  exact port", distinguishing it from the solid `PortPin`. */
+function CountryPin({
+  kind,
+  label,
+}: {
+  kind: "loading" | "discharge";
+  label: string;
+}) {
+  const isLoad = kind === "loading";
+  const ring = isLoad ? "#d97706" : "#059669";
+  const bg = isLoad ? "rgba(217,119,6,0.14)" : "rgba(5,150,105,0.14)";
+  const text = isLoad ? "#b45309" : "#047857";
+  const Icon = isLoad ? Anchor : MapPin;
+  return (
+    <div
+      className="flex flex-col items-center"
+      style={{ transform: "translate(0, -50%)" }}
+    >
+      <div
+        className="flex items-center gap-1 rounded-full px-2 py-1 shadow-md backdrop-blur-sm"
+        style={{ background: bg, border: `1.5px dashed ${ring}`, color: text }}
+      >
+        <Icon className="size-3 shrink-0" strokeWidth={2.5} />
+        <span className="text-[10px] font-semibold whitespace-nowrap leading-none">
+          {label}
+        </span>
+      </div>
+      <div
+        className="size-1.5 rounded-full mt-0.5"
+        style={{ background: ring }}
+        aria-hidden
+      />
+    </div>
+  );
+}
+
+/** One fallback anchor on the place-markers map — a solid port pin when
+ *  coordinates are exact, a dashed country pill when only the country is
+ *  known. */
+function PlacePin({
+  marker,
+  kind,
+}: {
+  marker: PlaceMarker;
+  kind: "loading" | "discharge";
+}) {
+  const title = marker.precise
+    ? `${marker.label}${marker.country ? ` · ${marker.country}` : ""}`
+    : `${marker.label}\n(yaklaşık — ülke merkezi, liman koordinatı yok)`;
+  return (
+    <Marker
+      longitude={marker.lon}
+      latitude={marker.lat}
+      anchor="center"
+    >
+      <div title={title}>
+        {marker.precise ? (
+          <PortPin kind={kind} />
+        ) : (
+          <CountryPin kind={kind} label={marker.label} />
+        )}
+      </div>
+    </Marker>
+  );
+}
+
+/** No-route map: renders only the anchors we could resolve (port and/or
+ *  country pins) when the full sea-route can't be built. No route line,
+ *  no chevrons, no vessel marker — just "here's roughly where this is".
+ *  Self-contained (own map ref + fit) so it doesn't depend on the
+ *  full-route map's controls. */
+function PlaceMarkersMap({
+  loading,
+  discharge,
+}: {
+  loading: PlaceMarker | null;
+  discharge: PlaceMarker | null;
+}) {
+  const mapRef = React.useRef<MapRef>(null);
+  const [ready, setReady] = React.useState(false);
+
+  // Stable coord keys so the fit effect only re-runs when an anchor
+  // actually moves (project change), not on every render — otherwise it
+  // would fight the user's pan/zoom.
+  const lpKey = loading ? `${loading.lon},${loading.lat}` : "";
+  const dpKey = discharge ? `${discharge.lon},${discharge.lat}` : "";
+
+  const pts = [loading, discharge].filter(Boolean) as PlaceMarker[];
+  const centerLon =
+    pts.length > 0 ? pts.reduce((s, p) => s + p.lon, 0) / pts.length : 0;
+  const centerLat =
+    pts.length > 0 ? pts.reduce((s, p) => s + p.lat, 0) / pts.length : 0;
+
+  const fit = React.useCallback(
+    (animate: boolean) => {
+      const map = mapRef.current;
+      if (!map) return;
+      const ms = [loading, discharge].filter(Boolean) as PlaceMarker[];
+      if (ms.length >= 2) {
+        const lons = ms.map((m) => m.lon);
+        const lats = ms.map((m) => m.lat);
+        map.fitBounds(
+          [
+            [Math.min(...lons), Math.min(...lats)],
+            [Math.max(...lons), Math.max(...lats)],
+          ],
+          {
+            padding: { top: 90, right: 70, bottom: 130, left: 70 },
+            duration: animate ? 800 : 0,
+            maxZoom: 5,
+          }
+        );
+      } else if (ms.length === 1) {
+        map.easeTo({
+          center: [ms[0].lon, ms[0].lat],
+          zoom: 4,
+          duration: animate ? 800 : 0,
+        });
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [lpKey, dpKey]
+  );
+
+  React.useEffect(() => {
+    if (ready) fit(false);
+  }, [ready, fit]);
+
+  return (
+    <Map
+      ref={mapRef}
+      mapStyle={DEFAULT_STYLE}
+      initialViewState={{ longitude: centerLon, latitude: centerLat, zoom: 3 }}
+      attributionControl={false}
+      cooperativeGestures={false}
+      onLoad={() => setReady(true)}
+    >
+      {loading && <PlacePin marker={loading} kind="loading" />}
+      {discharge && <PlacePin marker={discharge} kind="discharge" />}
+      <AttributionControl
+        compact
+        position="bottom-right"
+        style={{ marginRight: 4, marginBottom: 4 }}
+      />
+    </Map>
   );
 }
 

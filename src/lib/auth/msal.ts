@@ -5,7 +5,7 @@ import {
 } from "@azure/msal-browser";
 
 /**
- * MSAL configuration for the TYRO International Trade SPA.
+ * MSAL configuration for the tyroFreight SPA.
  *
  * Auth flow: PKCE redirect (Microsoft's recommendation for SPAs).
  * Token cache: sessionStorage — survives F5 within the tab, gone on close.

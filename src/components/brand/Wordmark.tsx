@@ -9,7 +9,7 @@ interface WordmarkProps extends React.HTMLAttributes<HTMLDivElement> {
   logoSize?: number;
   /** Dark/blue surface: `tyro` flips to white and `trade` uses a warm-only gradient. */
   onDark?: boolean;
-  /** Color palette for logo + "trade" gradient. Default "sky". */
+  /** Color palette for logo + "Freight" gradient. Default "sky". */
   palette?: LogoPalette;
 }
 
@@ -45,7 +45,7 @@ export const Wordmark = React.forwardRef<HTMLDivElement, WordmarkProps>(
             </span>
             <span
               className={cn(
-                "font-extrabold tracking-tight lowercase",
+                "font-extrabold tracking-tight",
                 palette === "amber"
                   ? "text-amber-gradient"
                   : palette === "sky-bright"
@@ -55,7 +55,7 @@ export const Wordmark = React.forwardRef<HTMLDivElement, WordmarkProps>(
               )}
               style={{ letterSpacing: "-0.025em" }}
             >
-              trade
+              Freight
             </span>
           </div>
         )}

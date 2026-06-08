@@ -182,7 +182,7 @@ export function ProfileMenu({ expanded }: ProfileMenuProps) {
               {EMAIL}
             </div>
             <div className="text-[10px] text-muted-foreground mt-0.5">
-              TYRO International Trade
+              tyroFreight
             </div>
           </div>
         </div>

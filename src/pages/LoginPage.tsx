@@ -28,7 +28,7 @@ interface LoginPageProps {
 }
 
 /**
- * tyrotrade — sinematik giriş ekranı.
+ * tyroFreight — sinematik giriş ekranı.
  *
  * Sol panel: marka + slogan + 4-feature grid + MSAL CTA. Frosted glass
  * üzerine sky-navy gradient detaylar; logo'nun origami diliyle birebir
@@ -108,9 +108,9 @@ export function LoginPage({ onLogin, isLoading }: LoginPageProps = {}) {
             <span className="text-[10px] uppercase tracking-[0.3em] text-sky-400/80 font-semibold">
               Tiryaki
             </span>
-            <span className="text-2xl font-extrabold tracking-tight lowercase">
+            <span className="text-2xl font-extrabold tracking-tight">
               <span className="text-white">tyro</span>
-              <span className="text-brand-gradient">trade</span>
+              <span className="text-brand-gradient">Freight</span>
             </span>
           </div>
         </motion.div>

@@ -163,7 +163,7 @@ export function HelpPage() {
                 Yardım & Kullanım Rehberi
               </h1>
               <p className="text-[12.5px] text-foreground/70 mt-1 leading-snug">
-                TYRO International Trade'in dört ana sayfası, header
+                tyroFreight'in dört ana sayfası, header
                 butonları ve klavye kısayolları için kısa anlatım. Hangi
                 bölüme tıklayacağını bulamadığında veya yeni bir
                 yöneticiye linki gönderdiğinde başlangıç noktası bu

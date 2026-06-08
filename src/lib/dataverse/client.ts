@@ -4,7 +4,7 @@ import type { ODataQuery } from "./odata";
  * 🔒 READ-ONLY Dataverse client contract.
  *
  * This interface deliberately exposes ONLY the GET surface (`list` + `get`).
- * The TYRO International Trade app never writes to Dataverse — no POST,
+ * The tyroFreight app never writes to Dataverse — no POST,
  * PATCH, PUT, DELETE under any circumstances. Implementations (mock or real)
  * MUST NOT add mutation methods. If a feature requires writing, that's a
  * conversation about whether this app is the right place for it (it's not).

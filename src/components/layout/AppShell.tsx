@@ -46,7 +46,7 @@ function ShellInner() {
   const location = useLocation();
   const title =
     PAGE_TITLES[location.pathname] ||
-    (location.pathname.startsWith("/projects") ? "Vessel Projects" : "tyrotrade");
+    (location.pathname.startsWith("/projects") ? "Vessel Projects" : "tyroFreight");
 
   const { accounts, instance } = useMsal();
   const msalAccount = accounts[0] ?? instance.getActiveAccount() ?? null;
@@ -413,7 +413,7 @@ function PageTitleSlot({
       <div className="min-w-0 flex-1">
         <h1 className="text-base font-semibold truncate">{title}</h1>
         <p className="text-[11px] text-muted-foreground truncate">
-          International Trade
+          Freight Operations
         </p>
       </div>
     );
