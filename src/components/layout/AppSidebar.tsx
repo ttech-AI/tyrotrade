@@ -397,14 +397,16 @@ function NavItemLink({
  * corner; omit it when the icon is already chromatic (e.g. the
  * full-colour TYRO Stock origami).
  */
+/* Yukarıdaki tyroStock linki ile birlikte devre dışı — kısayolu geri
+   açmak için hem bu bloğu hem de <SidebarToolItem> çağrısını yeniden aç.
 function SidebarToolItem(
   props: {
     iconNode: React.ReactNode;
     label: string;
     tooltip: string;
     showLabel: boolean;
-    /** Tiny indicator dot on the icon — usually omitted when the
-     *  icon itself carries brand colour. */
+    // Tiny indicator dot on the icon — usually omitted when the
+    // icon itself carries brand colour.
     accentDot?: string;
     onClick?: () => void;
   } & (
@@ -474,3 +476,4 @@ function SidebarToolItem(
   }
   return trigger;
 }
+*/
