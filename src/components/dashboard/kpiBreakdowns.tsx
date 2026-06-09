@@ -211,9 +211,9 @@ function BucketStrip({
 /* ─────────── Aktif Pipeline ─────────── */
 
 const STATUS_COLORS: Record<string, string> = {
-  "To Be Nominated": "#8b5cf6",
-  Nominated: "#6366f1",
-  Commenced: "#f59e0b",
+  "To Be Nominated": "#f59e0b", // amber
+  Nominated: "#0ea5e9", // sky-blue
+  Commenced: "#22c55e", // green
   Completed: "#10b981",
   Closed: "#64748b",
   Cancelled: "#f43f5e",

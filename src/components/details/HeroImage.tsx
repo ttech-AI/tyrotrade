@@ -30,7 +30,9 @@ export function HeroImage({ project }: HeroImageProps) {
   // Voyage status when known, otherwise fall back to project Open/Closed.
   const status = project.vesselPlan?.vesselStatus ?? project.status;
   const statusVariant: Record<string, "warning" | "success" | "info" | "muted"> = {
-    Commenced: "warning",
+    "To Be Nominated": "warning",
+    Nominated: "info",
+    Commenced: "success",
     Completed: "success",
     Open: "info",
     Closed: "muted",

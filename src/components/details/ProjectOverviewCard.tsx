@@ -22,13 +22,13 @@ interface Props {
 // Hero badge palette — distinct semantic color per voyage stage so a glance
 // at the image tells the operator where the cargo is in its lifecycle.
 const STATUS_HERO_STYLE: Record<string, string> = {
-  // Pre-loading — warm pastel orange, matches left-rail dot
+  // Pre-loading — amber, matches left-rail dot
   "To Be Nominated":
-    "bg-orange-400 text-white border border-orange-300/60 shadow-sm",
-  // Vessel assigned — pale mint green, matches left-rail dot
-  Nominated: "bg-emerald-300 text-emerald-900 border border-emerald-200/60 shadow-sm",
-  // Active voyage — deep forest green, matches left-rail dot
-  Commenced: "bg-emerald-800 text-white border border-emerald-600/60 shadow-sm",
+    "bg-amber-400 text-white border border-amber-300/60 shadow-sm",
+  // Vessel assigned — sky-blue, matches left-rail dot
+  Nominated: "bg-sky-500 text-white border border-sky-300/60 shadow-sm",
+  // Active voyage — green, matches left-rail dot
+  Commenced: "bg-green-600 text-white border border-green-400/60 shadow-sm",
   // Done
   Completed: "bg-teal-500 text-white border border-teal-300/60 shadow-sm",
   Closed: "bg-slate-500 text-white border border-slate-300/60 shadow-sm",

@@ -89,7 +89,9 @@ const PAGES: Omit<PageItem, "category">[] = [
 ];
 
 const STATUS_TONE: Record<string, { bg: string; fg: string }> = {
-  Commenced: { bg: "rgba(245, 158, 11, 0.15)", fg: "#b45309" },
+  "To Be Nominated": { bg: "rgba(245, 158, 11, 0.15)", fg: "#b45309" },
+  Nominated: { bg: "rgba(14, 165, 233, 0.15)", fg: "#0369a1" },
+  Commenced: { bg: "rgba(34, 197, 94, 0.15)", fg: "#15803d" },
   Completed: { bg: "rgba(16, 185, 129, 0.15)", fg: "#047857" },
   Open: { bg: "rgba(14, 165, 233, 0.15)", fg: "#0369a1" },
   Closed: { bg: "rgba(148, 163, 184, 0.15)", fg: "#475569" },

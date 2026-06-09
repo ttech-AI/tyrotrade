@@ -30,9 +30,9 @@ interface ActivePipelineTileProps {
  * edilmez — çünkü o iş artık aktif değil.
  */
 const STATUS_CATEGORIES = [
-  { key: "To Be Nominated", label: "To Be Nominated", color: "#8b5cf6", active: true },
-  { key: "Nominated", label: "Nominated", color: "#6366f1", active: true },
-  { key: "Commenced", label: "Commenced", color: "#f59e0b", active: true },
+  { key: "To Be Nominated", label: "To Be Nominated", color: "#f59e0b", active: true },
+  { key: "Nominated", label: "Nominated", color: "#0ea5e9", active: true },
+  { key: "Commenced", label: "Commenced", color: "#22c55e", active: true },
   { key: "Completed", label: "Completed", color: "#10b981", active: false },
   { key: "Closed", label: "Closed", color: "#64748b", active: false },
   { key: "Cancelled", label: "Cancelled", color: "#f43f5e", active: false },

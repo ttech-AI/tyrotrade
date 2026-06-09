@@ -25,11 +25,11 @@ const STATUS_TONE: Record<
   string,
   { dot: string; ring: string; label: string }
 > = {
-  // Active voyage — very dark forest green, unmistakably deep.
+  // Active voyage — green.
   Commenced: {
-    dot: "bg-emerald-800",
-    ring: "ring-emerald-800/25",
-    label: "text-emerald-800",
+    dot: "bg-green-500",
+    ring: "ring-green-500/25",
+    label: "text-green-700",
   },
   Completed: {
     dot: "bg-teal-500",
@@ -48,17 +48,17 @@ const STATUS_TONE: Record<
     ring: "ring-slate-400/25",
     label: "text-slate-500",
   },
-  // Vessel assigned, on-deck — pale mint green, clearly lighter than Commenced.
+  // Vessel assigned, on-deck — sky-blue.
   Nominated: {
-    dot: "bg-emerald-300",
-    ring: "ring-emerald-300/30",
-    label: "text-emerald-600",
+    dot: "bg-sky-500",
+    ring: "ring-sky-500/25",
+    label: "text-sky-700",
   },
-  // Waiting for vessel assignment — warm pastel orange signals pending.
+  // Waiting for vessel assignment — amber signals pending.
   "To Be Nominated": {
-    dot: "bg-orange-400",
-    ring: "ring-orange-400/25",
-    label: "text-orange-600",
+    dot: "bg-amber-400",
+    ring: "ring-amber-400/25",
+    label: "text-amber-600",
   },
   Cancelled: {
     dot: "bg-rose-400",
