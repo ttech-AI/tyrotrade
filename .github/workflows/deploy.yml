@@ -31,7 +31,7 @@ jobs:
       # custom domain set in Settings → Pages — and outputs the correct
       # base_path / base_url / host. So the build auto-adapts:
       #   • *.github.io/tyrotrade  → base_path "/tyrotrade", host *.github.io
-      #   • tyrotrade.ttech.business (custom domain, served at root)
+      #   • tyrofreight.ttech.business (custom domain, served at root)
       #                            → base_path "/",          host the domain
       # enablement:true also auto-turns-on Pages on first run.
       - name: Configure Pages
@@ -70,7 +70,7 @@ jobs:
           # SPA redirect URI = canonical Pages URL (https-forced) + slash.
           # Must be registered in the Azure AD app's SPA redirect URIs:
           #   https://ttech-ai.github.io/tyrotrade/   (github.io)
-          #   https://tyrotrade.ttech.business/       (custom domain)
+          #   https://tyrofreight.ttech.business/      (custom domain)
           VITE_AAD_REDIRECT_URI: ${{ steps.redirect.outputs.uri }}
           # Azure AD SPA app registration — TIRYAKI tenant.
           # Tenant + client IDs are not secrets (MSAL SPA flow exposes them

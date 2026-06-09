@@ -7,7 +7,7 @@ import path from "node:path";
 // from `actions/configure-pages` so the build adapts to wherever Pages
 // serves it:
 //   • project site  → "/tyrotrade" → normalised to "/tyrotrade/"
-//   • custom domain  → "/"          (tyrotrade.ttech.business at root)
+//   • custom domain  → "/"          (tyrofreight.ttech.business at root)
 // Local dev / no env → default to the project path.
 const rawBase = process.env.BASE_PATH ?? "/tyrotrade/";
 const base =
