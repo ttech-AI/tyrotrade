@@ -5,6 +5,10 @@ import { AppShell } from "@/components/layout/AppShell";
 import { AuthGate } from "@/components/auth/AuthGate";
 import { shouldUseMock } from "@/lib/dataverse";
 import { isAuthConfigured } from "@/lib/auth/msal";
+import {
+  DEFAULT_ALLOWED_ROUTE,
+  useCanSeeRestricted,
+} from "@/lib/auth/restrictedNav";
 
 // Lazy-load every page so each route's JS chunk is fetched on first visit
 // rather than bundled into the main entry. AppShell and AuthGate stay eager
@@ -43,6 +47,21 @@ function S({ children }: { children: React.ReactNode }) {
   return <React.Suspense fallback={null}>{children}</React.Suspense>;
 }
 
+/**
+ * Kısıtlı rota guard'ı (Anasayfa + Trade Cost). İzinli olmayan kullanıcı
+ * bu rotalara — özellikle ilk açılışta varsayılan `/` rotasına — geldiğinde
+ * Sefer Takibi'ne yönlendirilir. Mock/dev modunda + izinli maillerde sayfa
+ * normal render olur. Sidebar linkleri zaten `RESTRICTED_NAV_ROUTES` ile
+ * gizli; bu guard sayfanın kendisini de kapatır.
+ */
+function RestrictedRoute({ children }: { children: React.ReactNode }) {
+  const canSeeRestricted = useCanSeeRestricted();
+  if (!canSeeRestricted) {
+    return <Navigate to={DEFAULT_ALLOWED_ROUTE} replace />;
+  }
+  return <>{children}</>;
+}
+
 export default function App() {
   // Auth required when:
   //   - VITE_USE_MOCK=false (we're hitting real Dataverse)
@@ -54,10 +73,24 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<S><LoginPage /></S>} />
       <Route element={<AppShell />}>
-        <Route index element={<S><DashboardPage /></S>} />
+        <Route
+          index
+          element={
+            <RestrictedRoute>
+              <S><DashboardPage /></S>
+            </RestrictedRoute>
+          }
+        />
         <Route path="projects" element={<S><ProjectsPage /></S>} />
         <Route path="projects/:projectId" element={<S><ProjectsPage /></S>} />
-        <Route path="pl-cost" element={<S><PLCostPage /></S>} />
+        <Route
+          path="pl-cost"
+          element={
+            <RestrictedRoute>
+              <S><PLCostPage /></S>
+            </RestrictedRoute>
+          }
+        />
         <Route path="data" element={<S><DataManagementPage /></S>} />
         <Route path="vessel-map" element={<S><VesselMapPage /></S>} />
         <Route path="settings" element={<S><SettingsPage /></S>} />
