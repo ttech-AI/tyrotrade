@@ -1,5 +1,6 @@
+import * as React from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight, ChevronDown, ChevronUp } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Invoice03Icon } from "@hugeicons/core-free-icons";
 import { GlassPanel } from "@/components/glass/GlassPanel";
@@ -18,11 +19,19 @@ import {
  * süresi" = days since the voyage's most recent populated milestone.
  * Rows deep-link into Sefer Takibi.
  */
+/** Rows shown before the user expands the list. */
+const COLLAPSED_ROWS = 5;
+
 export function PendingPaymentsCard({
   pending,
 }: {
   pending: PendingPayments;
 }) {
+  const [showAll, setShowAll] = React.useState(false);
+  const visibleRows = showAll
+    ? pending.rows
+    : pending.rows.slice(0, COLLAPSED_ROWS);
+  const hiddenCount = pending.rows.length - COLLAPSED_ROWS;
   return (
     <GlassPanel
       tone="default"
@@ -77,7 +86,7 @@ export function PendingPaymentsCard({
 
           {/* Rows */}
           <div className="flex-1 px-2 py-1.5 overflow-y-auto">
-            {pending.rows.map((r) => (
+            {visibleRows.map((r) => (
               <Link
                 key={r.project.projectNo}
                 to={`/projects/${r.project.projectNo}`}
@@ -109,11 +118,26 @@ export function PendingPaymentsCard({
                 />
               </Link>
             ))}
-            {pending.count > pending.rows.length && (
-              <p className="px-2 py-1.5 text-[10.5px] text-muted-foreground italic">
-                + {pending.count - pending.rows.length} sefer daha (ürün
-                bedeline göre ilk {pending.rows.length} gösteriliyor)
-              </p>
+            {/* Expand / collapse — first 5 by default, the rest on
+                demand so the card stays scannable */}
+            {hiddenCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowAll((v) => !v)}
+                className="w-full flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 mt-0.5 text-[11.5px] font-semibold text-foreground/70 hover:text-foreground hover:bg-foreground/[0.04] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+              >
+                {showAll ? (
+                  <>
+                    <ChevronUp className="size-3.5" strokeWidth={2.25} />
+                    Daha az göster
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="size-3.5" strokeWidth={2.25} />
+                    Daha fazla göster (+{hiddenCount})
+                  </>
+                )}
+              </button>
             )}
           </div>
         </>

@@ -11,6 +11,7 @@ import {
 } from "@/lib/filters/projectFilters";
 import {
   aggregateGroups,
+  aggregateVoyageStatuses,
   buildGroupSegmentColumns,
   buildSegmentMatrix,
   segmentsForGroup,
@@ -25,7 +26,7 @@ import {
   OverviewInsights,
   type OverviewInsight,
 } from "@/components/overview/OverviewInsights";
-import { GroupDonutCard } from "@/components/overview/GroupDonutCard";
+import { VoyageStatusDonutCard } from "@/components/overview/VoyageStatusDonutCard";
 import { SegmentMatrixCard } from "@/components/overview/SegmentMatrixCard";
 import { LongestWaitingCard } from "@/components/overview/LongestWaitingCard";
 import { GroupSegmentColumns } from "@/components/overview/GroupSegmentColumns";
@@ -74,6 +75,10 @@ export function OverviewPage() {
   );
 
   const agg = React.useMemo(() => aggregateGroups(projects), [projects]);
+  const statusAgg = React.useMemo(
+    () => aggregateVoyageStatuses(projects),
+    [projects]
+  );
   const matrix = React.useMemo(
     () => buildSegmentMatrix(projects, 6),
     [projects]
@@ -86,8 +91,10 @@ export function OverviewPage() {
     () => selectWaitingVessels(projects, now),
     [projects, now]
   );
+  // High maxRows — the card itself collapses to 5 with a "Daha fazla
+  // göster" toggle, so we hand it the full list.
   const pending = React.useMemo(
-    () => selectPendingPayments(projects, now, 7),
+    () => selectPendingPayments(projects, now, 200),
     [projects, now]
   );
 
@@ -126,6 +133,14 @@ export function OverviewPage() {
       },
     });
   }, [navigate, focusBase]);
+  const openStatus = React.useCallback(
+    (status: string) => {
+      navigate("/projects", {
+        state: { focusVoyageStatuses: [status], ...focusBase },
+      });
+    },
+    [navigate, focusBase]
+  );
 
   const insights = React.useMemo<OverviewInsight[]>(() => {
     const out: OverviewInsight[] = [];
@@ -172,9 +187,11 @@ export function OverviewPage() {
   return (
     // AppShell's content slot is overflow-hidden — pages own their
     // scroll. Same ScrollArea pattern DashboardPage uses; without it
-    // the lower cards were clipped with no way to scroll.
+    // the lower cards were clipped with no way to scroll. The right
+    // padding reserves a lane for the overlay scrollbar so it never
+    // sits on top of the filter button / card edges.
     <ScrollArea className="h-full">
-      <div className="space-y-3 pb-3">
+      <div className="space-y-3 pb-3 pr-3">
         {/* ─── Toolbar: sync stamp + result count + filter ─── */}
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="min-w-0">
@@ -214,12 +231,15 @@ export function OverviewPage() {
         {/* ─── Insights ribbon ─── */}
         <OverviewInsights insights={insights} />
 
-        {/* ─── Donut · Matrix · Longest waiting ─── */}
+        {/* ─── Status donut · Matrix · Longest waiting ───
+            Breakpoint ladder: phones stack (12), tablets pair the donut
+            with the matrix (md 5/7), laptops widen the matrix (lg 4/8),
+            large monitors fit all three in one row (xl 3/5/4). */}
         <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-12 md:col-span-6 xl:col-span-3">
-            <GroupDonutCard agg={agg} onGroupClick={openGroup} />
+          <div className="col-span-12 md:col-span-5 lg:col-span-4 xl:col-span-3">
+            <VoyageStatusDonutCard agg={statusAgg} onStatusClick={openStatus} />
           </div>
-          <div className="col-span-12 md:col-span-6 xl:col-span-5">
+          <div className="col-span-12 md:col-span-7 lg:col-span-8 xl:col-span-5">
             <SegmentMatrixCard matrix={matrix} onSegmentClick={openSegment} />
           </div>
           <div className="col-span-12 xl:col-span-4">
@@ -229,14 +249,14 @@ export function OverviewPage() {
 
         {/* ─── Group segment columns · Pending payments ─── */}
         <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-12 xl:col-span-7">
+          <div className="col-span-12 lg:col-span-7">
             <GroupSegmentColumns
               columns={groupColumns}
               onGroupClick={openGroup}
               onSegmentClick={openSegment}
             />
           </div>
-          <div className="col-span-12 xl:col-span-5">
+          <div className="col-span-12 lg:col-span-5">
             <PendingPaymentsCard pending={pending} />
           </div>
         </div>

@@ -117,6 +117,12 @@ export interface GroupCountRow {
   count: number;
   /** Share of total, 0-100 with one decimal of meaning. */
   pct: number;
+  /** Per-group executive stats — mirror of the hero card's mini-grid so
+   *  the three group cards carry the same informational weight. */
+  openCount: number;
+  commencedCount: number;
+  waitingCount: number;
+  tonnageMt: number;
 }
 
 export interface OverviewGroupAggregate {
@@ -132,39 +138,138 @@ export interface OverviewGroupAggregate {
 }
 
 export function aggregateGroups(projects: Project[]): OverviewGroupAggregate {
-  const counts: Record<VesselGroup, number> = {
-    Anadolu: 0,
-    Organik: 0,
-    International: 0,
-  };
-  let openCount = 0;
-  let commencedCount = 0;
-  let waitingCount = 0;
-  let totalTonnageMt = 0;
-  for (const p of projects) {
-    counts[classifySegmentGroup(p.segment)] += 1;
-    if (isOpenStatus(p.status)) openCount += 1;
-    const vs = p.vesselPlan?.vesselStatus;
-    if (vs === "Commenced") commencedCount += 1;
-    else if (vs === "To Be Nominated" || vs === "Nominated")
-      waitingCount += 1;
-    const t = p.vesselPlan?.voyageTotalTonnage;
-    if (typeof t === "number" && Number.isFinite(t) && t > 0)
-      totalTonnageMt += t;
+  interface Acc {
+    count: number;
+    openCount: number;
+    commencedCount: number;
+    waitingCount: number;
+    tonnageMt: number;
   }
-  const total = projects.length;
+  const mk = (): Acc => ({
+    count: 0,
+    openCount: 0,
+    commencedCount: 0,
+    waitingCount: 0,
+    tonnageMt: 0,
+  });
+  const perGroup: Record<VesselGroup, Acc> = {
+    Anadolu: mk(),
+    Organik: mk(),
+    International: mk(),
+  };
+  const grand = mk();
+  for (const p of projects) {
+    const acc = perGroup[classifySegmentGroup(p.segment)];
+    const open = isOpenStatus(p.status);
+    const vs = p.vesselPlan?.vesselStatus;
+    const commenced = vs === "Commenced";
+    const waiting = vs === "To Be Nominated" || vs === "Nominated";
+    const tRaw = p.vesselPlan?.voyageTotalTonnage;
+    const tons =
+      typeof tRaw === "number" && Number.isFinite(tRaw) && tRaw > 0
+        ? tRaw
+        : 0;
+    for (const a of [acc, grand]) {
+      a.count += 1;
+      if (open) a.openCount += 1;
+      if (commenced) a.commencedCount += 1;
+      if (waiting) a.waitingCount += 1;
+      a.tonnageMt += tons;
+    }
+  }
+  const total = grand.count;
   return {
     total,
-    openCount,
-    commencedCount,
-    waitingCount,
-    totalTonnageMt,
-    rows: GROUP_ORDER.map((group) => ({
-      group,
-      count: counts[group],
-      pct: total > 0 ? (counts[group] / total) * 100 : 0,
-    })),
+    openCount: grand.openCount,
+    commencedCount: grand.commencedCount,
+    waitingCount: grand.waitingCount,
+    totalTonnageMt: grand.tonnageMt,
+    rows: GROUP_ORDER.map((group) => {
+      const a = perGroup[group];
+      return {
+        group,
+        count: a.count,
+        pct: total > 0 ? (a.count / total) * 100 : 0,
+        openCount: a.openCount,
+        commencedCount: a.commencedCount,
+        waitingCount: a.waitingCount,
+        tonnageMt: a.tonnageMt,
+      };
+    }),
   };
+}
+
+/* ─────────── Voyage-status distribution (donut) ─────────── */
+
+/** Canonical voyage-status order + fixed palette — same colour language
+ *  the rest of the app uses for these statuses (ProjectCard dots, hero
+ *  badges): TBN amber · Nominated sky · Commenced green · Completed
+ *  teal · Closed slate · Cancelled rose. */
+export const VOYAGE_STATUS_META: Array<{ status: string; color: string }> = [
+  { status: "To Be Nominated", color: "#f59e0b" },
+  { status: "Nominated", color: "#0ea5e9" },
+  { status: "Commenced", color: "#22c55e" },
+  { status: "Completed", color: "#14b8a6" },
+  { status: "Closed", color: "#94a3b8" },
+  { status: "Cancelled", color: "#fb7185" },
+];
+
+/** Catch-all bucket for ship plans whose status didn't normalise to a
+ *  canonical value — informational only (no status filter exists for
+ *  it, so the slice/legend isn't clickable). */
+export const OTHER_STATUS_KEY = "Diğer";
+const OTHER_STATUS_COLOR = "#64748b";
+
+export interface VoyageStatusRow {
+  status: string;
+  color: string;
+  count: number;
+  pct: number;
+  /** False for the catch-all bucket (no deep-link target). */
+  clickable: boolean;
+}
+
+export interface VoyageStatusAggregate {
+  total: number;
+  /** Canonical statuses (count > 0) + optional "Diğer", in lifecycle
+   *  order. */
+  rows: VoyageStatusRow[];
+}
+
+export function aggregateVoyageStatuses(
+  projects: Project[]
+): VoyageStatusAggregate {
+  const counts = new Map<string, number>();
+  let other = 0;
+  const canonical = new Set(VOYAGE_STATUS_META.map((m) => m.status));
+  for (const p of projects) {
+    const vs = (p.vesselPlan?.vesselStatus ?? "").trim();
+    if (vs && canonical.has(vs)) counts.set(vs, (counts.get(vs) ?? 0) + 1);
+    else other += 1;
+  }
+  const total = projects.length;
+  const rows: VoyageStatusRow[] = [];
+  for (const meta of VOYAGE_STATUS_META) {
+    const count = counts.get(meta.status) ?? 0;
+    if (count === 0) continue;
+    rows.push({
+      status: meta.status,
+      color: meta.color,
+      count,
+      pct: total > 0 ? (count / total) * 100 : 0,
+      clickable: true,
+    });
+  }
+  if (other > 0) {
+    rows.push({
+      status: OTHER_STATUS_KEY,
+      color: OTHER_STATUS_COLOR,
+      count: other,
+      pct: total > 0 ? (other / total) * 100 : 0,
+      clickable: false,
+    });
+  }
+  return { total, rows };
 }
 
 /* ─────────── Segment × Group matrix ─────────── */
