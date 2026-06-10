@@ -31,6 +31,7 @@ import type {
 import { getFormattedValue } from "./formatted";
 import {
   lookupPortWithCountry,
+  lookupPorts,
   canonicalPortKey,
   getUnresolvedPorts,
 } from "@/lib/routing/portCoordinates";
@@ -505,12 +506,24 @@ function toVesselPlan(
 
   const lp =
     lookupPortWithCountry(lpName, lpCountry) ?? fallbackPort(lpName, lpCountry);
-  const dp =
-    lookupPortWithCountry(dpName, dpCountry) ?? fallbackPort(dpName, dpCountry);
 
+  // The discharge cell may name several ports in sequence
+  // (comma-separated, e.g. "Morehead, New Orleans"). Resolve the full
+  // ordered list; the single `dischargePort` mirrors the LAST stop (the
+  // voyage's final destination, where DP-ETA lands and the route ends).
+  const dpStops = lookupPorts(dpName);
+  const dp =
+    dpStops.length > 0
+      ? dpStops[dpStops.length - 1]
+      : fallbackPort(dpName, dpCountry);
+  const dischargeStops = dpStops.length > 1 ? dpStops : undefined;
+
+  // Corridor is keyed on the resolved final-destination name (clean
+  // canonical string) rather than the raw multi-port cell, which would
+  // never match an alias.
   const waypoints = selectCorridor(
     canonicalPortKey(lpName),
-    canonicalPortKey(dpName),
+    canonicalPortKey(dp.name),
     [lp.lon, lp.lat],
     [dp.lon, dp.lat]
   );
@@ -645,6 +658,7 @@ function toVesselPlan(
     cargoValueUsd: undefined, // Filled in composeProjects() for USD projects
     loadingPort: lp,
     dischargePort: dp,
+    dischargeStops,
     waypoints,
     milestones,
     heroImageUrl: undefined,

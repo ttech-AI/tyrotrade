@@ -1333,6 +1333,41 @@ export function lookupPort(rawName: string | null | undefined): Port | null {
   return { name: rec.name, country: rec.country, lon: rec.lon, lat: rec.lat };
 }
 
+/** Resolve a free-form discharge/loading string that may name MORE THAN ONE
+ *  port to the ordered list of {@link Port}s it references.
+ *
+ *  F&O stores multi-stop voyages as a comma-separated list in a single
+ *  `mserp_trydischargeport` cell — e.g. `"Morehead, New Orleans"`. The
+ *  single-port {@link lookupPort} deliberately reads only the first segment;
+ *  this splits on commas and resolves each segment independently, preserving
+ *  order and dropping consecutive/coordinate duplicates. Segments that don't
+ *  resolve are skipped (and noted for the unresolved-port diagnostic).
+ *
+ *  Returns `[]` when nothing resolves and a single-element array for the
+ *  common one-port case. */
+export function lookupPorts(rawName: string | null | undefined): Port[] {
+  if (!rawName) return [];
+  const segments = rawName
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (segments.length <= 1) {
+    const p = lookupPort(rawName);
+    return p ? [p] : [];
+  }
+  const out: Port[] = [];
+  const seen = new Set<string>();
+  for (const seg of segments) {
+    const p = lookupPort(seg);
+    if (!p) continue;
+    const key = `${p.lon},${p.lat}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+  }
+  return out;
+}
+
 /** Same lookup but also accepts a country hint (currently unused for
  *  disambiguation since no port name collides across countries in our set,
  *  but kept as an API hook for future growth). */

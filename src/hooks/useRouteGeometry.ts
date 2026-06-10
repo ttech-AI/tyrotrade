@@ -4,7 +4,7 @@ import along from "@turf/along";
 import bbox from "@turf/bbox";
 import type { Feature, LineString, Position } from "geojson";
 import { buildSeaRoute } from "@/lib/routing/seaRoute";
-import type { Project } from "@/lib/dataverse/entities";
+import type { Port, Project } from "@/lib/dataverse/entities";
 
 export interface RouteGeometry {
   line: Feature<LineString>;
@@ -95,6 +95,35 @@ function makePoint(
   };
 }
 
+/**
+ * Compute the proper sea route across an ordered list of nodes
+ * (loading port → discharge stop 1 → … → final stop) by running
+ * searoute-ts per consecutive leg and concatenating. Each leg avoids
+ * land on its own (so e.g. a Morehead → New Orleans hop rounds Florida
+ * instead of cutting straight across it). Returns null if any leg fails,
+ * so the caller keeps the land-safe corridor fallback.
+ */
+function chainSeaRoute(
+  seaRoute: SeaRouteFn,
+  nodes: Port[]
+): Feature<LineString> | null {
+  const coords: Position[] = [];
+  for (let i = 0; i < nodes.length - 1; i++) {
+    const leg = seaRoute(
+      makePoint(nodes[i].lon, nodes[i].lat),
+      makePoint(nodes[i + 1].lon, nodes[i + 1].lat),
+      "kilometers"
+    );
+    const c = leg?.geometry?.coordinates;
+    if (!c || c.length < 2) return null;
+    // Drop the duplicated junction vertex on every leg after the first.
+    if (i === 0) coords.push(...c);
+    else coords.push(...c.slice(1));
+  }
+  if (coords.length < 2) return null;
+  return { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: coords } };
+}
+
 function deriveGeometry(line: Feature<LineString>): RouteGeometry {
   const totalKm = length(line, { units: "kilometers" });
   const bb = bbox(line) as [number, number, number, number];
@@ -126,25 +155,53 @@ export function useRouteGeometry(
   const dp = project?.vesselPlan?.dischargePort;
   const waypoints = project?.vesselPlan?.waypoints;
 
+  // Ordered discharge sequence. Multi-stop voyages ("Morehead, New
+  // Orleans") carry `dischargeStops`; the common single-port case falls
+  // back to `[dischargePort]`. The route visits each stop in order and
+  // terminates at the last (which `dischargePort` already mirrors).
+  const stops: Port[] = React.useMemo(
+    () =>
+      project?.vesselPlan?.dischargeStops &&
+      project.vesselPlan.dischargeStops.length > 0
+        ? project.vesselPlan.dischargeStops
+        : dp
+          ? [dp]
+          : [],
+    [project?.vesselPlan?.dischargeStops, dp]
+  );
+
   const portsValid =
     !!lp &&
-    !!dp &&
+    stops.length > 0 &&
     !(lp.lat === 0 && lp.lon === 0) &&
-    !(dp.lat === 0 && dp.lon === 0);
+    stops.every((s) => !(s.lat === 0 && s.lon === 0));
 
-  const cacheKey = portsValid
-    ? makeKey(lp.lon, lp.lat, dp.lon, dp.lat)
-    : null;
+  // Cache key spans the full LP + every stop, so a route is recomputed
+  // when any leg endpoint changes (not just the final destination).
+  const cacheKey =
+    portsValid && lp
+      ? [makeKey(lp.lon, lp.lat, stops[stops.length - 1].lon, stops[stops.length - 1].lat)]
+          .concat(stops.map((s) => `${s.lon.toFixed(4)},${s.lat.toFixed(4)}`))
+          .join("#")
+      : null;
+
+  // Corridor fallback line: LP → corridor waypoints → intermediate stops
+  // → final stop. Intermediate stops ride along as ordered waypoints.
+  const buildFallback = React.useCallback((): Feature<LineString> | null => {
+    if (!lp || stops.length === 0) return null;
+    const inner = [...(waypoints ?? []), ...stops.slice(0, -1)];
+    return buildSeaRoute(lp, stops[stops.length - 1], inner);
+  }, [lp, stops, waypoints]);
 
   const [line, setLine] = React.useState<Feature<LineString> | null>(() => {
     if (!portsValid || !cacheKey) return null;
     const cached = lineCache.get(cacheKey);
     if (cached) return cached;
-    return buildSeaRoute(lp, dp, waypoints);
+    return buildFallback();
   });
 
   React.useEffect(() => {
-    if (!portsValid || !cacheKey) {
+    if (!portsValid || !cacheKey || !lp) {
       setLine(null);
       return;
     }
@@ -153,16 +210,15 @@ export function useRouteGeometry(
       setLine(cached);
       return;
     }
-    setLine(buildSeaRoute(lp, dp, waypoints));
+    setLine(buildFallback());
 
     let cancelled = false;
     loadSearoute()
       .then((seaRoute) => {
         if (cancelled) return;
         try {
-          const route = seaRoute(makePoint(lp.lon, lp.lat), makePoint(dp.lon, dp.lat), "kilometers");
-          const coords = route?.geometry?.coordinates;
-          if (!coords || coords.length < 2) return;
+          const route = chainSeaRoute(seaRoute, [lp, ...stops]);
+          if (!route) return;
           lineCache.set(cacheKey, route);
           setLine(route);
         } catch (err) {

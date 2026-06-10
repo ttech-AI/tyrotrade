@@ -465,6 +465,16 @@ export function RouteMap({ project }: RouteMapProps) {
   const lp = project?.vesselPlan?.loadingPort;
   const dp = project?.vesselPlan?.dischargePort;
   const ms = project?.vesselPlan?.milestones;
+  // Ordered discharge sequence — multi-stop voyages ("Morehead, New
+  // Orleans") carry `dischargeStops`; single-port voyages fall back to
+  // the lone `dischargePort`. Each stop gets its own pin, in order.
+  const dischargeStops =
+    project?.vesselPlan?.dischargeStops &&
+    project.vesselPlan.dischargeStops.length > 0
+      ? project.vesselPlan.dischargeStops
+      : dp
+        ? [dp]
+        : [];
 
   // Port-validity check — gate the map render on the loading AND
   // discharge ports both being defined. Composer's fallback ports
@@ -560,13 +570,29 @@ export function RouteMap({ project }: RouteMapProps) {
                 </Marker>
               )}
 
-              {dp && ms && (
-                <Marker longitude={dp.lon} latitude={dp.lat} anchor="center">
-                  <div title={`${dp.name} · ${dp.country}\nDP-ETA: ${formatDate(ms.dpEta)}`}>
-                    <PortPin kind="discharge" />
-                  </div>
-                </Marker>
-              )}
+              {ms &&
+                dischargeStops.map((stop, i) => {
+                  const isFinal = i === dischargeStops.length - 1;
+                  const multi = dischargeStops.length > 1;
+                  const title =
+                    `${multi ? `${i + 1}. ` : ""}${stop.name} · ${stop.country}` +
+                    (isFinal ? `\nDP-ETA: ${formatDate(ms.dpEta)}` : "");
+                  return (
+                    <Marker
+                      key={`dp-${i}-${stop.lon.toFixed(3)},${stop.lat.toFixed(3)}`}
+                      longitude={stop.lon}
+                      latitude={stop.lat}
+                      anchor="center"
+                    >
+                      <div title={title}>
+                        <PortPin
+                          kind="discharge"
+                          seq={multi ? i + 1 : undefined}
+                        />
+                      </div>
+                    </Marker>
+                  );
+                })}
 
               {/* Direction chevrons along the route — convey LP→DP
                   flow at a glance. Rendered before the vessel so the
@@ -883,11 +909,22 @@ export function RouteMap({ project }: RouteMapProps) {
                 const dp = pickLatestDpMilestone(
                   project.vesselPlan.milestones
                 );
+                // Multi-stop discharge ("Morehead, New Orleans") renders
+                // every stop joined with arrows, in sequence; the country
+                // line collapses to the distinct countries touched.
+                const stops = project.vesselPlan.dischargeStops;
+                const multi = !!stops && stops.length > 1;
+                const name = multi
+                  ? stops!.map((s) => s.name).join(" → ")
+                  : project.vesselPlan.dischargePort.name;
+                const country = multi
+                  ? Array.from(new Set(stops!.map((s) => s.country))).join(" · ")
+                  : project.vesselPlan.dischargePort.country;
                 return (
                   <PortChip
                     kind="discharge"
-                    name={project.vesselPlan.dischargePort.name}
-                    country={project.vesselPlan.dischargePort.country}
+                    name={name}
+                    country={country}
                     date={dp.date}
                     dateLabel={dp.label}
                   />
@@ -1322,7 +1359,16 @@ function DirectionChevron({
   );
 }
 
-function PortPin({ kind }: { kind: "loading" | "discharge" }) {
+function PortPin({
+  kind,
+  seq,
+}: {
+  kind: "loading" | "discharge";
+  /** When set (multi-stop discharge), the pin shows this 1-based stop
+   *  number instead of the map-pin glyph so the discharge sequence reads
+   *  at a glance. */
+  seq?: number;
+}) {
   const Icon = kind === "loading" ? Anchor : MapPin;
   const colorClass =
     kind === "loading"
@@ -1339,7 +1385,11 @@ function PortPin({ kind }: { kind: "loading" | "discharge" }) {
       <div
         className={`relative size-7 rounded-full ${colorClass} grid place-items-center text-white border-2 shadow-md`}
       >
-        <Icon className="size-3.5" />
+        {typeof seq === "number" ? (
+          <span className="text-[12px] font-bold leading-none">{seq}</span>
+        ) : (
+          <Icon className="size-3.5" />
+        )}
       </div>
     </div>
   );

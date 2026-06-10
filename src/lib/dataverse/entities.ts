@@ -77,6 +77,13 @@ export interface VesselPlan {
   cargoValueUsd?: number;
   loadingPort: Port;
   dischargePort: Port;
+  /** Ordered list of discharge ports when the F&O `mserp_trydischargeport`
+   *  string names more than one (comma-separated, e.g. "Morehead, New
+   *  Orleans"). Each entry is a resolved {@link Port}; order = discharge
+   *  sequence. `dischargePort` mirrors the LAST entry (final destination).
+   *  Left undefined for the common single-port case — consumers should
+   *  treat `dischargeStops ?? [dischargePort]` as the canonical sequence. */
+  dischargeStops?: Port[];
   /** Optional intermediate sea-only waypoints (straits, canals) between
    *  loadingPort and dischargePort. Order matters. Excludes origin/destination. */
   waypoints?: Waypoint[];

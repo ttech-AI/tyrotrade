@@ -4,6 +4,118 @@ import type { Project } from "@/lib/dataverse/entities";
 
 export const mockProjects: Project[] = [
   {
+    // ── ÇOK-DURAKLI TEST PROJESİ ──────────────────────────────────────
+    // F&O'da `mserp_trydischargeport` = "Morehead, New Orleans" gibi
+    // virgüllü gelen sefer. dischargePort = son durak (varış), dischargeStops
+    // = sıralı durak listesi. Harita her durağa numaralı pin koyar, rotayı
+    // sırayla çizer; chip "Morehead → New Orleans" gösterir.
+    projectNo: "TRKTEST00001",
+    projectName: "MV TEST ÇOK DURAKLI - MOREHEAD + NEW ORLEANS",
+    projectGroup: "YAGLITOHUM",
+    traderNo: "TRD-FTB",
+    mainTraderNo: "TRD-FTB",
+    customerAccount: null,
+    description: "Çok-duraklı varış limanı testi (Morehead, New Orleans)",
+    currency: "USD",
+    tradeType: "TICARET",
+    segment: "International",
+    deliveryMode: "Gemi",
+    incoterm: "CFR",
+    status: "Açık",
+    workflowStatus: "Gönderilmedi",
+    projectDate: "2026-04-20",
+    organic: false,
+    transactionDirection: null,
+    operationPeriod: null,
+    vesselPlan: {
+      vesselName: "TEST CARRIER",
+      imoNumber: "9999999",
+      fixtureId: "FFIXTEST01",
+      voyage: 1,
+      vesselStatus: "Commenced",
+      operationStatus: "In transit",
+      supplier: "VITERRA",
+      buyer: "TIRYAKI INTERNATIONAL DMCC",
+      cargoProduct: "SOYBEAN (SBN)",
+      voyageTotalTonnage: 55000,
+      actualQuantity: 55000,
+      cargoValueUsd: 22000000,
+      loadingPort: {
+        name: "Rosario",
+        country: "Argentina",
+        lon: -60.6505,
+        lat: -33.0084,
+      },
+      // Varış = son durak (New Orleans). Rota buraya kadar uzanır.
+      dischargePort: {
+        name: "New Orleans",
+        country: "United States",
+        lon: -90.0701,
+        lat: 29.9499,
+      },
+      // Sıralı durak yapısı: önce Morehead, sonra New Orleans.
+      dischargeStops: [
+        {
+          name: "Morehead",
+          country: "United States",
+          lon: -76.6905,
+          lat: 34.7188,
+        },
+        {
+          name: "New Orleans",
+          country: "United States",
+          lon: -90.0701,
+          lat: 29.9499,
+        },
+      ],
+      waypoints: [
+        { lon: -56.0, lat: -36.0, name: "Río de la Plata" },
+        { lon: -45.0, lat: -25.0 },
+        { lon: -38.0, lat: -5.0 },
+        { lon: -50.0, lat: 18.0 },
+        { lon: -72.0, lat: 30.0 },
+      ],
+      milestones: {
+        lpEta: "2026-05-01",
+        lpNorAccepted: "2026-05-02",
+        lpSd: "2026-05-03",
+        lpEd: "2026-05-06",
+        blDate: "2026-05-07",
+        dpEta: "2026-06-25",
+        dpNorAccepted: null,
+        dpSd: null,
+        dpEd: null,
+      },
+      heroImageUrl: "https://images.pexels.com/photos/753331/pexels-photo-753331.jpeg?auto=compress&cs=tinysrgb&w=1200",
+    },
+    lines: [
+      {
+        itemCode: "SBN001",
+        productName: "SOYA FASULYESI",
+        quantityKg: 55000000,
+        unit: "KG",
+        unitPrice: 400.0,
+        currency: "USD",
+        level1: "TCR",
+        level2: "YYT",
+        level3: "SBN",
+        qualityClass: "K1",
+      },
+    ],
+    costEstimate: {
+      freightUsd: 2200000,
+      insuranceUsd: 110000,
+      dutiesUsd: 0,
+      otherUsd: 66000,
+      totalUsd: 2376000,
+    },
+    actualCost: {
+      bookedUsd: 1200000,
+      invoicedUsd: 600000,
+      paidUsd: 300000,
+    },
+  },
+  {
     projectNo: "TRKYTH00616",
     projectName: "MT EVINOS - SBO - YENI PROJE (VITERRA SALE)",
     projectGroup: "YAGLITOHUM",
