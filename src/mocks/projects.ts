@@ -109,6 +109,31 @@ export const mockProjects: Project[] = [
       otherUsd: 66000,
       totalUsd: 2376000,
     },
+    // Tahmini gider satırları — 730026 (Navlun) satırı sağ paneldeki
+    // "Navlun/Miktar" kutusunu besler (40 USD/ton).
+    costEstimateLines: [
+      {
+        name: "Navlun",
+        code: "730026",
+        unitPriceUsd: 40,
+        tons: 55000,
+        totalUsd: 2200000,
+      },
+      {
+        name: "Sigorta",
+        code: "730030",
+        unitPriceUsd: 2,
+        tons: 55000,
+        totalUsd: 110000,
+      },
+      {
+        name: "Operasyonel giderler",
+        code: "721002",
+        unitPriceUsd: 1.2,
+        tons: 55000,
+        totalUsd: 66000,
+      },
+    ],
     actualCost: {
       bookedUsd: 1200000,
       invoicedUsd: 600000,

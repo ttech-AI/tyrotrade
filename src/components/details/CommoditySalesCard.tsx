@@ -16,6 +16,11 @@ interface Props {
   project: Project;
 }
 
+/** F&O `mserp_tryexpensetype` kodu — Navlun. Sağ paneldeki "Navlun/Miktar"
+ *  kutusu, tahmini gider satırları arasında bu kod varsa onun birim fiyatını
+ *  (USD/ton) gösterir. costEstimateLines.code bu raw koddur. */
+const FREIGHT_EXPENSE_CODE = "730026";
+
 /**
  * Cargo info card for the project right panel.
  *
@@ -56,6 +61,12 @@ export function CommoditySalesCard({ project }: Props) {
       : project.vesselPlan?.cargoValueUsd ?? fallbackValueUsd;
   const estimatedPricePerTon =
     estimatedTons > 0 ? estimatedAmount / estimatedTons : 0;
+
+  // Navlun birim fiyatı — tahmini gider satırlarında 730026 kodlu satır
+  // varsa onun USD/ton birim fiyatı. Yoksa 0 (kutu "—" gösterir).
+  const freightUnitPriceUsd =
+    project.costEstimateLines?.find((l) => l.code === FREIGHT_EXPENSE_CODE)
+      ?.unitPriceUsd ?? 0;
   const productName =
     project.vesselPlan?.cargoProduct ??
     project.lines[0]?.productName ??
@@ -165,16 +176,16 @@ export function CommoditySalesCard({ project }: Props) {
         </div>
 
         {/* "Tahmini" tek bir zarif başlığa alındı (üstte, ince ayraç
-            çizgisiyle) — böylece üç kutu etiketi "Tahmini"yi tekrar
-            etmeden tek kısa satır kalır: Miktar / Ürün Bedeli / Bedel/
-            Miktar. */}
+            çizgisiyle) — böylece kutu etiketleri "Tahmini"yi tekrar
+            etmeden kısa kalır: Miktar / Ürün Bedeli / Bedel/Miktar /
+            Navlun/Miktar. Dört kutu dar panele 2×2 yerleşir. */}
         <div className="flex items-center gap-2 mb-2">
           <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground shrink-0">
             Tahmini
           </span>
           <span className="flex-1 h-px bg-border/50" aria-hidden />
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <CompactStat
             label="Miktar"
             value={`${formatNumber(estimatedTons, 0)} t`}
@@ -210,6 +221,26 @@ export function CommoditySalesCard({ project }: Props) {
               ) : undefined
             }
           />
+          <CompactStat
+            label="Navlun/Miktar"
+            // Tahmini giderdeki 730026 (Navlun) satırının birim fiyatı —
+            // expamountusdd USD cinsinden olduğu için para birimi sabit USD.
+            value={
+              freightUnitPriceUsd > 0
+                ? `${formatNumber(freightUnitPriceUsd, 0)} / t`
+                : "—"
+            }
+            title={
+              freightUnitPriceUsd > 0
+                ? `${formatCurrency(freightUnitPriceUsd, "USD")} / ton · Navlun (730026)`
+                : "Tahmini giderde 730026 (Navlun) satırı yok"
+            }
+            icon={
+              freightUnitPriceUsd > 0 ? (
+                <CurrencyIcon currency="USD" />
+              ) : undefined
+            }
+          />
         </div>
       </div>
     </GlassPanel>
@@ -218,8 +249,8 @@ export function CommoditySalesCard({ project }: Props) {
 
 /* ─────────── Helpers ─────────── */
 
-/** Tight 3-col stat tile — label small-caps on top, value below. No
- *  min-width so 3 of these fit in the ~360px right-panel comfortably.
+/** Tight stat tile — label small-caps on top, value below. No min-width so
+ *  the tiles pack into the ~360px right-panel (2×2 grid) comfortably.
  *  Optional `icon` renders inline before the value (e.g. currency mark
  *  for monetary stats). `title` attribute carries the un-truncated value
  *  for hover precision. */
