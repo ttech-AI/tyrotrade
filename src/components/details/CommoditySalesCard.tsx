@@ -16,10 +16,12 @@ interface Props {
   project: Project;
 }
 
-/** F&O `mserp_tryexpensetype` kodu — Navlun. Sağ paneldeki "Navlun/Miktar"
- *  kutusu, tahmini gider satırları arasında bu kod varsa onun birim fiyatını
- *  (USD/ton) gösterir. costEstimateLines.code bu raw koddur. */
-const FREIGHT_EXPENSE_CODE = "730026";
+/** F&O `mserp_tryexpensetype` kodları — Navlun. Sağ paneldeki "Navlun/Miktar"
+ *  kutusu, tahmini gider satırları arasında bu kodlardan hangisi varsa onun
+ *  birim fiyatını (USD/ton) gösterir. İkisi aynı anda nadiren bulunur; ikisi
+ *  de varsa öncelik listedeki ilk koda (730026) aittir. costEstimateLines.code
+ *  bu raw koddur. */
+const FREIGHT_EXPENSE_CODES = ["730026", "721024"] as const;
 
 /**
  * Cargo info card for the project right panel.
@@ -62,11 +64,15 @@ export function CommoditySalesCard({ project }: Props) {
   const estimatedPricePerTon =
     estimatedTons > 0 ? estimatedAmount / estimatedTons : 0;
 
-  // Navlun birim fiyatı — tahmini gider satırlarında 730026 kodlu satır
-  // varsa onun USD/ton birim fiyatı. Yoksa 0 (kutu "—" gösterir).
-  const freightUnitPriceUsd =
-    project.costEstimateLines?.find((l) => l.code === FREIGHT_EXPENSE_CODE)
-      ?.unitPriceUsd ?? 0;
+  // Navlun birim fiyatı — tahmini gider satırlarında navlun kodlarından
+  // (öncelik sırasıyla 730026, 721024) hangisi varsa onun USD/ton birim
+  // fiyatı. Hiçbiri yoksa 0 (kutu "—" gösterir).
+  const freightLine = project.costEstimateLines
+    ? FREIGHT_EXPENSE_CODES.map((code) =>
+        project.costEstimateLines!.find((l) => l.code === code)
+      ).find(Boolean)
+    : undefined;
+  const freightUnitPriceUsd = freightLine?.unitPriceUsd ?? 0;
   const productName =
     project.vesselPlan?.cargoProduct ??
     project.lines[0]?.productName ??
@@ -232,8 +238,8 @@ export function CommoditySalesCard({ project }: Props) {
             }
             title={
               freightUnitPriceUsd > 0
-                ? `${formatCurrency(freightUnitPriceUsd, "USD")} / ton · Navlun (730026)`
-                : "Tahmini giderde 730026 (Navlun) satırı yok"
+                ? `${formatCurrency(freightUnitPriceUsd, "USD")} / ton · Navlun (${freightLine?.code ?? ""})`
+                : "Tahmini giderde Navlun satırı (730026 / 721024) yok"
             }
             icon={
               freightUnitPriceUsd > 0 ? (
