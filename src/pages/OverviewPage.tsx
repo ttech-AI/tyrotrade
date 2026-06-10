@@ -1,6 +1,8 @@
 import * as React from "react";
+import { useNavigate } from "react-router-dom";
 import { useProjects } from "@/hooks/useProjects";
 import { ProjectsEmptyState } from "@/components/projects/ProjectsEmptyState";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { AdvancedFilter } from "@/components/filters/AdvancedFilter";
 import {
   applyProjectFilter,
@@ -11,13 +13,18 @@ import {
   aggregateGroups,
   buildGroupSegmentColumns,
   buildSegmentMatrix,
+  segmentsForGroup,
   selectPendingPayments,
   selectWaitingVessels,
   voyageDisplayLabel,
   GROUP_META,
+  type VesselGroup,
 } from "@/lib/selectors/overview";
 import { OverviewKpis } from "@/components/overview/OverviewKpis";
-import { OverviewInsights, type OverviewInsight } from "@/components/overview/OverviewInsights";
+import {
+  OverviewInsights,
+  type OverviewInsight,
+} from "@/components/overview/OverviewInsights";
 import { GroupDonutCard } from "@/components/overview/GroupDonutCard";
 import { SegmentMatrixCard } from "@/components/overview/SegmentMatrixCard";
 import { LongestWaitingCard } from "@/components/overview/LongestWaitingCard";
@@ -42,12 +49,16 @@ const OVERVIEW_SHIP_PLAN_DEFAULT = false;
  * Mirrors the reference BI report (KPI row · group donut · segment ×
  * group matrix · longest-waiting vessel · per-group segment columns ·
  * payment-pending list) rebuilt in the app's liquid-glass design
- * language on the unified filter system.
+ * language on the unified filter system. Every card is a deep link:
+ * groups / segments / statuses click through to Sefer Takibi with the
+ * matching filter (and this page's period) pre-applied.
  *
- * Grouping rule: segment "Organik*" → Organik · "Tahıl*" / "Danem*" →
- * Anadolu · everything else → International (see selectors/overview.ts).
+ * Grouping rule: segment "Organik*" / "Sunrise*" → Organik · "Tahıl*" /
+ * "Danem*" → Anadolu · everything else → International (see
+ * selectors/overview.ts).
  */
 export function OverviewPage() {
+  const navigate = useNavigate();
   const { projects: rawProjects, isEmpty, fetchedAt } = useProjects();
   const [filters, setFilters] = React.useState<ProjectFilterState>(() =>
     makeEmptyFilters({
@@ -80,6 +91,42 @@ export function OverviewPage() {
     [projects, now]
   );
 
+  /* ─── Deep-link handlers — every card routes here. The page's own
+     period rides along so the landing count matches what was clicked. */
+  const focusBase = React.useMemo(
+    () => ({ focusPeriod: filters.period, focusFyKey: filters.fyKey }),
+    [filters.period, filters.fyKey]
+  );
+  const openAllProjects = React.useCallback(() => {
+    navigate("/projects", { state: { focusAll: true, ...focusBase } });
+  }, [navigate, focusBase]);
+  const openGroup = React.useCallback(
+    (group: VesselGroup) => {
+      const segments = segmentsForGroup(projects, group);
+      if (segments.length === 0) return;
+      navigate("/projects", {
+        state: { focusSegments: segments, ...focusBase },
+      });
+    },
+    [navigate, projects, focusBase]
+  );
+  const openSegment = React.useCallback(
+    (segment: string) => {
+      navigate("/projects", {
+        state: { focusSegments: [segment], ...focusBase },
+      });
+    },
+    [navigate, focusBase]
+  );
+  const openWaiting = React.useCallback(() => {
+    navigate("/projects", {
+      state: {
+        focusVoyageStatuses: ["To Be Nominated", "Nominated"],
+        ...focusBase,
+      },
+    });
+  }, [navigate, focusBase]);
+
   const insights = React.useMemo<OverviewInsight[]>(() => {
     const out: OverviewInsight[] = [];
     const topGroup = [...agg.rows].sort((a, b) => b.count - a.count)[0];
@@ -88,6 +135,7 @@ export function OverviewPage() {
         color: GROUP_META[topGroup.group].solid,
         lead: "En büyük grup",
         tail: `${GROUP_META[topGroup.group].label} · ${topGroup.count} proje (%${formatNumber(topGroup.pct, 1)})`,
+        onClick: () => openGroup(topGroup.group),
       });
     }
     const topSegment = matrix.rows[0];
@@ -96,6 +144,7 @@ export function OverviewPage() {
         color: "#0284c7",
         lead: "En yoğun segment",
         tail: `${topSegment.segment} · ${topSegment.total} proje`,
+        onClick: () => openSegment(topSegment.segment),
       });
     }
     if (waiting.length > 0) {
@@ -103,82 +152,96 @@ export function OverviewPage() {
         color: "#f59e0b",
         lead: "Bekleyen sefer",
         tail: `${waiting.length} gemi atama/yükleme bekliyor · en uzun ${waiting[0].days} gün (${voyageDisplayLabel(waiting[0].project)})`,
+        onClick: openWaiting,
       });
     }
     if (pending.count > 0) {
       out.push({
         color: "#e11d48",
         lead: "Ödeme bekleyen",
-        tail: `${pending.count} sefer · ${formatCurrency(pending.totalUsd, "USD", { maximumFractionDigits: 0 })} navlun`,
+        tail: `${pending.count} sefer · ${formatCurrency(pending.totalUsd, "USD", { maximumFractionDigits: 0 })}`,
       });
     }
     return out;
-  }, [agg.rows, matrix.rows, waiting, pending]);
+  }, [agg.rows, matrix.rows, waiting, pending, openGroup, openSegment, openWaiting]);
 
   if (isEmpty) {
     return <ProjectsEmptyState />;
   }
 
   return (
-    <div className="space-y-3">
-      {/* ─── Toolbar: sync stamp + result count + filter ─── */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="min-w-0">
-          <p className="text-[12px] text-muted-foreground truncate">
-            <span className="font-semibold text-foreground/80 tabular-nums">
-              {projects.length}
-            </span>{" "}
-            gemi projesi
-            {fetchedAt && (
-              <>
-                {" "}
-                · son güncelleme{" "}
-                <span className="tabular-nums">{formatSync(fetchedAt)}</span>
-              </>
-            )}
-          </p>
+    // AppShell's content slot is overflow-hidden — pages own their
+    // scroll. Same ScrollArea pattern DashboardPage uses; without it
+    // the lower cards were clipped with no way to scroll.
+    <ScrollArea className="h-full">
+      <div className="space-y-3 pb-3">
+        {/* ─── Toolbar: sync stamp + result count + filter ─── */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <p className="text-[12px] text-muted-foreground truncate">
+              <span className="font-semibold text-foreground/80 tabular-nums">
+                {projects.length}
+              </span>{" "}
+              gemi projesi
+              {fetchedAt && (
+                <>
+                  {" "}
+                  · son güncelleme{" "}
+                  <span className="tabular-nums">{formatSync(fetchedAt)}</span>
+                </>
+              )}
+            </p>
+          </div>
+          <AdvancedFilter
+            projects={rawProjects}
+            filters={filters}
+            onChange={setFilters}
+            shipPlanDefault={OVERVIEW_SHIP_PLAN_DEFAULT}
+            periodDefault="all"
+            resultCount={projects.length}
+            totalCount={rawProjects.length}
+            collapsible
+          />
         </div>
-        <AdvancedFilter
-          projects={rawProjects}
-          filters={filters}
-          onChange={setFilters}
-          shipPlanDefault={OVERVIEW_SHIP_PLAN_DEFAULT}
-          periodDefault="all"
-          resultCount={projects.length}
-          totalCount={rawProjects.length}
-          collapsible
+
+        {/* ─── KPI row ─── */}
+        <OverviewKpis
+          agg={agg}
+          onHeroClick={openAllProjects}
+          onGroupClick={openGroup}
         />
+
+        {/* ─── Insights ribbon ─── */}
+        <OverviewInsights insights={insights} />
+
+        {/* ─── Donut · Matrix · Longest waiting ─── */}
+        <div className="grid grid-cols-12 gap-3">
+          <div className="col-span-12 md:col-span-6 xl:col-span-3">
+            <GroupDonutCard agg={agg} onGroupClick={openGroup} />
+          </div>
+          <div className="col-span-12 md:col-span-6 xl:col-span-5">
+            <SegmentMatrixCard matrix={matrix} onSegmentClick={openSegment} />
+          </div>
+          <div className="col-span-12 xl:col-span-4">
+            <LongestWaitingCard waiting={waiting} />
+          </div>
+        </div>
+
+        {/* ─── Group segment columns · Pending payments ─── */}
+        <div className="grid grid-cols-12 gap-3">
+          <div className="col-span-12 xl:col-span-7">
+            <GroupSegmentColumns
+              columns={groupColumns}
+              onGroupClick={openGroup}
+              onSegmentClick={openSegment}
+            />
+          </div>
+          <div className="col-span-12 xl:col-span-5">
+            <PendingPaymentsCard pending={pending} />
+          </div>
+        </div>
       </div>
-
-      {/* ─── KPI row ─── */}
-      <OverviewKpis agg={agg} />
-
-      {/* ─── Insights ribbon ─── */}
-      <OverviewInsights insights={insights} />
-
-      {/* ─── Donut · Matrix · Longest waiting ─── */}
-      <div className="grid grid-cols-12 gap-3">
-        <div className="col-span-12 md:col-span-6 xl:col-span-3">
-          <GroupDonutCard agg={agg} />
-        </div>
-        <div className="col-span-12 md:col-span-6 xl:col-span-5">
-          <SegmentMatrixCard matrix={matrix} />
-        </div>
-        <div className="col-span-12 xl:col-span-4">
-          <LongestWaitingCard waiting={waiting} />
-        </div>
-      </div>
-
-      {/* ─── Group segment columns · Pending payments ─── */}
-      <div className="grid grid-cols-12 gap-3">
-        <div className="col-span-12 xl:col-span-7">
-          <GroupSegmentColumns columns={groupColumns} />
-        </div>
-        <div className="col-span-12 xl:col-span-5">
-          <PendingPaymentsCard pending={pending} />
-        </div>
-      </div>
-    </div>
+    </ScrollArea>
   );
 }
 

@@ -1,4 +1,6 @@
-import { motion, useReducedMotion } from "framer-motion";
+import * as React from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { ArrowUpRight } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { PieChartIcon } from "@hugeicons/core-free-icons";
 import { GlassPanel } from "@/components/glass/GlassPanel";
@@ -6,36 +8,53 @@ import { formatNumber } from "@/lib/format";
 import {
   GROUP_META,
   type OverviewGroupAggregate,
+  type VesselGroup,
 } from "@/lib/selectors/overview";
 
 /**
- * "Gruplara Göre Gemi Sayıları" — multi-segment SVG donut (same
- * hand-rolled stroke-dasharray approach as RatioDonut in
- * ExpectedRealizedExpenseCard, extended to 3 segments) + legend rows
- * with count, share % and a thin per-group bar.
+ * "Gruplara Göre Gemi Sayıları" — interactive multi-segment SVG donut.
  *
- * Custom SVG instead of a recharts Pie: full control over the animated
- * draw-in, the centre label, and the exact group hex palette — and no
- * new chart-library surface for a single visual.
+ * Interactions (legend ↔ chart in sync):
+ *   - hover a slice OR its legend row → that slice thickens, the others
+ *     dim, and the centre label swaps from the grand total to the
+ *     hovered group's count + share
+ *   - click a slice / legend row → Sefer Takibi opens pre-filtered to
+ *     that group's segments
+ *
+ * Hand-rolled SVG (same family as RatioDonut): full control over the
+ * draw-in animation, hover geometry and the exact group hex palette.
+ * Legend rows are real <button>s, so keyboard users get the same
+ * navigation without needing to hit SVG arcs.
  */
 
-const SIZE = 168;
-const STROKE = 24;
-const R = (SIZE - STROKE) / 2;
+const SIZE = 176;
+/** Resting ring thickness. */
+const STROKE = 22;
+/** Hovered ring thickness — outer edge stays inside the viewBox:
+ *  R + HOVER_STROKE/2 = 72 + 15 = 87 < SIZE/2 = 88. */
+const HOVER_STROKE = 30;
+const R = (SIZE - 32) / 2;
 const C = 2 * Math.PI * R;
-/** Visual breathing room between segments (px of circumference).
- *  Works with strokeLinecap="butt" — round caps would extend each dash
- *  end by STROKE/2 (12px), swallowing the gap AND inflating tiny
- *  segments into oversized dots. */
+/** Breathing room between segments (px of circumference) — works with
+ *  strokeLinecap="butt"; round caps would overflow by STROKE/2. */
 const GAP = 3;
 
-export function GroupDonutCard({ agg }: { agg: OverviewGroupAggregate }) {
+export function GroupDonutCard({
+  agg,
+  onGroupClick,
+}: {
+  agg: OverviewGroupAggregate;
+  onGroupClick: (group: VesselGroup) => void;
+}) {
   const reduceMotion = useReducedMotion();
+  const [hovered, setHovered] = React.useState<VesselGroup | null>(null);
   const total = agg.total;
   const visible = agg.rows.filter((r) => r.count > 0);
+  const hoveredRow = hovered
+    ? agg.rows.find((r) => r.group === hovered)
+    : undefined;
 
-  // Build cumulative arc segments. Each segment shrinks by GAP so
-  // neighbours don't touch; single-segment case draws the full ring.
+  // Cumulative arc segments (12 o'clock origin via -90° group rotate).
   let cursor = 0;
   const segments = visible.map((row) => {
     const frac = total > 0 ? row.count / total : 0;
@@ -61,13 +80,17 @@ export function GroupDonutCard({ agg }: { agg: OverviewGroupAggregate }) {
           </h3>
         </div>
         <p className="text-[11px] text-muted-foreground mt-0.5">
-          Segment ön ekine göre grup dağılımı
+          Dilime veya gruba tıkla → Sefer Takibi'nde filtrele
         </p>
       </div>
 
       <div className="flex-1 px-4 pb-4 flex flex-col items-center justify-center gap-4">
         {/* Donut */}
-        <div className="relative" style={{ width: SIZE, height: SIZE }}>
+        <div
+          className="relative"
+          style={{ width: SIZE, height: SIZE }}
+          onMouseLeave={() => setHovered(null)}
+        >
           <svg
             width={SIZE}
             height={SIZE}
@@ -75,7 +98,6 @@ export function GroupDonutCard({ agg }: { agg: OverviewGroupAggregate }) {
             role="img"
             aria-label={`Toplam ${total} proje — grup dağılımı`}
           >
-            {/* Track */}
             <circle
               cx={SIZE / 2}
               cy={SIZE / 2}
@@ -84,54 +106,116 @@ export function GroupDonutCard({ agg }: { agg: OverviewGroupAggregate }) {
               stroke="rgba(15,23,42,0.06)"
               strokeWidth={STROKE}
             />
-            {/* Segments — rotated -90° so 12 o'clock is the origin */}
             <g transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}>
-              {segments.map(({ row, len, start }) => (
-                <motion.circle
-                  key={row.group}
-                  cx={SIZE / 2}
-                  cy={SIZE / 2}
-                  r={R}
-                  fill="none"
-                  stroke={GROUP_META[row.group].solid}
-                  strokeWidth={STROKE}
-                  strokeLinecap="butt"
-                  strokeDasharray={`${len} ${C - len}`}
-                  strokeDashoffset={-start}
-                  initial={
-                    reduceMotion
-                      ? false
-                      : { strokeDasharray: `0 ${C}` }
-                  }
-                  animate={{ strokeDasharray: `${len} ${C - len}` }}
-                  transition={{
-                    duration: 0.8,
-                    ease: [0.22, 1, 0.36, 1],
-                    delay: 0.15,
-                  }}
-                />
-              ))}
+              {segments.map(({ row, len, start }) => {
+                const isHovered = hovered === row.group;
+                const isDimmed = hovered !== null && !isHovered;
+                return (
+                  <motion.circle
+                    key={row.group}
+                    cx={SIZE / 2}
+                    cy={SIZE / 2}
+                    r={R}
+                    fill="none"
+                    stroke={GROUP_META[row.group].solid}
+                    strokeLinecap="butt"
+                    strokeDashoffset={-start}
+                    className="cursor-pointer"
+                    onMouseEnter={() => setHovered(row.group)}
+                    onClick={() => onGroupClick(row.group)}
+                    initial={
+                      reduceMotion
+                        ? false
+                        : { strokeDasharray: `0 ${C}`, strokeWidth: STROKE }
+                    }
+                    animate={{
+                      strokeDasharray: `${len} ${C - len}`,
+                      strokeWidth: isHovered ? HOVER_STROKE : STROKE,
+                      opacity: isDimmed ? 0.3 : 1,
+                    }}
+                    transition={{
+                      strokeDasharray: {
+                        duration: 0.8,
+                        ease: [0.22, 1, 0.36, 1],
+                        delay: 0.15,
+                      },
+                      strokeWidth: { duration: 0.18 },
+                      opacity: { duration: 0.18 },
+                    }}
+                  >
+                    <title>{`${GROUP_META[row.group].label}: ${row.count} proje (%${formatNumber(row.pct, 1)})`}</title>
+                  </motion.circle>
+                );
+              })}
             </g>
           </svg>
-          {/* Centre label */}
+          {/* Centre label — swaps between total and hovered group */}
           <div className="absolute inset-0 grid place-items-center pointer-events-none">
-            <div className="text-center">
-              <div className="text-[26px] font-semibold leading-none tracking-tight tabular-nums text-foreground">
-                {total}
-              </div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">
-                Proje
-              </div>
-            </div>
+            <AnimatePresence mode="wait" initial={false}>
+              {hoveredRow ? (
+                <motion.div
+                  key={hoveredRow.group}
+                  initial={reduceMotion ? false : { opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={reduceMotion ? undefined : { opacity: 0, y: -4 }}
+                  transition={{ duration: 0.15 }}
+                  className="text-center"
+                >
+                  <div
+                    className="text-[26px] font-semibold leading-none tracking-tight tabular-nums"
+                    style={{ color: GROUP_META[hoveredRow.group].solid }}
+                  >
+                    {hoveredRow.count}
+                  </div>
+                  <div
+                    className="text-[10px] uppercase tracking-wider mt-1 font-semibold"
+                    style={{ color: GROUP_META[hoveredRow.group].solid }}
+                  >
+                    {hoveredRow.group === "International"
+                      ? "Intl"
+                      : hoveredRow.group}{" "}
+                    · %{formatNumber(hoveredRow.pct, 1)}
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="total"
+                  initial={reduceMotion ? false : { opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={reduceMotion ? undefined : { opacity: 0, y: -4 }}
+                  transition={{ duration: 0.15 }}
+                  className="text-center"
+                >
+                  <div className="text-[26px] font-semibold leading-none tracking-tight tabular-nums text-foreground">
+                    {total}
+                  </div>
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">
+                    Proje
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
 
-        {/* Legend */}
-        <div className="w-full space-y-2">
+        {/* Legend — buttons, hover-synced with the chart */}
+        <div className="w-full space-y-1">
           {agg.rows.map((row) => {
             const meta = GROUP_META[row.group];
+            const isDimmed = hovered !== null && hovered !== row.group;
             return (
-              <div key={row.group} className="flex items-center gap-2">
+              <button
+                key={row.group}
+                type="button"
+                onClick={() => onGroupClick(row.group)}
+                onMouseEnter={() => setHovered(row.group)}
+                onMouseLeave={() => setHovered(null)}
+                onFocus={() => setHovered(row.group)}
+                onBlur={() => setHovered(null)}
+                title={`${meta.label} projelerini Sefer Takibi'nde aç`}
+                className="group w-full flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-foreground/[0.04] transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                style={{ opacity: isDimmed ? 0.45 : 1 }}
+              >
                 <span
                   aria-hidden
                   className="size-2 rounded-full shrink-0"
@@ -149,7 +233,12 @@ export function GroupDonutCard({ agg }: { agg: OverviewGroupAggregate }) {
                 >
                   %{formatNumber(row.pct, 1)}
                 </span>
-              </div>
+                <ArrowUpRight
+                  aria-hidden
+                  className="size-3 shrink-0 text-muted-foreground/50 opacity-0 -translate-x-0.5 group-hover:opacity-100 group-hover:translate-x-0 transition-all"
+                  strokeWidth={2.25}
+                />
+              </button>
             );
           })}
         </div>

@@ -3,9 +3,9 @@
  * composed `Project[]` for the vessel-group overview page.
  *
  * Grouping rule (user-confirmed):
- *   segment starts with "Organik"           → Organik
- *   segment starts with "Tahıl" or "Danem"  → Anadolu
- *   everything else (incl. empty segment)   → International
+ *   segment starts with "Organik" or "Sunrise" → Organik
+ *   segment starts with "Tahıl" or "Danem"     → Anadolu
+ *   everything else (incl. empty segment)      → International
  *
  * Matching is Turkish-locale case-insensitive ("TAHIL" → "tahıl" via
  * toLocaleLowerCase("tr-TR"); the plain-ASCII "tahil" spelling is also
@@ -71,10 +71,36 @@ export function classifySegmentGroup(
   segment: string | null | undefined
 ): VesselGroup {
   const s = (segment ?? "").trim().toLocaleLowerCase("tr-TR");
-  if (s.startsWith("organik") || s.startsWith("organık")) return "Organik";
+  // "Sunrise*" segments belong to the Organik group on this tenant
+  // (user-confirmed — the Organik book trades under the Sunrise name).
+  // "SUNRISE" → "sunrıse" under tr-TR I-dotting, hence the second check.
+  if (
+    s.startsWith("organik") ||
+    s.startsWith("organık") ||
+    s.startsWith("sunrise") ||
+    s.startsWith("sunrıse")
+  )
+    return "Organik";
   if (s.startsWith("tahıl") || s.startsWith("tahil") || s.startsWith("danem"))
     return "Anadolu";
   return "International";
+}
+
+/** Distinct raw segment values (as they appear in the data) belonging
+ *  to a group — the payload for "open Sefer Takibi filtered to this
+ *  group" deep links, since the unified filter speaks segments, not
+ *  groups. */
+export function segmentsForGroup(
+  projects: Project[],
+  group: VesselGroup
+): string[] {
+  const out = new Set<string>();
+  for (const p of projects) {
+    const seg = (p.segment ?? "").trim();
+    if (!seg) continue;
+    if (classifySegmentGroup(seg) === group) out.add(seg);
+  }
+  return [...out];
 }
 
 /** Project-level open/closed read. F&O formatted status is "Açık" /
@@ -96,6 +122,12 @@ export interface GroupCountRow {
 export interface OverviewGroupAggregate {
   total: number;
   openCount: number;
+  /** Voyages currently underway (vesselStatus === "Commenced"). */
+  commencedCount: number;
+  /** Voyages still waiting (To Be Nominated + Nominated). */
+  waitingCount: number;
+  /** Σ vesselPlan.voyageTotalTonnage (MT) across the filtered set. */
+  totalTonnageMt: number;
   rows: GroupCountRow[];
 }
 
@@ -106,14 +138,27 @@ export function aggregateGroups(projects: Project[]): OverviewGroupAggregate {
     International: 0,
   };
   let openCount = 0;
+  let commencedCount = 0;
+  let waitingCount = 0;
+  let totalTonnageMt = 0;
   for (const p of projects) {
     counts[classifySegmentGroup(p.segment)] += 1;
     if (isOpenStatus(p.status)) openCount += 1;
+    const vs = p.vesselPlan?.vesselStatus;
+    if (vs === "Commenced") commencedCount += 1;
+    else if (vs === "To Be Nominated" || vs === "Nominated")
+      waitingCount += 1;
+    const t = p.vesselPlan?.voyageTotalTonnage;
+    if (typeof t === "number" && Number.isFinite(t) && t > 0)
+      totalTonnageMt += t;
   }
   const total = projects.length;
   return {
     total,
     openCount,
+    commencedCount,
+    waitingCount,
+    totalTonnageMt,
     rows: GROUP_ORDER.map((group) => ({
       group,
       count: counts[group],

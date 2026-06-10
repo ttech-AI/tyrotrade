@@ -70,25 +70,53 @@ export function ProjectsPage() {
     };
   });
 
-  // Deep-link from the dashboard KPI drawer (or any other page) — when
-  // we land here with `state.focusProjectNo`, swap the filter into a
-  // single-project view so the list only shows that one row. The state
-  // is consumed once and then wiped via `window.history.replaceState`
-  // so a casual re-render doesn't re-apply the filter; the user can
-  // clear the projectNos chip from the popover at any time.
+  // Deep-link from another page — supports three focus payloads:
+  //   focusProjectNo      → single-project pin (KPI drawer, Trade Cost,
+  //                         Genel Bakış list rows)
+  //   focusSegments       → pre-filter to a segment set (Genel Bakış
+  //                         group/segment cards)
+  //   focusVoyageStatuses → pre-filter to specific voyage statuses
+  //                         (Genel Bakış "bekleyen" insight)
+  // focusPeriod/focusFyKey optionally carry the source page's period so
+  // landing counts match what the user clicked. The state is consumed
+  // once and wiped via `window.history.replaceState` so back-button /
+  // hot reload doesn't re-apply; every chip stays user-clearable.
   React.useEffect(() => {
-    const focusNo = (location.state as { focusProjectNo?: string } | null)
-      ?.focusProjectNo;
-    if (!focusNo) return;
-    // Clear the default voyage-status narrowing alongside setting the
-    // projectNos pin — deep links can point at Completed/Closed voyages
-    // (e.g. payment-pending rows on Genel Bakış, Trade Cost drill-downs)
-    // which the page's default active-status set would otherwise hide,
-    // leaving an EMPTY left rail with an invisible pinned project.
+    const st = location.state as {
+      focusProjectNo?: string;
+      focusSegments?: string[];
+      focusVoyageStatuses?: string[];
+      /** "Show me everything" — clears the default voyage-status
+       *  narrowing without pinning anything (Genel Bakış hero card). */
+      focusAll?: boolean;
+      focusPeriod?: ProjectFilterState["period"];
+      focusFyKey?: string | null;
+    } | null;
+    const focusNo = st?.focusProjectNo;
+    const focusSegments = st?.focusSegments?.filter(Boolean) ?? [];
+    const focusVoyage = st?.focusVoyageStatuses?.filter(Boolean) ?? [];
+    if (
+      !focusNo &&
+      focusSegments.length === 0 &&
+      focusVoyage.length === 0 &&
+      !st?.focusAll
+    )
+      return;
+    // The default voyage-status narrowing is replaced wholesale: either
+    // by the explicit focus set, or cleared entirely — deep links can
+    // point at Completed/Closed voyages (payment-pending rows, Trade
+    // Cost drill-downs) which the default active-status set would hide,
+    // leaving an EMPTY left rail.
     setFilters((f) => ({
       ...f,
-      projectNos: new Set([focusNo]),
-      voyageStatuses: new Set(),
+      ...(focusNo ? { projectNos: new Set([focusNo]) } : {}),
+      ...(focusSegments.length > 0
+        ? { segments: new Set(focusSegments) }
+        : {}),
+      voyageStatuses: new Set(focusVoyage),
+      ...(st?.focusPeriod
+        ? { period: st.focusPeriod, fyKey: st.focusFyKey ?? null }
+        : {}),
     }));
     // Drop the navigation state so a back-button round trip / hot reload
     // doesn't re-trigger this effect. `replaceState` preserves the URL
