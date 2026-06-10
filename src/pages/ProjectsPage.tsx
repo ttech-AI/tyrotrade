@@ -80,7 +80,16 @@ export function ProjectsPage() {
     const focusNo = (location.state as { focusProjectNo?: string } | null)
       ?.focusProjectNo;
     if (!focusNo) return;
-    setFilters((f) => ({ ...f, projectNos: new Set([focusNo]) }));
+    // Clear the default voyage-status narrowing alongside setting the
+    // projectNos pin — deep links can point at Completed/Closed voyages
+    // (e.g. payment-pending rows on Genel Bakış, Trade Cost drill-downs)
+    // which the page's default active-status set would otherwise hide,
+    // leaving an EMPTY left rail with an invisible pinned project.
+    setFilters((f) => ({
+      ...f,
+      projectNos: new Set([focusNo]),
+      voyageStatuses: new Set(),
+    }));
     // Drop the navigation state so a back-button round trip / hot reload
     // doesn't re-trigger this effect. `replaceState` preserves the URL
     // (including the hash for HashRouter) and clears the state slot.

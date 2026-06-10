@@ -2,7 +2,7 @@ import * as React from "react";
 import { Outlet, useLocation, useMatch } from "react-router-dom";
 import { Menu, Ship, Database, Search, Settings, X, Trash2 } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Home01Icon, HotPriceIcon, Robot01Icon } from "@hugeicons/core-free-icons";
+import { Home01Icon, HotPriceIcon, Robot01Icon, PieChartIcon } from "@hugeicons/core-free-icons";
 import { GlassPanel } from "@/components/glass/GlassPanel";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 
 const PAGE_TITLES: Record<string, string> = {
   "/": "Dashboard",
+  "/overview": "Genel Bakış",
   "/projects": "Vessel Projects",
   "/data": "Veri Yönetimi",
   "/settings": "Ayarlar",
@@ -358,6 +359,20 @@ const PAGE_TITLE_CONFIGS: Array<{
       ),
       label: "Dashboard",
       title: "Genel Bakış",
+    },
+  },
+  {
+    // H1 deliberately differs from "/" (Dashboard), whose title is
+    // already "Genel Bakış" — two pages must not share the same topbar
+    // headline. Sidebar label stays "Genel Bakış"; the topbar headline
+    // says what the page actually contains.
+    match: (p) => p === "/overview",
+    config: {
+      renderIcon: () => (
+        <HugeiconsIcon icon={PieChartIcon} size={16} strokeWidth={2} />
+      ),
+      label: "Genel Bakış",
+      title: "Gemi Projeleri Özeti",
     },
   },
   {

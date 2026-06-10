@@ -1,0 +1,123 @@
+import { Link } from "react-router-dom";
+import { ArrowUpRight } from "lucide-react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Invoice03Icon } from "@hugeicons/core-free-icons";
+import { GlassPanel } from "@/components/glass/GlassPanel";
+import { formatCurrency } from "@/lib/format";
+import {
+  voyageDisplayLabel,
+  type PendingPayments,
+} from "@/lib/selectors/overview";
+
+/**
+ * "Ödeme Bekleyen Gemiler" — voyages whose ship plan carries a pending
+ * payment status (`mserp_trypaymentstatus` reads "Beklemede" / pending).
+ * Amount column = `mserp_netfreightamount`, whose F&O label is "Ürün
+ * Bedeli ($)" — the voyage's cargo value in USD (NOT freight, despite
+ * the column's technical name); the summary strip totals it. "Bekleme
+ * süresi" = days since the voyage's most recent populated milestone.
+ * Rows deep-link into Sefer Takibi.
+ */
+export function PendingPaymentsCard({
+  pending,
+}: {
+  pending: PendingPayments;
+}) {
+  return (
+    <GlassPanel
+      tone="default"
+      className="rounded-2xl h-full flex flex-col overflow-hidden"
+    >
+      <div className="px-4 pt-4 pb-2">
+        <div className="flex items-center gap-2">
+          <HugeiconsIcon
+            icon={Invoice03Icon}
+            size={16}
+            strokeWidth={1.75}
+            className="text-muted-foreground"
+          />
+          <h3 className="text-sm font-bold text-slate-900">
+            Ödeme Bekleyen Gemiler
+          </h3>
+        </div>
+        <p className="text-[11px] text-muted-foreground mt-0.5">
+          Ödeme durumu "Beklemede" olan seferler · tutar = ürün bedeli
+        </p>
+      </div>
+
+      {pending.count === 0 ? (
+        <div className="flex-1 grid place-items-center px-4 pb-6">
+          <p className="text-[12.5px] text-muted-foreground text-center">
+            Ödeme bekleyen sefer yok — tüm navlunlar kapanmış. ✓
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Summary strip */}
+          <div className="mx-3 rounded-xl bg-rose-500/[0.07] border border-rose-500/15 px-3.5 py-2.5 flex items-center justify-between gap-3">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[22px] font-bold tabular-nums leading-none text-rose-600">
+                {pending.count}
+              </span>
+              <span className="text-[11px] font-semibold text-rose-700/80">
+                Sefer
+              </span>
+            </div>
+            <div className="text-right">
+              <div className="text-[10px] uppercase tracking-wider text-rose-700/70 font-semibold">
+                Toplam Bekleyen Tutar
+              </div>
+              <div className="text-[15px] font-bold tabular-nums text-rose-600 leading-tight">
+                {formatCurrency(pending.totalUsd, "USD", {
+                  maximumFractionDigits: 0,
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Rows */}
+          <div className="flex-1 px-2 py-1.5 overflow-y-auto">
+            {pending.rows.map((r) => (
+              <Link
+                key={r.project.projectNo}
+                to={`/projects/${r.project.projectNo}`}
+                state={{ focusProjectNo: r.project.projectNo }}
+                className="group flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-foreground/[0.04] transition-colors min-w-0"
+                title={`${r.project.projectNo} projesini Sefer Takibi'nde aç`}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="text-[12px] font-medium text-foreground/90 truncate">
+                    {voyageDisplayLabel(r.project)}
+                  </div>
+                  <div className="text-[10.5px] font-mono text-muted-foreground truncate">
+                    {r.project.projectNo}
+                  </div>
+                </div>
+                <span className="text-[12.5px] font-bold tabular-nums text-foreground shrink-0">
+                  {r.amountUsd > 0
+                    ? formatCurrency(r.amountUsd, "USD", {
+                        maximumFractionDigits: 0,
+                      })
+                    : "—"}
+                </span>
+                <span className="text-[11px] font-semibold tabular-nums text-muted-foreground w-[52px] text-right shrink-0">
+                  {r.days} gün
+                </span>
+                <ArrowUpRight
+                  className="size-3 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                  strokeWidth={2.25}
+                />
+              </Link>
+            ))}
+            {pending.count > pending.rows.length && (
+              <p className="px-2 py-1.5 text-[10.5px] text-muted-foreground italic">
+                + {pending.count - pending.rows.length} sefer daha (ürün
+                bedeline göre ilk {pending.rows.length} gösteriliyor)
+              </p>
+            )}
+          </div>
+        </>
+      )}
+    </GlassPanel>
+  );
+}

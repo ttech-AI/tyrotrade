@@ -6,6 +6,7 @@ import {
   Search01Icon,
   ArrowRight01Icon,
   Home01Icon,
+  PieChartIcon,
   ShipmentTrackingIcon,
   DatabaseIcon,
   Settings01Icon,
@@ -55,6 +56,14 @@ const PAGES: Omit<PageItem, "category">[] = [
     sublabel: "Ana panel · KPI'lar · Kral Projeler",
     path: "/",
     icon: Home01Icon,
+  },
+  {
+    id: "page-overview",
+    type: "page",
+    label: "Genel Bakış",
+    sublabel: "Grup & segment özeti · bekleyen gemiler",
+    path: "/overview",
+    icon: PieChartIcon,
   },
   {
     id: "page-projects",

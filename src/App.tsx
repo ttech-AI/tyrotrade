@@ -39,6 +39,9 @@ const HelpPage = React.lazy(() =>
 const VesselMapPage = React.lazy(() =>
   import("@/pages/VesselMapPage").then((m) => ({ default: m.VesselMapPage }))
 );
+const OverviewPage = React.lazy(() =>
+  import("@/pages/OverviewPage").then((m) => ({ default: m.OverviewPage }))
+);
 
 // Wraps a lazy page in a Suspense boundary. Each route gets its own boundary
 // so AppShell stays rendered while the page chunk is loading — only the
@@ -81,6 +84,10 @@ export default function App() {
             </RestrictedRoute>
           }
         />
+        {/* Genel Bakış — herkese açık gemi projesi grup/segment özeti
+            (RestrictedRoute YOK; Anasayfa'dan farklı olarak tüm
+            kullanıcılar görür). */}
+        <Route path="overview" element={<S><OverviewPage /></S>} />
         <Route path="projects" element={<S><ProjectsPage /></S>} />
         <Route path="projects/:projectId" element={<S><ProjectsPage /></S>} />
         <Route

@@ -12,6 +12,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import {
   Home01Icon,
   BadgeDollarSignIcon,
+  PieChartIcon,
 } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,16 @@ function PLCostIcon({ className }: { className?: string }) {
   );
 }
 
+function OverviewIcon({ className }: { className?: string }) {
+  return (
+    <HugeiconsIcon
+      icon={PieChartIcon}
+      className={className}
+      strokeWidth={1.75}
+    />
+  );
+}
+
 interface NavItem {
   to: string;
   label: string;
@@ -78,6 +89,9 @@ const NAV_GROUPS: NavGroup[] = [
     label: "Operasyon",
     items: [
       { to: "/", label: "Anasayfa", icon: HomeLineIcon },
+      // Genel Bakış kısıtlı DEĞİL (RESTRICTED_NAV_ROUTES'ta yok) —
+      // Anasayfa'yı göremeyen kullanıcıların da gördüğü grup/segment özeti.
+      { to: "/overview", label: "Genel Bakış", icon: OverviewIcon },
       { to: "/projects", label: "Sefer Takibi", icon: Ship },
     ],
   },
