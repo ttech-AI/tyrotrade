@@ -1,6 +1,12 @@
 import * as React from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { TrendingDown, TrendingUp, Minus, Loader2 } from "lucide-react";
+import {
+  TrendingDown,
+  TrendingUp,
+  Minus,
+  Loader2,
+  ChevronRight,
+} from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { BalanceScaleIcon } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
@@ -13,6 +19,7 @@ import {
 } from "@/lib/format";
 import { selectEstimateTotal } from "@/lib/selectors/project";
 import { useProjectExpenseLines } from "@/hooks/useProjectExpenseLines";
+import { ExpenseComparisonSheet } from "./ExpenseComparisonSheet";
 import type { Project } from "@/lib/dataverse/entities";
 
 interface Props {
@@ -55,6 +62,10 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
   const reduceMotion = useReducedMotion();
   const expenseLineQuery = useProjectExpenseLines(project.projectNo);
   const isFetching = expenseLineQuery.isFetching;
+  // Detail sheet — the whole card is the trigger; clicking opens the
+  // per-kalem breakdown (estimate × realized) that PRODUCES these
+  // totals, so the panel and the card can never disagree.
+  const [detailOpen, setDetailOpen] = React.useState(false);
 
   const expectedUsd = selectEstimateTotal(project);
 
@@ -99,7 +110,20 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
   const VarIcon = tone.Icon;
 
   return (
-    <GlassPanel tone="default" className="rounded-2xl">
+    <GlassPanel
+      tone="default"
+      role="button"
+      tabIndex={0}
+      title="Kalem detaylarını aç — tahmini × gerçekleşen kırılımı"
+      onClick={() => setDetailOpen(true)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setDetailOpen(true);
+        }
+      }}
+      className="rounded-2xl group cursor-pointer transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+    >
       <div className="p-4">
         {/* Header — same iconography pattern as the sibling cards */}
         <div className="flex items-start gap-2.5 mb-3.5">
@@ -114,6 +138,12 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
               Planned × Realized Cost
             </div>
           </div>
+          {/* Click affordance — kalem detayı paneli */}
+          <ChevronRight
+            aria-hidden
+            className="size-4 shrink-0 mt-1 text-muted-foreground/40 group-hover:text-muted-foreground group-hover:translate-x-0.5 transition-all"
+            strokeWidth={2.25}
+          />
         </div>
 
         {/* Data region — blurred + frosted "Güncelleniyor" overlay while
@@ -226,6 +256,18 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Kalem-detayı paneli — portal'a render olur (Sheet), kartın
+          click handler'ına geri köpürmez. Toplamlar kartla aynı
+          kaynaklardan (selectEstimateTotal + enriched rows) geçirilir. */}
+      <ExpenseComparisonSheet
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        project={project}
+        realizedRows={expenseLineQuery.rows}
+        expectedUsd={expectedUsd}
+        realizedUsd={realized.usdTotal}
+      />
     </GlassPanel>
   );
 }
