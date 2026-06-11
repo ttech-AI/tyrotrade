@@ -76,8 +76,13 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<S><LoginPage /></S>} />
       <Route element={<AppShell />}>
+        {/* İlk giriş Genel Bakış'a iner — login redirect'i ve çıplak
+            domain "/"'a düşer, oradan herkese açık özet sayfasına
+            yönlenir. Dashboard /dashboard altında yaşamaya devam eder
+            (hâlâ kısıtlı). */}
+        <Route index element={<Navigate to="/overview" replace />} />
         <Route
-          index
+          path="dashboard"
           element={
             <RestrictedRoute>
               <S><DashboardPage /></S>
@@ -103,7 +108,8 @@ export default function App() {
         <Route path="settings" element={<S><SettingsPage /></S>} />
         <Route path="help" element={<S><HelpPage /></S>} />
       </Route>
-      <Route path="*" element={<Navigate to="/projects" replace />} />
+      {/* Tanınmayan URL'ler de yeni "ana" sayfaya, Genel Bakış'a iner. */}
+      <Route path="*" element={<Navigate to="/overview" replace />} />
     </Routes>
   );
 

@@ -26,7 +26,7 @@ import { shouldUseMock } from "@/lib/dataverse";
 import { cn } from "@/lib/utils";
 
 const PAGE_TITLES: Record<string, string> = {
-  "/": "Dashboard",
+  "/dashboard": "Dashboard",
   "/overview": "Genel Bakış",
   "/projects": "Vessel Projects",
   "/data": "Veri Yönetimi",
@@ -352,13 +352,13 @@ const PAGE_TITLE_CONFIGS: Array<{
   config: PageTitleConfig;
 }> = [
   {
-    match: (p) => p === "/",
+    match: (p) => p === "/dashboard",
     config: {
       renderIcon: () => (
         <HugeiconsIcon icon={Home01Icon} size={16} strokeWidth={2} />
       ),
       label: "Dashboard",
-      title: "Genel Bakış",
+      title: "Yönetici Paneli",
     },
   },
   {

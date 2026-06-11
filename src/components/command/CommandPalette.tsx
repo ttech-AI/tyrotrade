@@ -54,7 +54,7 @@ const PAGES: Omit<PageItem, "category">[] = [
     type: "page",
     label: "Dashboard",
     sublabel: "Ana panel · KPI'lar · Kral Projeler",
-    path: "/",
+    path: "/dashboard",
     icon: Home01Icon,
   },
   {

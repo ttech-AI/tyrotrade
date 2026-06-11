@@ -4,10 +4,10 @@ import { shouldUseMock } from "@/lib/dataverse";
 /**
  * Email-bazlı görünürlük kuralı — tek kaynak.
  *
- * Anasayfa (`/`) ve Trade Cost (`/pl-cost`) yalnızca bu maillerle giriş
- * yapan kullanıcılarda görünür: hem sidebar linki (AppSidebar) hem de
- * route guard (App.tsx) bu seti okur. Karşılaştırma küçük harfe normalize
- * edilerek yapılır.
+ * Anasayfa (`/dashboard`) ve Trade Cost (`/pl-cost`) yalnızca bu
+ * maillerle giriş yapan kullanıcılarda görünür: hem sidebar linki
+ * (AppSidebar) hem de route guard (App.tsx) bu seti okur. Karşılaştırma
+ * küçük harfe normalize edilerek yapılır.
  */
 export const RESTRICTED_NAV_EMAILS = new Set([
   "ceyda.degerli@tiryaki.com.tr",
@@ -15,14 +15,17 @@ export const RESTRICTED_NAV_EMAILS = new Set([
   "pinar.kurtunluoglu@tiryaki.com.tr",
 ]);
 
-/** Yalnızca izinli maillerin görebildiği rotalar. */
-export const RESTRICTED_NAV_ROUTES = new Set(["/", "/pl-cost"]);
+/** Yalnızca izinli maillerin görebildiği rotalar. (Dashboard `/`'tan
+ *  `/dashboard`'a taşındı — `/` artık herkese açık Genel Bakış'a
+ *  yönlenen landing redirect'i.) */
+export const RESTRICTED_NAV_ROUTES = new Set(["/dashboard", "/pl-cost"]);
 
 /**
- * İzinli olmayan kullanıcıların düşeceği varsayılan rota — Sefer Takibi.
- * Hem ilk açılışta `/` redirect'i hem de `/pl-cost` guard'ı buraya yönlendirir.
+ * İzinli olmayan kullanıcıların düşeceği varsayılan rota — Genel Bakış
+ * (uygulamanın yeni açılış sayfası, herkese açık). Kısıtlı bir rotaya
+ * gelen izinsiz kullanıcı buraya yönlendirilir.
  */
-export const DEFAULT_ALLOWED_ROUTE = "/projects";
+export const DEFAULT_ALLOWED_ROUTE = "/overview";
 
 /**
  * Aktif kullanıcının kısıtlı rotaları (Anasayfa + Trade Cost) görüp

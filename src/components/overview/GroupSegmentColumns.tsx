@@ -24,6 +24,9 @@ export function GroupSegmentColumns({
   onGroupClick: (group: VesselGroup) => void;
   onSegmentClick: (segment: string) => void;
 }) {
+  // Columns ranked by project count (desc) — mirrors the KPI-row order
+  // so the biggest book (International) leads here too.
+  const sorted = [...columns].sort((a, b) => b.total - a.total);
   return (
     <GlassPanel tone="default" className="rounded-2xl h-full flex flex-col">
       <div className="px-4 pt-4 pb-2">
@@ -44,7 +47,7 @@ export function GroupSegmentColumns({
       </div>
 
       <div className="flex-1 px-3 pb-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-        {columns.map((col) => {
+        {sorted.map((col) => {
           const meta = GROUP_META[col.group];
           return (
             <div
@@ -66,6 +69,9 @@ export function GroupSegmentColumns({
                   style={{ background: meta.solid }}
                 />
                 <span
+                  // lang="en" on International — CSS `uppercase` under
+                  // the tr locale would render "INTERNATİONAL".
+                  lang={col.group === "International" ? "en" : undefined}
                   className="text-[11px] font-bold uppercase tracking-wide truncate flex-1"
                   style={{ color: meta.solid }}
                 >

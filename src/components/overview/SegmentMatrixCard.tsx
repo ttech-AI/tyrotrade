@@ -74,7 +74,12 @@ export function SegmentMatrixCard({
                       className="size-1.5 rounded-full"
                       style={{ background: GROUP_META[g].solid }}
                     />
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    <span
+                      // lang="en": tr-locale CSS uppercase would render
+                      // the "Intl" shorthand as "İNTL".
+                      lang={g === "International" ? "en" : undefined}
+                      className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+                    >
                       {g === "International" ? "Intl" : g}
                     </span>
                   </span>

@@ -66,6 +66,9 @@ export function OverviewKpis({
   const accent = useThemeAccent();
   const reduceMotion = useReducedMotion();
   const openPct = agg.total > 0 ? (agg.openCount / agg.total) * 100 : 0;
+  // Group cards ordered by project count (desc) — the biggest book sits
+  // right after the hero, so the row reads as a ranking.
+  const sortedRows = [...agg.rows].sort((a, b) => b.count - a.count);
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -136,7 +139,7 @@ export function OverviewKpis({
                         label: "Planlanan toplam tonaj",
                         value: `${formatNumber(Math.round(agg.totalTonnageMt))} t`,
                       },
-                      ...agg.rows.map((r) => ({
+                      ...sortedRows.map((r) => ({
                         label: GROUP_META[r.group].label,
                         value: `${r.count} (%${formatNumber(r.pct, 1)})`,
                         dot: GROUP_META[r.group].solid,
@@ -172,8 +175,8 @@ export function OverviewKpis({
           </motion.button>
         </motion.div>
 
-        {/* ─── Group cards — hero anatomy on white glass ─── */}
-        {agg.rows.map((row) => (
+        {/* ─── Group cards — hero anatomy on white glass, count-desc ─── */}
+        {sortedRows.map((row) => (
           <GroupKpiCard
             key={row.group}
             row={row}
@@ -228,6 +231,10 @@ function GroupKpiCard({
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
               <span
+                // lang="en" on the International label — CSS `uppercase`
+                // under the page's tr locale turns "i" into dotted "İ"
+                // ("INTERNATİONAL"); English word, English casing.
+                lang={row.group === "International" ? "en" : undefined}
                 className="text-[10.5px] uppercase tracking-wider font-semibold truncate"
                 style={{ color: meta.solid }}
               >
@@ -404,41 +411,51 @@ function KpiInfoTooltip({
       <TooltipContent
         side="bottom"
         sideOffset={8}
-        className="max-w-[300px] p-0 overflow-hidden rounded-xl bg-white text-foreground shadow-[0_18px_44px_-12px_rgba(15,23,42,0.30)] ring-1 ring-foreground/10 backdrop-blur-none"
+        className="w-[320px] max-w-[90vw] p-0 overflow-hidden rounded-2xl text-foreground shadow-[0_24px_56px_-12px_rgba(15,23,42,0.35)] ring-1 ring-foreground/10"
+        // Inline solid white — the base TooltipContent ships the frosted
+        // `glass glass-strong` classes whose translucent background made
+        // this unreadable over busy cards; an inline style is the only
+        // reliable override for a custom (non-Tailwind) class.
+        style={{ background: "#ffffff", backdropFilter: "none" }}
       >
         <div className="h-1.5" style={{ background: gradient }} />
-        <div className="px-3.5 py-2.5 flex items-center gap-2.5 border-b border-border/40">
+        <div className="px-4 pt-3 pb-2.5 flex items-center gap-3 border-b border-border/40">
           <span
             aria-hidden
-            className="size-7 rounded-lg grid place-items-center text-white shadow-sm shrink-0"
-            style={{ background: gradient }}
+            className="size-9 rounded-xl grid place-items-center text-white shadow-sm shrink-0"
+            style={{
+              background: gradient,
+              boxShadow: "inset 0 1px 0 0 rgba(255,255,255,0.25)",
+            }}
           >
-            <HugeiconsIcon icon={BoatIcon} size={14} strokeWidth={2} />
+            <HugeiconsIcon icon={BoatIcon} size={17} strokeWidth={2} />
           </span>
           <div className="min-w-0">
-            <div className="text-[12px] font-bold leading-tight">{title}</div>
-            <div className="text-[10.5px] text-muted-foreground leading-tight">
+            <div className="text-[13.5px] font-bold leading-tight tracking-tight">
+              {title}
+            </div>
+            <div className="text-[11px] text-muted-foreground leading-tight mt-0.5">
               {subtitle}
             </div>
           </div>
         </div>
-        <div className="px-3.5 py-2.5 space-y-1.5">
+        <div className="px-4 py-3 space-y-2">
           {rows.map((r, i) => (
             <div
               key={i}
-              className="flex items-center justify-between gap-4 text-[11.5px]"
+              className="flex items-center justify-between gap-4 text-[12.5px] leading-snug"
             >
-              <span className="inline-flex items-center gap-1.5 text-muted-foreground min-w-0">
+              <span className="inline-flex items-center gap-2 text-muted-foreground min-w-0">
                 {r.dot && (
                   <span
                     aria-hidden
-                    className="size-1.5 rounded-full shrink-0"
+                    className="size-2 rounded-full shrink-0"
                     style={{ background: r.dot }}
                   />
                 )}
                 <span className="truncate">{r.label}</span>
               </span>
-              <span className="font-semibold tabular-nums shrink-0">
+              <span className="font-bold tabular-nums shrink-0 text-foreground">
                 {r.value}
               </span>
             </div>

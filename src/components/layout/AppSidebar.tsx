@@ -88,10 +88,12 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Operasyon",
     items: [
-      { to: "/", label: "Anasayfa", icon: HomeLineIcon },
-      // Genel Bakış kısıtlı DEĞİL (RESTRICTED_NAV_ROUTES'ta yok) —
+      // Genel Bakış = uygulamanın açılış sayfası, kısıtlı DEĞİL —
       // Anasayfa'yı göremeyen kullanıcıların da gördüğü grup/segment özeti.
       { to: "/overview", label: "Genel Bakış", icon: OverviewIcon },
+      // Dashboard "/"'tan /dashboard'a taşındı ("/" artık /overview'a
+      // yönlenen landing); e-posta allowlist kısıtı sürüyor.
+      { to: "/dashboard", label: "Anasayfa", icon: HomeLineIcon },
       { to: "/projects", label: "Sefer Takibi", icon: Ship },
     ],
   },
