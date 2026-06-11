@@ -5,6 +5,12 @@ import {
   CACHE_UPDATED_EVENT,
   type CacheUpdatedDetail,
 } from "@/lib/storage/entityCache";
+// ⚠️ GEÇİCİ — Sunrise TR hardcoded gerçekleşen gider (entity gelince bu
+// import + runExpenseChain başındaki blok + modül dosyası SİLİNECEK).
+import {
+  buildSunriseTrOverrideRow,
+  getSunriseTrRealizedOverride,
+} from "@/lib/dataverse/sunriseTrOverrides";
 
 /** Inventory-dimension entity — maps a project number (carried in
  *  `mserp_inventdimension2`) to the set of `mserp_inventdimid` keys
@@ -216,6 +222,21 @@ if (typeof window !== "undefined") {
 async function runExpenseChain(
   projectNo: string
 ): Promise<Record<string, unknown>[]> {
+  // ⚠️ GEÇİCİ — Sunrise TR override: listedeki projeler için zincir HİÇ
+  // koşmaz, kullanıcı tarafından verilen sabit USD tek sentetik kalem
+  // olarak döner (Gider Karşılaştırması + Gerçekleşen K&Z + detay paneli
+  // hepsi bunu tüketir). Entity gelince bu blok silinecek.
+  const sunriseOverride = getSunriseTrRealizedOverride(projectNo);
+  if (sunriseOverride != null) {
+    // eslint-disable-next-line no-console
+    console.info(
+      `[useProjectExpenseLines] ${projectNo}: Sunrise TR GEÇİCİ override aktif — gerçekleşen gider sabit $${sunriseOverride} (entity bekleniyor).`
+    );
+    const rows = [buildSunriseTrOverrideRow(projectNo, sunriseOverride)];
+    cacheSet(projectNo, { rows, fetchedAt: new Date().toISOString() });
+    return rows;
+  }
+
   const client = getDataverseClient();
 
   // Step 0 / R / P in parallel.
