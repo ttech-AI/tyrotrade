@@ -26,9 +26,11 @@ const SUNRISE_TR_REALIZED_USD: Record<string, number> = {
   "ORGANIK01-145": 148,
   "ORGANIK01-143": 2_859_197,
   "ORGANIK01-138": 2_120_507,
+  "ORGANIK01-133": 349_240,
   "ORGANIK01-127": 373_236,
   "ORGANIK01-120": 1_985_973,
   "ORGANIK01-108": 267_065,
+  "ORGANIK01-147": 125_912,
 };
 
 /** Override tutarı — proje listede değilse null. */
