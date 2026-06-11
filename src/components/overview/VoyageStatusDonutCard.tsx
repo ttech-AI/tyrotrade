@@ -38,9 +38,12 @@ const GAP = 3;
 export function VoyageStatusDonutCard({
   agg,
   onStatusClick,
+  onStatusContext,
 }: {
   agg: VoyageStatusAggregate;
   onStatusClick: (status: string) => void;
+  /** Right-click → "Detaya git" context menu (Sefer Takibi). */
+  onStatusContext?: (status: string, e: React.MouseEvent) => void;
 }) {
   const reduceMotion = useReducedMotion();
   const [hovered, setHovered] = React.useState<string | null>(null);
@@ -121,6 +124,11 @@ export function VoyageStatusDonutCard({
                     onClick={
                       row.clickable
                         ? () => onStatusClick(row.status)
+                        : undefined
+                    }
+                    onContextMenu={
+                      row.clickable && onStatusContext
+                        ? (e) => onStatusContext(row.status, e)
                         : undefined
                     }
                     initial={
@@ -242,11 +250,16 @@ export function VoyageStatusDonutCard({
                 key={row.status}
                 type="button"
                 onClick={() => onStatusClick(row.status)}
+                onContextMenu={
+                  onStatusContext
+                    ? (e) => onStatusContext(row.status, e)
+                    : undefined
+                }
                 onMouseEnter={() => setHovered(row.status)}
                 onMouseLeave={() => setHovered(null)}
                 onFocus={() => setHovered(row.status)}
                 onBlur={() => setHovered(null)}
-                title={`${row.status} seferlerine göre filtrele`}
+                title={`${row.status} seferlerine göre filtrele · sağ tık → detaya git`}
                 className="group w-full flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-foreground/[0.04] transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 style={{ opacity: isDimmed ? 0.45 : 1 }}
               >

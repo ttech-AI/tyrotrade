@@ -1,3 +1,4 @@
+import * as React from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
@@ -26,9 +27,12 @@ import {
 export function SegmentMatrixCard({
   matrix,
   onSegmentClick,
+  onSegmentContext,
 }: {
   matrix: SegmentMatrix;
   onSegmentClick: (segment: string) => void;
+  /** Right-click → "Detaya git" context menu (Sefer Takibi). */
+  onSegmentContext?: (segment: string, e: React.MouseEvent) => void;
 }) {
   const reduceMotion = useReducedMotion();
   const maxRowTotal = Math.max(
@@ -101,10 +105,15 @@ export function SegmentMatrixCard({
                     onClick={
                       isOther ? undefined : () => onSegmentClick(row.segment)
                     }
+                    onContextMenu={
+                      isOther || !onSegmentContext
+                        ? undefined
+                        : (e) => onSegmentContext(row.segment, e)
+                    }
                     title={
                       isOther
                         ? undefined
-                        : `${row.segment} segmentine göre filtrele`
+                        : `${row.segment} segmentine göre filtrele · sağ tık → detaya git`
                     }
                     className={cn(
                       "group border-t border-border/30 transition-colors",

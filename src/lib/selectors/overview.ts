@@ -110,6 +110,15 @@ export function isOpenStatus(status: string | null | undefined): boolean {
   return !(s.includes("kapal") || s.includes("closed"));
 }
 
+/** True when a REAL vessel is attached to the plan — same guard
+ *  ProjectCard / voyageDisplayLabel use: non-empty name that isn't the
+ *  "—" placeholder or a numeric-only F&O RecID leak. This is the
+ *  "gemi atanmış" signal the KPI cards report. */
+export function hasAssignedVessel(p: Project): boolean {
+  const raw = (p.vesselPlan?.vesselName ?? "").trim();
+  return raw !== "" && raw !== "—" && !/^\d[\d\s,.]*$/.test(raw);
+}
+
 /* ─────────── Group counts (KPI row + donut) ─────────── */
 
 export interface GroupCountRow {
@@ -123,6 +132,8 @@ export interface GroupCountRow {
   commencedCount: number;
   waitingCount: number;
   tonnageMt: number;
+  /** Projects with a REAL vessel attached (hasAssignedVessel). */
+  vesselAssignedCount: number;
 }
 
 export interface OverviewGroupAggregate {
@@ -134,6 +145,8 @@ export interface OverviewGroupAggregate {
   waitingCount: number;
   /** Σ vesselPlan.voyageTotalTonnage (MT) across the filtered set. */
   totalTonnageMt: number;
+  /** Projects with a REAL vessel attached (hasAssignedVessel). */
+  vesselAssignedCount: number;
   rows: GroupCountRow[];
 }
 
@@ -144,6 +157,7 @@ export function aggregateGroups(projects: Project[]): OverviewGroupAggregate {
     commencedCount: number;
     waitingCount: number;
     tonnageMt: number;
+    vesselAssignedCount: number;
   }
   const mk = (): Acc => ({
     count: 0,
@@ -151,6 +165,7 @@ export function aggregateGroups(projects: Project[]): OverviewGroupAggregate {
     commencedCount: 0,
     waitingCount: 0,
     tonnageMt: 0,
+    vesselAssignedCount: 0,
   });
   const perGroup: Record<VesselGroup, Acc> = {
     Anadolu: mk(),
@@ -164,6 +179,7 @@ export function aggregateGroups(projects: Project[]): OverviewGroupAggregate {
     const vs = p.vesselPlan?.vesselStatus;
     const commenced = vs === "Commenced";
     const waiting = vs === "To Be Nominated" || vs === "Nominated";
+    const assigned = hasAssignedVessel(p);
     const tRaw = p.vesselPlan?.voyageTotalTonnage;
     const tons =
       typeof tRaw === "number" && Number.isFinite(tRaw) && tRaw > 0
@@ -174,6 +190,7 @@ export function aggregateGroups(projects: Project[]): OverviewGroupAggregate {
       if (open) a.openCount += 1;
       if (commenced) a.commencedCount += 1;
       if (waiting) a.waitingCount += 1;
+      if (assigned) a.vesselAssignedCount += 1;
       a.tonnageMt += tons;
     }
   }
@@ -184,6 +201,7 @@ export function aggregateGroups(projects: Project[]): OverviewGroupAggregate {
     commencedCount: grand.commencedCount,
     waitingCount: grand.waitingCount,
     totalTonnageMt: grand.tonnageMt,
+    vesselAssignedCount: grand.vesselAssignedCount,
     rows: GROUP_ORDER.map((group) => {
       const a = perGroup[group];
       return {
@@ -194,6 +212,7 @@ export function aggregateGroups(projects: Project[]): OverviewGroupAggregate {
         commencedCount: a.commencedCount,
         waitingCount: a.waitingCount,
         tonnageMt: a.tonnageMt,
+        vesselAssignedCount: a.vesselAssignedCount,
       };
     }),
   };
@@ -375,9 +394,13 @@ export function buildGroupSegmentColumns(
 
 /* ─────────── Longest-waiting vessels ─────────── */
 
-/** Voyage statuses that mean "the vessel work hasn't started yet" —
- *  these are the projects shown as waiting. */
-const WAITING_STATUSES = new Set(["To Be Nominated", "Nominated"]);
+/** "En Uzun Bekleyen Gemi" kuralı (kullanıcı düzeltmesi): yalnızca GEMİ
+ *  ATANMIŞ ama henüz yola çıkmamış seferler — yani "Nominated". "To Be
+ *  Nominated" projelerde ortada bekleyen bir gemi YOK (atama bekleniyor),
+ *  bu yüzden bu karta girmezler; onların sayısı KPI tooltip'lerindeki
+ *  "atama bekleyen" satırında yaşar. Ek emniyet: gerçek bir gemi adı da
+ *  aranır (hasAssignedVessel). */
+const WAITING_STATUSES = new Set(["Nominated"]);
 
 export interface WaitingVessel {
   project: Project;
@@ -398,6 +421,9 @@ export function selectWaitingVessels(
   for (const p of projects) {
     const status = p.vesselPlan?.vesselStatus;
     if (!status || !WAITING_STATUSES.has(status)) continue;
+    // Gemi atanmadan "bekleyen gemi" olmaz — RecID sızıntısı / boş ad
+    // taşıyan Nominated satırları da dışarıda kalır.
+    if (!hasAssignedVessel(p)) continue;
     const sinceIso = p.projectDate;
     if (!sinceIso) continue;
     const since = new Date(sinceIso).getTime();

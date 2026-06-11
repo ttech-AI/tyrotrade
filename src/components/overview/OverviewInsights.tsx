@@ -1,3 +1,4 @@
+import * as React from "react";
 import { ArrowUpRight } from "lucide-react";
 import { GlassPanel } from "@/components/glass/GlassPanel";
 
@@ -16,8 +17,10 @@ export interface OverviewInsight {
   lead: string;
   /** Muted tail, e.g. "International · 20 proje (%32,3)". */
   tail: string;
-  /** Optional deep-link action — chip becomes a button when present. */
+  /** Optional in-page filter action — chip becomes a button when present. */
   onClick?: () => void;
+  /** Right-click → "Detaya git" context menu (Sefer Takibi). */
+  onContext?: (e: React.MouseEvent) => void;
 }
 
 export function OverviewInsights({
@@ -51,7 +54,8 @@ export function OverviewInsights({
                 key={i}
                 type="button"
                 onClick={ins.onClick}
-                title="Sayfayı bu veriye göre filtrele"
+                onContextMenu={ins.onContext}
+                title="Sayfayı bu veriye göre filtrele · sağ tık → detaya git"
                 className="group inline-flex items-center gap-1.5 min-w-0 text-[12px] rounded-lg px-1.5 py-1 hover:bg-foreground/[0.05] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 {inner}

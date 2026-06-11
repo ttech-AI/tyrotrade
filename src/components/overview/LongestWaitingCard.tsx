@@ -12,9 +12,11 @@ import {
 } from "@/lib/selectors/overview";
 
 /**
- * "En Uzun Bekleyen Gemi" — the single longest-waiting voyage (status
- * To Be Nominated / Nominated) as a hero-image card: status badge +
- * waiting-days pill over the image, then reason + since-date rows.
+ * "En Uzun Bekleyen Gemi" — the single longest-waiting ASSIGNED voyage
+ * (status "Nominated" + a real vessel name; To Be Nominated rows have
+ * no vessel to wait, so they're excluded — see selectWaitingVessels)
+ * as a hero-image card: status badge + waiting-days pill over the
+ * image, then reason + since-date rows.
  * Up to 3 runner-up waiters render as compact rows below, so the card
  * answers "who else is stuck?" without leaving the page. Everything
  * deep-links into Sefer Takibi pre-filtered to that project.
@@ -52,14 +54,14 @@ export function LongestWaitingCard({
           </h3>
         </div>
         <p className="text-[11px] text-muted-foreground mt-0.5">
-          Atama / yükleme bekleyen seferler · {waiting.length} sefer
+          Gemi atanmış · yükleme bekleyen seferler · {waiting.length} sefer
         </p>
       </div>
 
       {!top ? (
         <div className="flex-1 grid place-items-center px-4 pb-6">
           <p className="text-[12.5px] text-muted-foreground text-center">
-            Bekleyen sefer yok — tüm gemiler atanmış ve yolda. 🎉
+            Yükleme bekleyen gemi yok — atanmış tüm gemiler yolda. 🎉
           </p>
         </div>
       ) : (
@@ -143,12 +145,9 @@ export function LongestWaitingCard({
                 >
                   <span
                     aria-hidden
-                    className={cn(
-                      "size-1.5 rounded-full shrink-0",
-                      w.project.vesselPlan?.vesselStatus === "To Be Nominated"
-                        ? "bg-amber-400"
-                        : "bg-sky-500"
-                    )}
+                    // Listede artık yalnızca Nominated (gemi atanmış)
+                    // seferler var — sky, statü palet diliyle uyumlu.
+                    className="size-1.5 rounded-full shrink-0 bg-sky-500"
                   />
                   <span className="text-[11.5px] font-medium text-foreground/85 truncate min-w-0 flex-1">
                     {voyageDisplayLabel(w.project)}

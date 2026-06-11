@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useNavigate } from "react-router-dom";
 import { useProjects } from "@/hooks/useProjects";
 import { ProjectsEmptyState } from "@/components/projects/ProjectsEmptyState";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -30,6 +31,10 @@ import { SegmentMatrixCard } from "@/components/overview/SegmentMatrixCard";
 import { LongestWaitingCard } from "@/components/overview/LongestWaitingCard";
 import { GroupSegmentColumns } from "@/components/overview/GroupSegmentColumns";
 import { PendingPaymentsCard } from "@/components/overview/PendingPaymentsCard";
+import {
+  DetailContextMenu,
+  type DetailMenuState,
+} from "@/components/overview/DetailContextMenu";
 import { formatCurrency, formatNumber } from "@/lib/format";
 
 /** Vessel-overview scope is FIXED to ship-plan projects — the page
@@ -72,6 +77,7 @@ const OVERVIEW_DEFAULT_VOYAGE_STATUSES = [
  * selectors/overview.ts).
  */
 export function OverviewPage() {
+  const navigate = useNavigate();
   const { projects: rawProjects, isEmpty, fetchedAt } = useProjects();
   const [filters, setFilters] = React.useState<ProjectFilterState>(() => {
     const base = makeEmptyFilters({
@@ -161,14 +167,13 @@ export function OverviewPage() {
     [applySegments]
   );
   const openWaiting = React.useCallback(() => {
+    // "Yükleme bekleyen" = gemi atanmış, henüz yola çıkmamış → Nominated
+    // (En Uzun Bekleyen Gemi kartının kuralıyla birebir aynı küme).
     setFilters((f) => ({
       ...f,
-      voyageStatuses: sameSet(f.voyageStatuses, [
-        "To Be Nominated",
-        "Nominated",
-      ])
+      voyageStatuses: sameSet(f.voyageStatuses, ["Nominated"])
         ? new Set(OVERVIEW_DEFAULT_VOYAGE_STATUSES)
-        : new Set(["To Be Nominated", "Nominated"]),
+        : new Set(["Nominated"]),
     }));
   }, []);
   const openStatus = React.useCallback((status: string) => {
@@ -182,6 +187,72 @@ export function OverviewPage() {
     }));
   }, []);
 
+  /* ─── Sağ-tık "Detaya git" menüsü — sol tık SAYFAYI filtreler (üstte);
+     sağ tık tek-eylemlik menü açar, eylem tıklanan veriyi Sefer
+     Takibi'ne filtre olarak taşır. Sayfanın dönemi + mevcut sefer-durumu
+     daraltması da yolculuğa eşlik eder ki inilen liste buradaki sayıyla
+     eşleşsin (statü hedefli menüler kendi statülerini geçirir). */
+  const [detailMenu, setDetailMenu] = React.useState<DetailMenuState | null>(
+    null
+  );
+  const closeDetailMenu = React.useCallback(() => setDetailMenu(null), []);
+  const openDetailMenu = React.useCallback(
+    (e: React.MouseEvent, label: string, state: Record<string, unknown>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDetailMenu({
+        x: e.clientX,
+        y: e.clientY,
+        label,
+        go: () => navigate("/projects", { state }),
+      });
+    },
+    [navigate]
+  );
+  const carryState = React.useCallback(
+    () => ({
+      focusPeriod: filters.period,
+      focusFyKey: filters.fyKey,
+      focusVoyageStatuses: [...filters.voyageStatuses],
+    }),
+    [filters.period, filters.fyKey, filters.voyageStatuses]
+  );
+  const heroContext = React.useCallback(
+    (e: React.MouseEvent) =>
+      openDetailMenu(e, "Tüm gemi projeleri", {
+        focusAll: true,
+        ...carryState(),
+      }),
+    [openDetailMenu, carryState]
+  );
+  const groupContext = React.useCallback(
+    (group: VesselGroup, e: React.MouseEvent) => {
+      const segments = segmentsForGroup(rawProjects, group);
+      if (segments.length === 0) return;
+      openDetailMenu(e, GROUP_META[group].label, {
+        focusSegments: segments,
+        ...carryState(),
+      });
+    },
+    [openDetailMenu, carryState, rawProjects]
+  );
+  const segmentContext = React.useCallback(
+    (segment: string, e: React.MouseEvent) =>
+      openDetailMenu(e, segment, {
+        focusSegments: [segment],
+        ...carryState(),
+      }),
+    [openDetailMenu, carryState]
+  );
+  const statusContext = React.useCallback(
+    (status: string, e: React.MouseEvent) =>
+      openDetailMenu(e, status, {
+        ...carryState(),
+        focusVoyageStatuses: [status],
+      }),
+    [openDetailMenu, carryState]
+  );
+
   const insights = React.useMemo<OverviewInsight[]>(() => {
     const out: OverviewInsight[] = [];
     const topGroup = [...agg.rows].sort((a, b) => b.count - a.count)[0];
@@ -191,6 +262,7 @@ export function OverviewPage() {
         lead: "En büyük grup",
         tail: `${GROUP_META[topGroup.group].label} · ${topGroup.count} proje (%${formatNumber(topGroup.pct, 1)})`,
         onClick: () => openGroup(topGroup.group),
+        onContext: (e) => groupContext(topGroup.group, e),
       });
     }
     const topSegment = matrix.rows[0];
@@ -200,14 +272,16 @@ export function OverviewPage() {
         lead: "En yoğun segment",
         tail: `${topSegment.segment} · ${topSegment.total} proje`,
         onClick: () => openSegment(topSegment.segment),
+        onContext: (e) => segmentContext(topSegment.segment, e),
       });
     }
     if (waiting.length > 0) {
       out.push({
-        color: "#f59e0b",
-        lead: "Bekleyen sefer",
-        tail: `${waiting.length} gemi atama/yükleme bekliyor · en uzun ${waiting[0].days} gün (${voyageDisplayLabel(waiting[0].project)})`,
+        color: "#0ea5e9",
+        lead: "Yükleme bekleyen",
+        tail: `${waiting.length} gemi atanmış, yükleme bekliyor · en uzun ${waiting[0].days} gün (${voyageDisplayLabel(waiting[0].project)})`,
         onClick: openWaiting,
+        onContext: (e) => statusContext("Nominated", e),
       });
     }
     if (pending.count > 0) {
@@ -218,7 +292,18 @@ export function OverviewPage() {
       });
     }
     return out;
-  }, [agg.rows, matrix.rows, waiting, pending, openGroup, openSegment, openWaiting]);
+  }, [
+    agg.rows,
+    matrix.rows,
+    waiting,
+    pending,
+    openGroup,
+    openSegment,
+    openWaiting,
+    groupContext,
+    segmentContext,
+    statusContext,
+  ]);
 
   if (isEmpty) {
     return <ProjectsEmptyState />;
@@ -266,41 +351,59 @@ export function OverviewPage() {
           agg={agg}
           onHeroClick={openAllProjects}
           onGroupClick={openGroup}
+          onHeroContext={heroContext}
+          onGroupContext={groupContext}
         />
 
         {/* ─── Insights ribbon ─── */}
         <OverviewInsights insights={insights} />
 
-        {/* ─── Status donut · Matrix · Longest waiting ───
-            Breakpoint ladder: phones stack (12), tablets pair the donut
-            with the matrix (md 5/7), laptops widen the matrix (lg 4/8),
+        {/* ─── Status donut · Pending payments · Longest waiting ───
+            (Ödeme Bekleyen ↔ Segment matrisi yer değiştirdi — kullanıcı
+            isteği.) Breakpoint ladder: phones stack (12), tablets pair
+            the donut with payments (md 5/7), laptops widen (lg 4/8),
             large monitors fit all three in one row (xl 3/5/4). */}
         <div className="grid grid-cols-12 gap-3">
           <div className="col-span-12 md:col-span-5 lg:col-span-4 xl:col-span-3">
-            <VoyageStatusDonutCard agg={statusAgg} onStatusClick={openStatus} />
+            <VoyageStatusDonutCard
+              agg={statusAgg}
+              onStatusClick={openStatus}
+              onStatusContext={statusContext}
+            />
           </div>
           <div className="col-span-12 md:col-span-7 lg:col-span-8 xl:col-span-5">
-            <SegmentMatrixCard matrix={matrix} onSegmentClick={openSegment} />
+            <PendingPaymentsCard pending={pending} />
           </div>
           <div className="col-span-12 xl:col-span-4">
             <LongestWaitingCard waiting={waiting} />
           </div>
         </div>
 
-        {/* ─── Group segment columns · Pending payments ─── */}
+        {/* ─── Group segment columns · Segment matrix ───
+            lg'de 6/6: matrisin min-w-[420px] tablosu 5-kolonluk slota
+            sığmıyordu (yatay scroll çıkıyordu); xl'de 7/5'e açılır. */}
         <div className="grid grid-cols-12 gap-3">
-          <div className="col-span-12 lg:col-span-7">
+          <div className="col-span-12 lg:col-span-6 xl:col-span-7">
             <GroupSegmentColumns
               columns={groupColumns}
               onGroupClick={openGroup}
               onSegmentClick={openSegment}
+              onGroupContext={groupContext}
+              onSegmentContext={segmentContext}
             />
           </div>
           <div className="col-span-12 lg:col-span-5">
-            <PendingPaymentsCard pending={pending} />
+            <SegmentMatrixCard
+              matrix={matrix}
+              onSegmentClick={openSegment}
+              onSegmentContext={segmentContext}
+            />
           </div>
         </div>
       </div>
+
+      {/* Sağ-tık "Detaya git" menüsü — body portal'ında yaşar */}
+      <DetailContextMenu menu={detailMenu} onClose={closeDetailMenu} />
     </ScrollArea>
   );
 }

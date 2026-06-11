@@ -1,3 +1,4 @@
+import * as React from "react";
 import { ArrowUpRight } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Layers01Icon } from "@hugeicons/core-free-icons";
@@ -20,10 +21,15 @@ export function GroupSegmentColumns({
   columns,
   onGroupClick,
   onSegmentClick,
+  onGroupContext,
+  onSegmentContext,
 }: {
   columns: GroupSegmentColumn[];
   onGroupClick: (group: VesselGroup) => void;
   onSegmentClick: (segment: string) => void;
+  /** Right-click → "Detaya git" context menu (Sefer Takibi). */
+  onGroupContext?: (group: VesselGroup, e: React.MouseEvent) => void;
+  onSegmentContext?: (segment: string, e: React.MouseEvent) => void;
 }) {
   // Columns ranked by project count (desc) — mirrors the KPI-row order
   // so the biggest book (International) leads here too.
@@ -60,7 +66,12 @@ export function GroupSegmentColumns({
               <button
                 type="button"
                 onClick={() => onGroupClick(col.group)}
-                title={`${meta.label} projelerine göre filtrele`}
+                onContextMenu={
+                  onGroupContext
+                    ? (e) => onGroupContext(col.group, e)
+                    : undefined
+                }
+                title={`${meta.label} projelerine göre filtrele · sağ tık → detaya git`}
                 className="group px-3 py-2 flex items-center gap-2 border-b text-left transition-colors hover:bg-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 style={{ borderColor: meta.ring }}
               >
@@ -98,7 +109,12 @@ export function GroupSegmentColumns({
                         key={r.segment}
                         type="button"
                         onClick={() => onSegmentClick(r.segment)}
-                        title={`${r.segment} segmentine göre filtrele`}
+                        onContextMenu={
+                          onSegmentContext
+                            ? (e) => onSegmentContext(r.segment, e)
+                            : undefined
+                        }
+                        title={`${r.segment} segmentine göre filtrele · sağ tık → detaya git`}
                         className="group w-full flex items-center justify-between gap-2 rounded-lg px-1.5 py-1 min-w-0 text-left transition-colors hover:bg-white/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                       >
                         <span

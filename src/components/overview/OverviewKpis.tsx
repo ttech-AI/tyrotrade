@@ -57,16 +57,22 @@ export function OverviewKpis({
   agg,
   onHeroClick,
   onGroupClick,
+  onHeroContext,
+  onGroupContext,
 }: {
   agg: OverviewGroupAggregate;
   /** Reset the page filters to the fresh-visit defaults. */
   onHeroClick: () => void;
   /** Toggle the group's segments on the page's segment filter. */
   onGroupClick: (group: VesselGroup) => void;
+  /** Right-click → "Detaya git" context menu (Sefer Takibi). */
+  onHeroContext?: (e: React.MouseEvent) => void;
+  onGroupContext?: (group: VesselGroup, e: React.MouseEvent) => void;
 }) {
   const accent = useThemeAccent();
   const reduceMotion = useReducedMotion();
-  const openPct = agg.total > 0 ? (agg.openCount / agg.total) * 100 : 0;
+  const assignedPct =
+    agg.total > 0 ? (agg.vesselAssignedCount / agg.total) * 100 : 0;
   // Group cards ordered by project count (desc) — the biggest book sits
   // right after the hero, so the row reads as a ranking.
   const sortedRows = [...agg.rows].sort((a, b) => b.count - a.count);
@@ -87,8 +93,9 @@ export function OverviewKpis({
           <motion.button
             type="button"
             onClick={onHeroClick}
+            onContextMenu={onHeroContext}
             whileHover={reduceMotion ? undefined : { y: -2, scale: 1.005 }}
-            title="Filtreleri varsayılana sıfırla"
+            title="Filtreleri varsayılana sıfırla · sağ tık → detaya git"
             className="h-full w-full text-left rounded-2xl px-4 py-3.5 text-white overflow-hidden relative cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
             style={{
               background: accent.gradient,
@@ -125,6 +132,10 @@ export function OverviewKpis({
                     subtitle="Filtrelenmiş tüm gemi projeleri"
                     rows={[
                       {
+                        label: "Gemi atanmış / atanmamış",
+                        value: `${agg.vesselAssignedCount} / ${agg.total - agg.vesselAssignedCount}`,
+                      },
+                      {
                         label: "Açık / Kapalı",
                         value: `${agg.openCount} / ${agg.total - agg.openCount}`,
                       },
@@ -153,17 +164,19 @@ export function OverviewKpis({
                     <AnimatedNumber value={agg.total} preset="count" />
                   </span>
                   <span className="text-[11px] font-semibold text-white/80 tabular-nums">
-                    %{formatNumber(openPct, 0)} açık
+                    %{formatNumber(assignedPct, 0)} gemi atanmış
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Executive mini-stat grid */}
-            <div className="relative mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 border-t border-white/15 pt-2.5">
-              <HeroStat label="Açık proje" value={agg.openCount} />
-              <HeroStat label="Aktif sefer" value={agg.commencedCount} />
-              <HeroStat label="Bekleyen" value={agg.waitingCount} />
+            {/* Tek şerit — gemi var/yok + tonaj; gerisi tooltip'te */}
+            <div className="relative mt-3 grid grid-cols-3 gap-x-3 border-t border-white/15 pt-2.5">
+              <HeroStat label="Gemi Atanmış" value={agg.vesselAssignedCount} />
+              <HeroStat
+                label="Gemi Atanmamış"
+                value={agg.total - agg.vesselAssignedCount}
+              />
               <div className="min-w-0">
                 <div className="text-[9.5px] uppercase tracking-wider text-white/65 truncate">
                   Toplam Tonaj
@@ -184,6 +197,11 @@ export function OverviewKpis({
             reduceMotion={!!reduceMotion}
             variants={reduceMotion ? undefined : itemVariants}
             onClick={() => onGroupClick(row.group)}
+            onContext={
+              onGroupContext
+                ? (e) => onGroupContext(row.group, e)
+                : undefined
+            }
           />
         ))}
       </motion.div>
@@ -198,13 +216,17 @@ function GroupKpiCard({
   reduceMotion,
   variants,
   onClick,
+  onContext,
 }: {
   row: GroupCountRow;
   reduceMotion: boolean;
   variants?: Variants;
   onClick: () => void;
+  onContext?: (e: React.MouseEvent) => void;
 }) {
   const meta = GROUP_META[row.group];
+  const assignedPct =
+    row.count > 0 ? (row.vesselAssignedCount / row.count) * 100 : 0;
   return (
     <motion.div
       variants={variants}
@@ -213,8 +235,9 @@ function GroupKpiCard({
       <motion.button
         type="button"
         onClick={onClick}
+        onContextMenu={onContext}
         whileHover={reduceMotion ? undefined : { y: -2, scale: 1.005 }}
-        title={`${meta.label} projelerine göre filtrele (tekrar tıkla → kaldır)`}
+        title={`${meta.label} projelerine göre filtrele · sağ tık → detaya git`}
         className="group h-full w-full text-left glass glass-subtle rounded-2xl px-4 py-3.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2"
         style={{ "--tw-ring-color": meta.ring } as React.CSSProperties}
       >
@@ -259,6 +282,10 @@ function GroupKpiCard({
                       value: `${row.count} (%${formatNumber(row.pct, 1)} pay)`,
                       dot: meta.solid,
                     },
+                    {
+                      label: "Gemi atanmış / atanmamış",
+                      value: `${row.vesselAssignedCount} / ${row.count - row.vesselAssignedCount}`,
+                    },
                     { label: "Açık proje", value: String(row.openCount) },
                     {
                       label: "Aktif sefer (Commenced)",
@@ -281,10 +308,10 @@ function GroupKpiCard({
                 <AnimatedNumber value={row.count} preset="count" />
               </span>
               <span
-                className="text-[12px] font-bold tabular-nums"
+                className="text-[11.5px] font-bold tabular-nums truncate"
                 style={{ color: meta.solid }}
               >
-                %{formatNumber(row.pct, 1)}
+                %{formatNumber(assignedPct, 0)} gemi atanmış
               </span>
             </div>
             {/* Mini share bar */}
@@ -309,11 +336,13 @@ function GroupKpiCard({
           </div>
         </div>
 
-        {/* Mini-stat grid — same anatomy as the hero card */}
-        <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 border-t border-border/50 pt-2.5">
-          <LightStat label="Açık proje" value={row.openCount} />
-          <LightStat label="Aktif sefer" value={row.commencedCount} />
-          <LightStat label="Bekleyen" value={row.waitingCount} />
+        {/* Tek şerit — gemi var/yok + tonaj; gerisi tooltip'te */}
+        <div className="mt-3 grid grid-cols-3 gap-x-3 border-t border-border/50 pt-2.5">
+          <LightStat label="Gemi Atanmış" value={row.vesselAssignedCount} />
+          <LightStat
+            label="Gemi Atanmamış"
+            value={row.count - row.vesselAssignedCount}
+          />
           <div className="min-w-0">
             <div className="text-[9.5px] uppercase tracking-wider text-muted-foreground/80 truncate">
               Tonaj
