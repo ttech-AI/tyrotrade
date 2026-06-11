@@ -110,6 +110,7 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
   const VarIcon = tone.Icon;
 
   return (
+    <>
     <GlassPanel
       tone="default"
       role="button"
@@ -256,19 +257,22 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
           </div>
         </div>
       </div>
-
-      {/* Kalem-detayı paneli — portal'a render olur (Sheet), kartın
-          click handler'ına geri köpürmez. Toplamlar kartla aynı
-          kaynaklardan (selectEstimateTotal + enriched rows) geçirilir. */}
-      <ExpenseComparisonSheet
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-        project={project}
-        realizedRows={expenseLineQuery.rows}
-        expectedUsd={expectedUsd}
-        realizedUsd={realized.usdTotal}
-      />
     </GlassPanel>
+
+    {/* Kalem-detayı paneli — kartın (role=button) DIŞINDA durur. React
+        portal olayları DOM'a değil React ağacına köpürür: panel kartın
+        içindeyken X / boşluk tıklaması kapanma + kartın onClick'iyle
+        yeniden açılmayı AYNI anda tetikleyip paneli kilitliyordu.
+        Toplamlar kartla aynı kaynaklardan geçirilir. */}
+    <ExpenseComparisonSheet
+      open={detailOpen}
+      onOpenChange={setDetailOpen}
+      project={project}
+      realizedRows={expenseLineQuery.rows}
+      expectedUsd={expectedUsd}
+      realizedUsd={realized.usdTotal}
+    />
+    </>
   );
 }
 

@@ -17,18 +17,30 @@ import type { Project } from "@/lib/dataverse/entities";
 
 /**
  * Gider Karşılaştırması detay paneli — kartın sağından kayan Sheet.
- * İki bölme: TAHMİNİ kalemler (costEstimateLines: kod × birim $/t ×
- * tonaj) ve GERÇEKLEŞEN kalemler (expense-line satırları, expenseId
- * bazında toplanmış, işaretli USD). Kartın başlıktaki toplamlarını
- * OLUŞTURAN kalemler birebir bunlar — toplamlar aynı kaynaktan gelir.
  *
- * İsim zenginleştirme (kullanıcı notu): tahmini kalemlerin çoğunda
- * metinsel ad yok (yalnızca mserp_tryexpensetype kodu). Bu kod uzayı
- * gerçekleşen tarafın `mserp_expenseid`'siyle AYNI olduğundan, adı
- * olmayan tahmini kalem, aynı koddaki gerçekleşen kalemin adını
- * (refExpenseId → description) devralır. Eşleşen kalemler iki yönde de
- * ⇄ rozetiyle işaretlenir.
+ * İki bölme, her biri KENDİ renk-bantlı konteynerinde (göz başlıkları
+ * tarayarak ayırabilsin): TAHMİNİ = indigo bant, GERÇEKLEŞEN = emerald
+ * bant. Satır tipografisi tamamen sans (mono YOK — kodlar yumuşak chip
+ * olarak), 13px adlar + 11px alt satır, satırlar arası ince ayraç.
+ *
+ * İsim zenginleştirme: tahmini kalemlerin çoğunda metinsel ad yok
+ * (yalnızca mserp_tryexpensetype kodu). Bu kod uzayı gerçekleşen
+ * tarafın `mserp_expenseid`'siyle AYNI olduğundan, adı olmayan tahmini
+ * kalem aynı koddaki gerçekleşen kalemin adını devralır. Eşleşen
+ * kalemler iki yönde de ⇄ rozetiyle işaretlenir.
  */
+
+/* Bölme kimlikleri — sabit semantik tonlar (tema-bağımsız). */
+const EST = {
+  solid: "#6366f1",
+  band: "rgba(99, 102, 241, 0.09)",
+  border: "rgba(99, 102, 241, 0.22)",
+};
+const REAL = {
+  solid: "#059669",
+  band: "rgba(5, 150, 105, 0.09)",
+  border: "rgba(5, 150, 105, 0.22)",
+};
 
 interface RealizedItem {
   code: string;
@@ -128,10 +140,13 @@ export function ExpenseComparisonSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full sm:w-[440px] sm:max-w-[440px] p-0 flex flex-col gap-0"
+        // stopPropagation: emniyet kemeri — panel artık kartın dışında
+        // ama herhangi bir üst tıklanabilirin handler'ına köpürmesin.
+        onClick={(e) => e.stopPropagation()}
+        className="w-full sm:w-[460px] sm:max-w-[460px] p-0 flex flex-col gap-0"
       >
-        <SheetHeader className="px-4 pt-4 pb-3 border-b border-border/40 text-left space-y-0">
-          <div className="flex items-start gap-2.5">
+        <SheetHeader className="px-5 pt-5 pb-4 border-b border-border/40 text-left space-y-0">
+          <div className="flex items-start gap-3">
             <AccentIconBadge size="sm" tone={TONE_EXPENSE}>
               <HugeiconsIcon
                 icon={BalanceScaleIcon}
@@ -140,30 +155,29 @@ export function ExpenseComparisonSheet({
               />
             </AccentIconBadge>
             <div className="min-w-0 flex-1">
-              <SheetTitle className="text-[14px] font-semibold leading-snug">
+              <SheetTitle className="text-[15px] font-semibold leading-snug tracking-tight">
                 Gider Karşılaştırması Detayı
               </SheetTitle>
-              <SheetDescription className="text-[11px] leading-snug mt-0.5">
-                {project.projectNo} · kartı oluşturan tahmini × gerçekleşen
-                kalemler
+              <SheetDescription className="text-[11.5px] leading-snug mt-0.5">
+                {project.projectNo} · kartı oluşturan kalemler
               </SheetDescription>
             </div>
           </div>
-          {/* Özet şerit */}
-          <div className="grid grid-cols-3 gap-2 pt-3">
+          {/* Özet şerit — renk-kodlu sol çizgili istatistikler */}
+          <div className="grid grid-cols-3 gap-2 pt-4">
             <SummaryStat
               label="Tahmini"
               value={formatCurrency(expectedUsd, "USD", {
                 maximumFractionDigits: 0,
               })}
-              color="#6366f1"
+              color={EST.solid}
             />
             <SummaryStat
               label="Gerçekleşen"
               value={formatCurrency(realizedUsd, "USD", {
                 maximumFractionDigits: 0,
               })}
-              color="#0f172a"
+              color={REAL.solid}
             />
             <SummaryStat
               label="Fark"
@@ -174,105 +188,61 @@ export function ExpenseComparisonSheet({
         </SheetHeader>
 
         <ScrollArea className="flex-1 min-h-0">
-          <div className="px-4 py-3 space-y-5 pb-6">
+          <div className="px-5 py-4 space-y-4 pb-8">
             {/* ─── Tahmini kalemler ─── */}
-            <section aria-label="Tahmini gider kalemleri">
-              <SectionHeader
-                color="#6366f1"
-                title="Tahmini Gider Kalemleri"
-                count={estimateItems.length}
-                totalUsd={expectedUsd}
-              />
-              {estimateItems.length === 0 ? (
-                <EmptyNote text="Bu projede tahmini gider kalemi yok." />
-              ) : (
-                <div className="mt-1.5 space-y-0.5">
-                  {estimateItems.map((item, i) => (
-                    <div
-                      key={`${item.code}-${i}`}
-                      className="flex items-start justify-between gap-3 rounded-lg px-2 py-1.5 hover:bg-foreground/[0.03] transition-colors"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="text-[12.5px] font-medium text-foreground/90 truncate">
-                            {item.name}
-                          </span>
-                          {realizedCodes.has(item.code) && (
-                            <MatchBadge note="Gerçekleşen tarafta da var" />
-                          )}
-                        </div>
-                        <div className="text-[10.5px] text-muted-foreground font-mono mt-0.5">
-                          {item.code}
-                          <span className="font-sans">
-                            {" "}
-                            · {formatNumber(item.unitPriceUsd, 2)} $/t ×{" "}
-                            {formatNumber(item.tons, 0)} t
-                          </span>
-                        </div>
-                      </div>
-                      <span className="text-[12.5px] font-bold tabular-nums shrink-0 text-foreground">
-                        {formatCurrency(item.totalUsd, "USD", {
-                          maximumFractionDigits: 0,
-                        })}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
+            <Section
+              tone={EST}
+              title="Tahmini Gider Kalemleri"
+              count={estimateItems.length}
+              totalUsd={expectedUsd}
+              empty={
+                estimateItems.length === 0
+                  ? "Bu projede tahmini gider kalemi yok."
+                  : null
+              }
+            >
+              {estimateItems.map((item, i) => (
+                <ItemRow
+                  key={`${item.code}-${i}`}
+                  name={item.name}
+                  code={item.code}
+                  matched={realizedCodes.has(item.code)}
+                  matchNote="Gerçekleşen tarafta da var"
+                  sub={`${formatNumber(item.unitPriceUsd, 2)} $/t × ${formatNumber(item.tons, 0)} t`}
+                  value={formatCurrency(item.totalUsd, "USD", {
+                    maximumFractionDigits: 0,
+                  })}
+                />
+              ))}
+            </Section>
 
             {/* ─── Gerçekleşen kalemler ─── */}
-            <section aria-label="Gerçekleşen gider kalemleri">
-              <SectionHeader
-                color="#0f172a"
-                title="Gerçekleşen Gider Kalemleri"
-                count={realizedItems.length}
-                totalUsd={realizedUsd}
-              />
-              {realizedItems.length === 0 ? (
-                <EmptyNote text="Henüz gerçekleşen gider kaydı yok." />
-              ) : (
-                <div className="mt-1.5 space-y-0.5">
-                  {realizedItems.map((item) => (
-                    <div
-                      key={item.code}
-                      className="flex items-start justify-between gap-3 rounded-lg px-2 py-1.5 hover:bg-foreground/[0.03] transition-colors"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="text-[12.5px] font-medium text-foreground/90 truncate">
-                            {item.name}
-                          </span>
-                          {estimateCodes.has(item.code) && (
-                            <MatchBadge note="Tahmini tarafta da var" />
-                          )}
-                        </div>
-                        <div className="text-[10.5px] text-muted-foreground font-mono mt-0.5">
-                          {item.code}
-                          <span className="font-sans">
-                            {" "}
-                            · {item.rowCount} kayıt
-                          </span>
-                        </div>
-                      </div>
-                      <span
-                        className={cn(
-                          "text-[12.5px] font-bold tabular-nums shrink-0",
-                          item.totalUsd < 0
-                            ? "text-emerald-700"
-                            : "text-foreground"
-                        )}
-                      >
-                        {item.totalUsd < 0 ? "−" : ""}
-                        {formatCurrency(Math.abs(item.totalUsd), "USD", {
-                          maximumFractionDigits: 0,
-                        })}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
+            <Section
+              tone={REAL}
+              title="Gerçekleşen Gider Kalemleri"
+              count={realizedItems.length}
+              totalUsd={realizedUsd}
+              empty={
+                realizedItems.length === 0
+                  ? "Henüz gerçekleşen gider kaydı yok."
+                  : null
+              }
+            >
+              {realizedItems.map((item) => (
+                <ItemRow
+                  key={item.code}
+                  name={item.name}
+                  code={item.code}
+                  matched={estimateCodes.has(item.code)}
+                  matchNote="Tahmini tarafta da var"
+                  sub={`${item.rowCount} kayıt`}
+                  value={`${item.totalUsd < 0 ? "−" : ""}${formatCurrency(Math.abs(item.totalUsd), "USD", { maximumFractionDigits: 0 })}`}
+                  valueClassName={
+                    item.totalUsd < 0 ? "text-emerald-700" : undefined
+                  }
+                />
+              ))}
+            </Section>
           </div>
         </ScrollArea>
       </SheetContent>
@@ -280,7 +250,7 @@ export function ExpenseComparisonSheet({
   );
 }
 
-/* ─────────── Small bits ─────────── */
+/* ─────────── Building blocks ─────────── */
 
 function SummaryStat({
   label,
@@ -292,12 +262,15 @@ function SummaryStat({
   color: string;
 }) {
   return (
-    <div className="rounded-xl bg-foreground/[0.03] border border-border/40 px-2.5 py-2 min-w-0">
-      <div className="text-[9.5px] uppercase tracking-wider text-muted-foreground truncate">
+    <div
+      className="rounded-xl bg-foreground/[0.025] px-3 py-2.5 min-w-0 border-l-[3px]"
+      style={{ borderLeftColor: color }}
+    >
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground truncate">
         {label}
       </div>
       <div
-        className="text-[13px] font-bold tabular-nums leading-tight truncate mt-0.5"
+        className="text-[13.5px] font-bold tabular-nums leading-tight truncate mt-1"
         style={{ color }}
         title={value}
       >
@@ -307,32 +280,114 @@ function SummaryStat({
   );
 }
 
-function SectionHeader({
-  color,
+/** Renk-bantlı bölme konteyneri — başlık şeridi bölmenin kimlik rengini
+ *  taşır, gövde satırları ince ayraçlarla ayrılır. */
+function Section({
+  tone,
   title,
   count,
   totalUsd,
+  empty,
+  children,
 }: {
-  color: string;
+  tone: { solid: string; band: string; border: string };
   title: string;
   count: number;
   totalUsd: number;
+  empty: string | null;
+  children?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-2 border-b border-border/40 pb-1.5">
+    <section
+      aria-label={title}
+      className="rounded-xl overflow-hidden border"
+      style={{ borderColor: tone.border }}
+    >
+      <div
+        className="px-3.5 py-2.5 flex items-center gap-2"
+        style={{ background: tone.band }}
+      >
+        <span
+          aria-hidden
+          className="size-2 rounded-full shrink-0"
+          style={{ background: tone.solid }}
+        />
+        <span
+          className="text-[12px] font-bold tracking-tight flex-1 min-w-0 truncate"
+          style={{ color: tone.solid }}
+        >
+          {title}
+        </span>
+        <span
+          className="text-[11px] font-semibold tabular-nums shrink-0"
+          style={{ color: tone.solid }}
+        >
+          {count} kalem ·{" "}
+          {formatCurrency(totalUsd, "USD", { maximumFractionDigits: 0 })}
+        </span>
+      </div>
+      {empty ? (
+        <p className="text-[12px] text-muted-foreground italic px-3.5 py-4">
+          {empty}
+        </p>
+      ) : (
+        <div className="divide-y divide-border/40">{children}</div>
+      )}
+    </section>
+  );
+}
+
+function ItemRow({
+  name,
+  code,
+  matched,
+  matchNote,
+  sub,
+  value,
+  valueClassName,
+}: {
+  name: string;
+  code: string;
+  matched: boolean;
+  matchNote: string;
+  sub: string;
+  value: string;
+  valueClassName?: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 hover:bg-foreground/[0.025] transition-colors">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-[13px] font-medium text-foreground leading-snug truncate">
+            {name}
+          </span>
+          {matched && <MatchBadge note={matchNote} />}
+        </div>
+        <div className="flex items-center gap-1.5 mt-1">
+          <CodeChip code={code} />
+          <span className="text-[11px] text-muted-foreground truncate">
+            {sub}
+          </span>
+        </div>
+      </div>
       <span
-        aria-hidden
-        className="size-2 rounded-full shrink-0"
-        style={{ background: color }}
-      />
-      <span className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-foreground/80 flex-1 min-w-0 truncate">
-        {title}
-      </span>
-      <span className="text-[10.5px] font-semibold tabular-nums text-muted-foreground shrink-0">
-        {count} kalem ·{" "}
-        {formatCurrency(totalUsd, "USD", { maximumFractionDigits: 0 })}
+        className={cn(
+          "text-[13px] font-bold tabular-nums shrink-0 text-foreground",
+          valueClassName
+        )}
+      >
+        {value}
       </span>
     </div>
+  );
+}
+
+/** Masraf kodu — mono yerine yumuşak sans chip (göz yormasın). */
+function CodeChip({ code }: { code: string }) {
+  return (
+    <span className="inline-flex items-center h-[18px] px-1.5 rounded-md bg-foreground/[0.05] text-[10px] font-semibold tabular-nums text-foreground/65 shrink-0">
+      {code}
+    </span>
   );
 }
 
@@ -345,11 +400,5 @@ function MatchBadge({ note }: { note: string }) {
     >
       <ArrowLeftRight className="size-2.5" strokeWidth={2.5} />
     </span>
-  );
-}
-
-function EmptyNote({ text }: { text: string }) {
-  return (
-    <p className="text-[12px] text-muted-foreground italic px-2 py-3">{text}</p>
   );
 }
