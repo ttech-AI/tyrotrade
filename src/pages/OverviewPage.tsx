@@ -1,5 +1,4 @@
 import * as React from "react";
-import { useNavigate } from "react-router-dom";
 import { useProjects } from "@/hooks/useProjects";
 import { ProjectsEmptyState } from "@/components/projects/ProjectsEmptyState";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -62,16 +61,17 @@ const OVERVIEW_DEFAULT_VOYAGE_STATUSES = [
  * Mirrors the reference BI report (KPI row · group donut · segment ×
  * group matrix · longest-waiting vessel · per-group segment columns ·
  * payment-pending list) rebuilt in the app's liquid-glass design
- * language on the unified filter system. Every card is a deep link:
- * groups / segments / statuses click through to Sefer Takibi with the
- * matching filter (and this page's period) pre-applied.
+ * language on the unified filter system. Aggregate cards filter
+ * IN-PLACE: clicking a group / segment / status applies that filter to
+ * this page's own state (toggle on re-click, hero resets); only the
+ * single-project rows (longest-waiting, pending payments) deep-link
+ * into Sefer Takibi.
  *
  * Grouping rule: segment "Organik*" / "Sunrise*" → Organik · "Tahıl*" /
  * "Danem*" → Anadolu · everything else → International (see
  * selectors/overview.ts).
  */
 export function OverviewPage() {
-  const navigate = useNavigate();
   const { projects: rawProjects, isEmpty, fetchedAt } = useProjects();
   const [filters, setFilters] = React.useState<ProjectFilterState>(() => {
     const base = makeEmptyFilters({
@@ -114,59 +114,73 @@ export function OverviewPage() {
     [projects, now]
   );
 
-  /* ─── Deep-link handlers — every card routes here. The page's own
-     period AND voyage-status narrowing ride along so the landing list
-     matches the clicked count exactly (both pages default to the same
-     active pipeline; if the user widened/narrowed it here, that state
-     carries over too). Status-targeted links (donut slice, "bekleyen"
-     chip) override the carried statuses with their own. */
-  const focusBase = React.useMemo(
-    () => ({
-      focusPeriod: filters.period,
-      focusFyKey: filters.fyKey,
-      focusVoyageStatuses: [...filters.voyageStatuses],
-    }),
-    [filters.period, filters.fyKey, filters.voyageStatuses]
+  /* ─── In-page filter handlers — clicking a group / segment / status
+     applies the filter ON THIS PAGE (no navigation): every card, the
+     donut and the matrix instantly recompute for the clicked slice.
+     Clicking the same selection again TOGGLES it back off, and the
+     hero card resets everything to the fresh-visit defaults. Project
+     rows (longest-waiting, pending payments) still deep-link into
+     Sefer Takibi — those are single-project detail jumps. */
+  const sameSet = (current: Set<string>, target: string[]) =>
+    current.size === target.length && target.every((t) => current.has(t));
+  const applySegments = React.useCallback(
+    (segments: string[]) => {
+      if (segments.length === 0) return;
+      setFilters((f) => ({
+        ...f,
+        segments: sameSet(f.segments, segments)
+          ? new Set<string>()
+          : new Set(segments),
+      }));
+    },
+    []
   );
   const openAllProjects = React.useCallback(() => {
-    navigate("/projects", { state: { focusAll: true, ...focusBase } });
-  }, [navigate, focusBase]);
+    // Hero = "show everything" → reset to the fresh-visit defaults.
+    setFilters(() => {
+      const base = makeEmptyFilters({
+        includeWithoutShipPlan: OVERVIEW_SHIP_PLAN_DEFAULT,
+        period: "all",
+      });
+      return {
+        ...base,
+        voyageStatuses: new Set(OVERVIEW_DEFAULT_VOYAGE_STATUSES),
+      };
+    });
+  }, []);
   const openGroup = React.useCallback(
     (group: VesselGroup) => {
-      const segments = segmentsForGroup(projects, group);
-      if (segments.length === 0) return;
-      navigate("/projects", {
-        state: { focusSegments: segments, ...focusBase },
-      });
+      // Group → its segment set, derived from the RAW project list so a
+      // group click works even while another group's filter is active.
+      applySegments(segmentsForGroup(rawProjects, group));
     },
-    [navigate, projects, focusBase]
+    [applySegments, rawProjects]
   );
   const openSegment = React.useCallback(
-    (segment: string) => {
-      navigate("/projects", {
-        state: { focusSegments: [segment], ...focusBase },
-      });
-    },
-    [navigate, focusBase]
+    (segment: string) => applySegments([segment]),
+    [applySegments]
   );
   const openWaiting = React.useCallback(() => {
-    // Spread FIRST so the explicit status pair overrides the carried
-    // focusVoyageStatuses from focusBase.
-    navigate("/projects", {
-      state: {
-        ...focusBase,
-        focusVoyageStatuses: ["To Be Nominated", "Nominated"],
-      },
-    });
-  }, [navigate, focusBase]);
-  const openStatus = React.useCallback(
-    (status: string) => {
-      navigate("/projects", {
-        state: { ...focusBase, focusVoyageStatuses: [status] },
-      });
-    },
-    [navigate, focusBase]
-  );
+    setFilters((f) => ({
+      ...f,
+      voyageStatuses: sameSet(f.voyageStatuses, [
+        "To Be Nominated",
+        "Nominated",
+      ])
+        ? new Set(OVERVIEW_DEFAULT_VOYAGE_STATUSES)
+        : new Set(["To Be Nominated", "Nominated"]),
+    }));
+  }, []);
+  const openStatus = React.useCallback((status: string) => {
+    // Slice click narrows to that single status; clicking it again
+    // restores the default active-pipeline trio.
+    setFilters((f) => ({
+      ...f,
+      voyageStatuses: sameSet(f.voyageStatuses, [status])
+        ? new Set(OVERVIEW_DEFAULT_VOYAGE_STATUSES)
+        : new Set([status]),
+    }));
+  }, []);
 
   const insights = React.useMemo<OverviewInsight[]>(() => {
     const out: OverviewInsight[] = [];

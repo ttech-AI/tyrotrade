@@ -28,8 +28,9 @@ import {
  * Hero (accent gradient) and the 3 group cards (white glass) share the
  * same anatomy: icon pill · label · headline count + share · ⓘ premium
  * tooltip with the numeric breakdown · share bar · 2×2 mini-stat grid
- * (açık / aktif sefer / bekleyen / tonaj). All four are clickable deep
- * links into Sefer Takibi (hero → everything, group → its segments).
+ * (açık / aktif sefer / bekleyen / tonaj). All four are clickable
+ * IN-PAGE filters: a group card applies its segments to the page's
+ * filter state (re-click toggles off), the hero resets to defaults.
  *
  * The ⓘ trigger is a styled chip (not a bare glyph) that scales up on
  * hover — discoverable without stealing attention. It's a <span>, not a
@@ -58,9 +59,9 @@ export function OverviewKpis({
   onGroupClick,
 }: {
   agg: OverviewGroupAggregate;
-  /** Open Sefer Takibi with the page's full (unfiltered) scope. */
+  /** Reset the page filters to the fresh-visit defaults. */
   onHeroClick: () => void;
-  /** Open Sefer Takibi pre-filtered to the group's segments. */
+  /** Toggle the group's segments on the page's segment filter. */
   onGroupClick: (group: VesselGroup) => void;
 }) {
   const accent = useThemeAccent();
@@ -87,7 +88,7 @@ export function OverviewKpis({
             type="button"
             onClick={onHeroClick}
             whileHover={reduceMotion ? undefined : { y: -2, scale: 1.005 }}
-            title="Tüm gemi projelerini Sefer Takibi'nde aç"
+            title="Filtreleri varsayılana sıfırla"
             className="h-full w-full text-left rounded-2xl px-4 py-3.5 text-white overflow-hidden relative cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
             style={{
               background: accent.gradient,
@@ -213,7 +214,7 @@ function GroupKpiCard({
         type="button"
         onClick={onClick}
         whileHover={reduceMotion ? undefined : { y: -2, scale: 1.005 }}
-        title={`${meta.label} projelerini Sefer Takibi'nde aç`}
+        title={`${meta.label} projelerine göre filtrele (tekrar tıkla → kaldır)`}
         className="group h-full w-full text-left glass glass-subtle rounded-2xl px-4 py-3.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2"
         style={{ "--tw-ring-color": meta.ring } as React.CSSProperties}
       >

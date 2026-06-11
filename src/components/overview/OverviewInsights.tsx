@@ -6,8 +6,8 @@ import { GlassPanel } from "@/components/glass/GlassPanel";
  * callouts ("En büyük grup: …", "Ödeme bekleyen: …"). Deliberately
  * LIGHTER than the Trade Cost insights ribbon (no gradient chips /
  * tooltips): plain dot + bold lead + muted tail on a subtle glass
- * strip. Chips with an `onClick` render as buttons that deep-link
- * into Sefer Takibi with the matching filter.
+ * strip. Chips with an `onClick` render as buttons that apply the
+ * matching filter to the page's own state.
  */
 export interface OverviewInsight {
   /** Dot colour (hex / rgba). */
@@ -51,7 +51,7 @@ export function OverviewInsights({
                 key={i}
                 type="button"
                 onClick={ins.onClick}
-                title="Sefer Takibi'nde filtrele"
+                title="Sayfayı bu veriye göre filtrele"
                 className="group inline-flex items-center gap-1.5 min-w-0 text-[12px] rounded-lg px-1.5 py-1 hover:bg-foreground/[0.05] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 {inner}

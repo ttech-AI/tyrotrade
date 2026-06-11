@@ -15,8 +15,9 @@ import type { VoyageStatusAggregate } from "@/lib/selectors/overview";
  * Interactions (legend ↔ chart in sync):
  *   - hover a slice OR its legend row → that slice thickens, the others
  *     dim, and the centre label swaps to the hovered status
- *   - click a slice / legend row → Sefer Takibi pre-filtered to that
- *     voyage status ("Diğer" catch-all is informational, not clickable)
+ *   - click a slice / legend row → that status becomes THIS PAGE's
+ *     voyage-status filter (re-click restores the default trio;
+ *     "Diğer" catch-all is informational, not clickable)
  *
  * Hand-rolled SVG (same family as RatioDonut): full control over the
  * draw-in animation, hover geometry and exact status hexes. Legend rows
@@ -75,7 +76,7 @@ export function VoyageStatusDonutCard({
           </h3>
         </div>
         <p className="text-[11px] text-muted-foreground mt-0.5">
-          Dilime veya duruma tıkla → Sefer Takibi'nde filtrele
+          Dilime veya duruma tıkla → sayfayı filtrele (tekrar tıkla → kaldır)
         </p>
       </div>
 
@@ -245,7 +246,7 @@ export function VoyageStatusDonutCard({
                 onMouseLeave={() => setHovered(null)}
                 onFocus={() => setHovered(row.status)}
                 onBlur={() => setHovered(null)}
-                title={`${row.status} seferlerini Sefer Takibi'nde aç`}
+                title={`${row.status} seferlerine göre filtrele`}
                 className="group w-full flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-foreground/[0.04] transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 style={{ opacity: isDimmed ? 0.45 : 1 }}
               >

@@ -12,8 +12,9 @@ import {
  * "Gruplara Göre Segment Dağılımı" — three side-by-side columns (one per
  * group) listing that group's segments by project count, with a folded
  * "Diğer" row beyond the top-N and a TOPLAM footer. Fully interactive:
- * the column header opens Sefer Takibi filtered to the whole group, and
- * each segment row opens it filtered to that single segment.
+ * the column header applies the whole group as THIS PAGE's segment
+ * filter, each segment row applies that single segment (re-click
+ * toggles off — handlers live in OverviewPage).
  */
 export function GroupSegmentColumns({
   columns,
@@ -42,7 +43,7 @@ export function GroupSegmentColumns({
           </h3>
         </div>
         <p className="text-[11px] text-muted-foreground mt-0.5">
-          Grup başlığına veya segmente tıkla → Sefer Takibi'nde filtrele
+          Grup başlığına veya segmente tıkla → sayfayı filtrele (tekrar tıkla → kaldır)
         </p>
       </div>
 
@@ -59,7 +60,7 @@ export function GroupSegmentColumns({
               <button
                 type="button"
                 onClick={() => onGroupClick(col.group)}
-                title={`${meta.label} projelerini Sefer Takibi'nde aç`}
+                title={`${meta.label} projelerine göre filtrele`}
                 className="group px-3 py-2 flex items-center gap-2 border-b text-left transition-colors hover:bg-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 style={{ borderColor: meta.ring }}
               >
@@ -97,7 +98,7 @@ export function GroupSegmentColumns({
                         key={r.segment}
                         type="button"
                         onClick={() => onSegmentClick(r.segment)}
-                        title={`${r.segment} segmentini Sefer Takibi'nde aç`}
+                        title={`${r.segment} segmentine göre filtrele`}
                         className="group w-full flex items-center justify-between gap-2 rounded-lg px-1.5 py-1 min-w-0 text-left transition-colors hover:bg-white/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                       >
                         <span

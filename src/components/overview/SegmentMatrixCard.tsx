@@ -18,8 +18,9 @@ import {
  *     readable without scanning the number columns
  *   - the TOPLAM column draws a soft data-bar behind each value
  *     (length ∝ the largest row) — classic BI affordance
- *   - rows are buttons: hover lift + arrow, click → Sefer Takibi
- *     filtered to that segment ("Diğer" is informational, not clickable)
+ *   - rows are buttons: hover lift + arrow, click applies that segment
+ *     to THIS PAGE's filter (re-click toggles off; "Diğer" is
+ *     informational, not clickable)
  * Column totals cover ALL segments, not just the visible top-N.
  */
 export function SegmentMatrixCard({
@@ -51,7 +52,7 @@ export function SegmentMatrixCard({
           </h3>
         </div>
         <p className="text-[11px] text-muted-foreground mt-0.5">
-          Satıra tıkla → segment Sefer Takibi'nde açılır
+          Satıra tıkla → segmente göre filtrele (tekrar tıkla → kaldır)
         </p>
       </div>
 
@@ -103,7 +104,7 @@ export function SegmentMatrixCard({
                     title={
                       isOther
                         ? undefined
-                        : `${row.segment} segmentini Sefer Takibi'nde aç`
+                        : `${row.segment} segmentine göre filtrele`
                     }
                     className={cn(
                       "group border-t border-border/30 transition-colors",
