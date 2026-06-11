@@ -44,6 +44,18 @@ import { formatCurrency, formatNumber } from "@/lib/format";
  *  the allowlisted project still appears. */
 const OVERVIEW_SHIP_PLAN_DEFAULT = false;
 
+/** Fresh-visit voyage-status narrowing — IDENTICAL to Sefer Takibi's
+ *  `PROJECTS_DEFAULT_VOYAGE_STATUSES` (ProjectsPage.tsx): the overview
+ *  opens on the ACTIVE pipeline (To Be Nominated + Nominated +
+ *  Commenced); Completed/Closed/Cancelled stay hidden until the user
+ *  widens the filter. Kept as a local mirror instead of an import so
+ *  the lazy route chunks don't merge; update BOTH together. */
+const OVERVIEW_DEFAULT_VOYAGE_STATUSES = [
+  "To Be Nominated",
+  "Nominated",
+  "Commenced",
+] as const;
+
 /**
  * Genel Bakış — vessel-project group & segment overview.
  *
@@ -61,12 +73,16 @@ const OVERVIEW_SHIP_PLAN_DEFAULT = false;
 export function OverviewPage() {
   const navigate = useNavigate();
   const { projects: rawProjects, isEmpty, fetchedAt } = useProjects();
-  const [filters, setFilters] = React.useState<ProjectFilterState>(() =>
-    makeEmptyFilters({
+  const [filters, setFilters] = React.useState<ProjectFilterState>(() => {
+    const base = makeEmptyFilters({
       includeWithoutShipPlan: OVERVIEW_SHIP_PLAN_DEFAULT,
       period: "all",
-    })
-  );
+    });
+    return {
+      ...base,
+      voyageStatuses: new Set(OVERVIEW_DEFAULT_VOYAGE_STATUSES),
+    };
+  });
   const now = React.useMemo(() => new Date(), []);
 
   const projects = React.useMemo(
@@ -99,10 +115,18 @@ export function OverviewPage() {
   );
 
   /* ─── Deep-link handlers — every card routes here. The page's own
-     period rides along so the landing count matches what was clicked. */
+     period AND voyage-status narrowing ride along so the landing list
+     matches the clicked count exactly (both pages default to the same
+     active pipeline; if the user widened/narrowed it here, that state
+     carries over too). Status-targeted links (donut slice, "bekleyen"
+     chip) override the carried statuses with their own. */
   const focusBase = React.useMemo(
-    () => ({ focusPeriod: filters.period, focusFyKey: filters.fyKey }),
-    [filters.period, filters.fyKey]
+    () => ({
+      focusPeriod: filters.period,
+      focusFyKey: filters.fyKey,
+      focusVoyageStatuses: [...filters.voyageStatuses],
+    }),
+    [filters.period, filters.fyKey, filters.voyageStatuses]
   );
   const openAllProjects = React.useCallback(() => {
     navigate("/projects", { state: { focusAll: true, ...focusBase } });
@@ -126,17 +150,19 @@ export function OverviewPage() {
     [navigate, focusBase]
   );
   const openWaiting = React.useCallback(() => {
+    // Spread FIRST so the explicit status pair overrides the carried
+    // focusVoyageStatuses from focusBase.
     navigate("/projects", {
       state: {
-        focusVoyageStatuses: ["To Be Nominated", "Nominated"],
         ...focusBase,
+        focusVoyageStatuses: ["To Be Nominated", "Nominated"],
       },
     });
   }, [navigate, focusBase]);
   const openStatus = React.useCallback(
     (status: string) => {
       navigate("/projects", {
-        state: { focusVoyageStatuses: [status], ...focusBase },
+        state: { ...focusBase, focusVoyageStatuses: [status] },
       });
     },
     [navigate, focusBase]
