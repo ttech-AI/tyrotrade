@@ -26,6 +26,8 @@ import {
   type SortState,
 } from "@/components/data-management/EntityRowsTable";
 import { RefreshAllButton } from "@/components/data-management/RefreshAllButton";
+import { ExcelExportButton } from "@/components/data-management/ExcelExportButton";
+import type { ExcelSheetSpec } from "@/lib/export/excelExport";
 import { TabStrip, type TabItem } from "@/components/data-management/TabStrip";
 import { AdvancedFilter } from "@/components/filters/AdvancedFilter";
 import {
@@ -325,6 +327,45 @@ export function DataManagementPage() {
   // Master tenant-wide bütçe cache'i retired — `useSegmentBudget` tek
   // segment'i sorgular, küçük payload + cache slot paylaşımı.
   const budget = useSegmentBudget(selectedSegment);
+
+  /* Excel export sheets — yalnızca "Verileri Güncelle" ile DOLAN master
+   * cache'ler (projeye tıklayınca dolan on-demand sekmeler — Tahmini /
+   * Gerçekleşen Gider, Satış, Satınalma, Segment Bütçesi — bilinçli
+   * olarak HARİÇ). İlk sayfa Projeler; sıra bu dizinin sırasıdır.
+   * Satırlar tıklama ANINDA okunur (callback), böylece butona basmadan
+   * hemen önce koşan bir Güncelle'nin taze verisi iner. Filtre/arama
+   * uygulanmaz — Güncelle'nin çektiği TAM veri seti dışa aktarılır. */
+  const buildExcelSheets = React.useCallback(
+    (): ExcelSheetSpec[] => [
+      { name: "Projeler", rows: projects.rows, columns: PROJECT_COLUMNS },
+      {
+        name: "Alt Projeler",
+        rows: subProjects.rows,
+        columns: SUB_PROJECT_COLUMNS,
+      },
+      {
+        name: "Proje Satırları",
+        rows: lines.rows,
+        columns: PROJECT_LINE_COLUMNS,
+      },
+      // Display sırası — gemi-master'dan zenginleştirilen alanlar
+      // (örn. mserp_vesselname) başa yakın gelsin diye $select listesi
+      // yerine inspector'ın görüntü dizilimi kullanılıyor.
+      { name: "Gemi Planı", rows: ship.rows, columns: SHIP_DISPLAY_COLUMNS },
+      {
+        name: "Alt Proje Satırları",
+        rows: subProjectDetails.rows,
+        columns: SUB_PROJECT_DETAIL_COLUMNS,
+      },
+    ],
+    [
+      projects.rows,
+      subProjects.rows,
+      lines.rows,
+      ship.rows,
+      subProjectDetails.rows,
+    ]
+  );
 
   /* Sequential refresh steps — RefreshAllButton fires these in order.
    *
@@ -999,6 +1040,7 @@ export function DataManagementPage() {
               }
               collapsible
             />
+            <ExcelExportButton sheets={buildExcelSheets} />
             <RefreshAllButton steps={refreshSteps} />
           </div>
         </GlassPanel>
