@@ -24,17 +24,30 @@ function sanitiseSheetName(name: string): string {
   return name.replace(/[[\]:*?/\\]/g, " ").trim().slice(0, 31) || "Sayfa";
 }
 
-/** Cell value for (row, column): numbers stay numeric so Excel can sum
- *  them; everything else prefers the human-readable @FormattedValue
- *  (option-set labels, lookup names) over the raw code. */
+/** Cell value for (row, column) — inspector parity rule:
+ *  the Excel must show what the Veri Yönetimi table shows.
+ *
+ *  - Numeric raw + a LABEL-LIKE @FormattedValue (contains letters —
+ *    option-set codes like 200000005 → "Açık", "Gemi", "Commenced")
+ *    → the label wins. A formatted value that is just the localized
+ *    rendering of the same number ("3.000.000,00") has no letters, so
+ *    real amounts/quantities stay numeric and Excel can still sum them.
+ *  - Booleans prefer their formatted "Evet/Hayır" label when present.
+ *  - Strings (dates, ids) prefer the formatted form when present. */
 function cellValue(
   row: Record<string, unknown>,
   col: string
 ): string | number | boolean {
   const raw = row[col];
-  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
-  if (typeof raw === "boolean") return raw;
   const formatted = row[`${col}@OData.Community.Display.V1.FormattedValue`];
+  const labelLike =
+    typeof formatted === "string" && /\p{L}/u.test(formatted);
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    return labelLike ? (formatted as string) : raw;
+  }
+  if (typeof raw === "boolean") {
+    return labelLike ? (formatted as string) : raw;
+  }
   const v = formatted ?? raw;
   if (v === null || v === undefined) return "";
   return String(v);
