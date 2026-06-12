@@ -16,7 +16,7 @@
  * evidence the position is old, so we keep prior behaviour (use it) rather
  * than silently hiding every vessel when a scrape happens to omit the field.
  */
-export const MAX_POSITION_AGE_DAYS = 30;
+export const MAX_POSITION_AGE_DAYS = 3;
 
 /** Whole-day age of an AIS position, or null when the timestamp is missing/invalid. */
 export function positionAgeDays(
