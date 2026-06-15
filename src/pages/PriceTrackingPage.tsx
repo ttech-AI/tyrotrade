@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 import { GlassPanel } from "@/components/glass/GlassPanel";
 import { useThemeAccent, type ThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { useFreightPrices } from "@/hooks/useFreightPrices";
 import {
   applyFreightFilter,
@@ -57,6 +58,7 @@ import {
 export function PriceTrackingPage() {
   const accent = useThemeAccent();
   const freight = useFreightPrices();
+  const t = useT();
   const now = React.useMemo(() => new Date(), []);
 
   const [filters, setFilters] = React.useState<FreightFilterState>(() =>
@@ -70,11 +72,11 @@ export function PriceTrackingPage() {
   // Debounce the free-text box into filter state (rebuilding lanes on
   // every keystroke over thousands of rows would feel laggy).
   React.useEffect(() => {
-    const t = setTimeout(
+    const timer = setTimeout(
       () => setFilters((f) => ({ ...f, search: searchInput })),
       200
     );
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [searchInput]);
 
   // Options from the FULL row set so picking one value never prunes the
@@ -198,7 +200,7 @@ export function PriceTrackingPage() {
                     className="h-9 px-3 rounded-full inline-flex items-center gap-1.5 text-[12px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors shrink-0"
                   >
                     <X className="size-3.5" strokeWidth={2.5} />
-                    Temizle ({activeFilters})
+                    {t("ft.clear")} ({activeFilters})
                   </button>
                 )}
                 <RefreshButton
@@ -214,20 +216,22 @@ export function PriceTrackingPage() {
                 <span className="font-semibold text-foreground">
                   {formatNumber(lanes.length)}
                 </span>{" "}
-                hat ·{" "}
+                {t("ft.meta.lanes")} ·{" "}
                 <span className="font-semibold text-foreground">
                   {formatNumber(filteredRows.length)}
                 </span>{" "}
-                teklif
+                {t("ft.meta.quotes")}
                 {filteredRows.length !== freight.rows.length && (
                   <span className="text-muted-foreground/70">
                     {" "}
-                    ({formatNumber(freight.rows.length)} içinden)
+                    ({formatNumber(freight.rows.length)} {t("ft.meta.within")})
                   </span>
                 )}
               </span>
               {freight.fetchedAt && (
-                <span>Son güncelleme: {formatDate(freight.fetchedAt)}</span>
+                <span>
+                  {t("ft.meta.updated")}: {formatDate(freight.fetchedAt)}
+                </span>
               )}
             </div>
           </div>
@@ -255,10 +259,11 @@ function SearchBox({
   onChange: (v: string) => void;
   accent: ThemeAccent;
 }) {
+  const t = useT();
   return (
     <div className="flex flex-col min-w-[200px] max-w-[280px] flex-1">
       <span className="text-[10.5px] font-bold uppercase tracking-wider leading-none mb-1.5 px-0.5 text-foreground/[0.78]">
-        Ara
+        {t("ft.search.label")}
       </span>
       <div
         className="relative h-9 rounded-full bg-white flex items-center"
@@ -272,7 +277,7 @@ function SearchBox({
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Rota, kargo, gemi…"
+          placeholder={t("ft.search.placeholder")}
           className="w-full h-full bg-transparent pl-8 pr-8 text-[12.5px] rounded-full outline-none focus-visible:ring-2"
           style={{ ["--tw-ring-color" as never]: accent.ring }}
         />
@@ -280,7 +285,7 @@ function SearchBox({
           <button
             type="button"
             onClick={() => onChange("")}
-            aria-label="Aramayı temizle"
+            aria-label={t("ft.search.clear")}
             className="absolute right-2.5 grid place-items-center size-5 rounded-full text-muted-foreground/60 hover:text-foreground hover:bg-foreground/[0.06] transition-colors"
           >
             <X className="size-3.5" strokeWidth={2.5} />
@@ -306,6 +311,7 @@ function PeriodChips({
 }) {
   const fys = React.useMemo(() => lastNFinancialYears(now, 3), [now]);
   const currentKey = React.useMemo(() => getCurrentFyKey(now), [now]);
+  const t = useT();
 
   const Chip = ({
     active,
@@ -339,8 +345,8 @@ function PeriodChips({
     <div className="inline-flex items-center h-9 rounded-full bg-slate-100 ring-1 ring-slate-200/70 p-1 gap-1">
       <Chip
         active={period === "all"}
-        label="Tümü"
-        title="Tüm geçerlilik dönemleri"
+        label={t("ft.period.all")}
+        title={t("ft.period.allTitle")}
         onClick={() => onChange("all", null)}
       />
       {fys.map((fy) => (
@@ -348,7 +354,7 @@ function PeriodChips({
           key={fy.key}
           active={period === "fy" && fyKey === fy.key}
           label={fy.label}
-          title={`Mali yıl ${fy.fullLabel}${fy.key === currentKey ? " (bu yıl)" : ""}`}
+          title={`${t("ft.period.fy")} ${fy.fullLabel}${fy.key === currentKey ? ` ${t("ft.period.thisYear")}` : ""}`}
           onClick={() => onChange("fy", fy.key)}
         />
       ))}
@@ -365,6 +371,7 @@ function RefreshButton({
   isFetching: boolean;
   accent: ThemeAccent;
 }) {
+  const t = useT();
   return (
     <TooltipProvider delayDuration={120}>
       <Tooltip>
@@ -373,7 +380,7 @@ function RefreshButton({
             type="button"
             onClick={onClick}
             disabled={isFetching}
-            aria-label={isFetching ? "Yükleniyor" : "Yenile"}
+            aria-label={isFetching ? t("ft.refreshing") : t("ft.refresh")}
             aria-busy={isFetching}
             className="size-9 rounded-full grid place-items-center shrink-0 shadow-sm transition-all hover:scale-[1.04] active:scale-95 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             style={{
@@ -402,11 +409,11 @@ function RefreshButton({
             className="text-[11.5px] font-bold uppercase tracking-wider"
             style={{ color: accent.solid }}
           >
-            {isFetching ? "Yükleniyor…" : "Yenile"}
+            {isFetching ? t("ft.refreshing") : t("ft.refresh")}
           </div>
           {!isFetching && (
             <div className="text-[11px] text-muted-foreground mt-0.5">
-              Navlun fiyatlarını Dataverse'ten tekrar çek
+              {t("ft.refresh.sub")}
             </div>
           )}
         </TooltipContent>

@@ -9,15 +9,16 @@ import {
 import { GlassPanel } from "@/components/glass/GlassPanel";
 import { Button } from "@/components/ui/button";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { formatNumber } from "@/lib/format";
 import type { FreightFetchProgress } from "@/lib/dataverse/freightPrices";
 
 /* ─────────── Loading ─────────── */
 
-const STAGE_TEXT: Record<FreightFetchProgress["stage"], string> = {
-  headers: "Rota başlıkları çekiliyor",
-  details: "Fiyat satırları çekiliyor",
-  join: "Rotalar fiyatlarla eşleştiriliyor",
+const STAGE_KEY: Record<FreightFetchProgress["stage"], string> = {
+  headers: "ft.state.stage.headers",
+  details: "ft.state.stage.details",
+  join: "ft.state.stage.join",
 };
 
 const STAGE_ORDER: FreightFetchProgress["stage"][] = [
@@ -35,6 +36,7 @@ export function FreightProgress({
   progress: FreightFetchProgress | null;
 }) {
   const accent = useThemeAccent();
+  const t = useT();
   const activeIdx = progress ? STAGE_ORDER.indexOf(progress.stage) : 0;
   return (
     <GlassPanel tone="default" className="flex-1 min-h-0 rounded-2xl">
@@ -53,14 +55,14 @@ export function FreightProgress({
           </div>
           <div className="space-y-1.5">
             <h2 className="text-lg font-bold tracking-tight text-foreground">
-              Navlun fiyatları yükleniyor…
+              {t("ft.state.loadingTitle")}
             </h2>
             <p className="text-[13px] text-muted-foreground">
-              {progress ? STAGE_TEXT[progress.stage] : "Bağlanılıyor"}
+              {progress ? t(STAGE_KEY[progress.stage]) : t("ft.state.connecting")}
               {progress && progress.loaded > 0 && (
                 <span className="font-semibold text-foreground">
                   {" "}
-                  · {formatNumber(progress.loaded)} kayıt
+                  · {formatNumber(progress.loaded)} {t("ft.state.records")}
                 </span>
               )}
             </p>
@@ -101,6 +103,7 @@ export function FreightEmptyState({
   onLoad: () => void;
 }) {
   const accent = useThemeAccent();
+  const t = useT();
   return (
     <GlassPanel tone="default" className="flex-1 min-h-0 rounded-2xl">
       <div className="h-full flex items-center justify-center p-8">
@@ -118,13 +121,10 @@ export function FreightEmptyState({
           </div>
           <div className="space-y-2">
             <h2 className="text-xl font-bold tracking-tight text-foreground">
-              İndikatif Navlun Fiyatları
+              {t("ft.state.emptyTitle")}
             </h2>
             <p className="text-[13.5px] text-muted-foreground leading-relaxed max-w-md mx-auto">
-              Rota başlıkları ve fiyat satırları Dataverse'ten çekilip
-              birleştirilir; her rota+gemi sınıfı için güncel oran ve trend
-              gösterilir. Sonuç önbelleğe alınır — tekrar açıldığında anında
-              gelir.
+              {t("ft.state.emptyBody")}
             </p>
           </div>
           {hasData ? (
@@ -138,17 +138,17 @@ export function FreightEmptyState({
               }}
             >
               <HugeiconsIcon icon={RefreshIcon} size={17} strokeWidth={2} />
-              Navlun fiyatlarını yükle
+              {t("ft.state.loadCta")}
             </button>
           ) : (
             <div className="text-[13px] text-muted-foreground/90 pt-1">
-              Canlı veri kaynağına ulaşılamadı.{" "}
+              {t("ft.state.noData")}{" "}
               <Link
                 to="/data"
                 className="font-semibold text-foreground hover:underline inline-flex items-center gap-1"
               >
                 <HugeiconsIcon icon={Database01Icon} size={13} strokeWidth={2} />
-                Veri Yönetimi'ne git
+                {t("ft.state.goToData")}
               </Link>
             </div>
           )}
@@ -161,6 +161,7 @@ export function FreightEmptyState({
 /* ─────────── Mock-mode (real-only page) ─────────── */
 
 export function FreightMockState() {
+  const t = useT();
   return (
     <GlassPanel tone="default" className="flex-1 min-h-0 rounded-2xl">
       <div className="h-full flex items-center justify-center p-8">
@@ -171,12 +172,10 @@ export function FreightMockState() {
             </span>
           </div>
           <h2 className="text-lg font-bold tracking-tight text-foreground">
-            Canlı veri gerekiyor
+            {t("ft.state.mockTitle")}
           </h2>
           <p className="text-[13px] text-muted-foreground leading-relaxed">
-            Fiyat Takibi yalnızca gerçek Dataverse verisiyle çalışır — bu
-            entity'lerin mock karşılığı yok. Gerçek moda geçip giriş
-            yaptığında navlun fiyatları otomatik yüklenir.
+            {t("ft.state.mockBody")}
           </p>
         </div>
       </div>
@@ -193,6 +192,7 @@ export function FreightErrorState({
   error: string;
   onRetry: () => void;
 }) {
+  const t = useT();
   return (
     <GlassPanel tone="default" className="flex-1 min-h-0 rounded-2xl">
       <div className="h-full flex items-center justify-center p-8">
@@ -202,10 +202,10 @@ export function FreightErrorState({
               <HugeiconsIcon icon={Alert02Icon} size={26} strokeWidth={2} />
             </span>
           </div>
-          <div className="text-rose-700 font-semibold">Veri çekilemedi</div>
+          <div className="text-rose-700 font-semibold">{t("ft.state.errorTitle")}</div>
           <p className="text-sm text-muted-foreground break-words">{error}</p>
           <Button onClick={onRetry} variant="outline" size="sm">
-            Tekrar dene
+            {t("ft.state.retry")}
           </Button>
         </div>
       </div>

@@ -1,6 +1,7 @@
 import * as React from "react";
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type {
   FreightFilterState,
   FreightOptions,
@@ -28,53 +29,54 @@ export function FreightQuickFilters({
   onChange,
 }: FreightQuickFiltersProps) {
   const accent = useThemeAccent();
+  const t = useT();
   return (
     <div
       role="group"
-      aria-label="Hızlı filtreler"
+      aria-label={t("ft.search.label")}
       className="flex items-end gap-2.5 flex-wrap min-w-0 flex-1"
     >
       <Combo
-        label="Yükleme Limanı"
+        label={t("ft.filter.loadingPort")}
         options={options.loadingPorts}
         selected={filters.loadingPorts}
         onChange={(next) => onChange({ ...filters, loadingPorts: next })}
         accent={accent}
-        searchPlaceholder="Liman ara..."
+        searchPlaceholder={t("ft.filter.searchPort")}
       />
       <Combo
-        label="Boşaltma Limanı"
+        label={t("ft.filter.dischargePort")}
         options={options.dischargePorts}
         selected={filters.dischargePorts}
         onChange={(next) => onChange({ ...filters, dischargePorts: next })}
         accent={accent}
-        searchPlaceholder="Liman ara..."
+        searchPlaceholder={t("ft.filter.searchPort")}
       />
       <Combo
-        label="Gemi Tipi"
+        label={t("ft.filter.vesselType")}
         options={options.vesselTypes}
         selected={filters.vesselTypes}
         onChange={(next) => onChange({ ...filters, vesselTypes: next })}
         accent={accent}
-        searchPlaceholder="Gemi tipi ara..."
+        searchPlaceholder={t("ft.filter.searchVesselType")}
       />
       <Combo
-        label="Gemi Sınıfı"
+        label={t("ft.filter.shipClass")}
         options={options.shipSizeCategories}
         selected={filters.shipSizeCategories}
         onChange={(next) =>
           onChange({ ...filters, shipSizeCategories: next })
         }
         accent={accent}
-        searchPlaceholder="Sınıf ara..."
+        searchPlaceholder={t("ft.filter.searchShipClass")}
       />
       <Combo
-        label="Kargo"
+        label={t("ft.filter.cargo")}
         options={options.cargoGoods}
         selected={filters.cargoGoods}
         onChange={(next) => onChange({ ...filters, cargoGoods: next })}
         accent={accent}
-        searchPlaceholder="Kargo ara..."
+        searchPlaceholder={t("ft.filter.searchCargo")}
       />
     </div>
   );
@@ -101,6 +103,7 @@ function Combo({
     idRef.current = `freight-combo-label-${comboLabelCounter}`;
   }
   const hasSelection = selected.size > 0;
+  const t = useT();
   return (
     <div className="flex flex-col min-w-[132px] max-w-[180px]">
       <span
@@ -117,7 +120,7 @@ function Combo({
         selected={selected}
         onChange={onChange}
         accent={accent}
-        placeholder="Hepsi"
+        placeholder={t("common.all")}
         searchPlaceholder={searchPlaceholder}
         triggerClassName="text-[12.5px]"
         triggerAriaLabelledBy={idRef.current}
