@@ -127,20 +127,24 @@ export function PriceTrackingPage() {
     content = <FreightEmptyState hasData onLoad={freight.refetch} />;
   } else {
     content = (
-      <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden">
+      // Desktop fits to viewport (internal table scroll); on < lg the whole
+      // content area scrolls so stacked KPIs/charts/cards all reach.
+      <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden max-lg:overflow-y-auto">
         <FreightKpiTiles kpis={kpis} />
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 shrink-0 h-[260px]">
-          <div className="lg:col-span-7 min-h-0">
+        {/* Charts: side-by-side on lg (fixed 260px); stacked with real
+            height on mobile so they don't squash into one short box. */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 shrink-0 lg:h-[260px]">
+          <div className="lg:col-span-7 min-h-0 max-lg:min-h-[240px]">
             <FreightTrendChart points={trend.points} currency={trend.currency} />
           </div>
-          <div className="lg:col-span-5 min-h-0">
+          <div className="lg:col-span-5 min-h-0 max-lg:min-h-[240px]">
             <FreightTopLanesChart
               lanes={topLanes}
               onSelectLane={selectLaneByKey}
             />
           </div>
         </div>
-        <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="lg:flex-1 min-h-0 overflow-hidden max-lg:min-h-[70vh]">
           <FreightTable
             lanes={lanes}
             selectedLaneKey={selectedLaneKey}

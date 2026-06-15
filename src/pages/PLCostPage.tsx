@@ -270,7 +270,7 @@ export function PLCostPage() {
           onCompute={handleRefresh}
         />
       ) : (
-        <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden max-lg:overflow-y-auto">
           <GlassPanel tone="subtle" className="rounded-xl shrink-0">
             <div className="px-3.5 py-2.5">
               <PLCostInsightsRibbon
@@ -284,7 +284,9 @@ export function PLCostPage() {
             totalProjects={totalProjects}
             topVariance={topVariance}
           />
-          <div className="flex-1 min-h-0 overflow-hidden">
+          {/* Desktop: table fills remaining height (internal scroll).
+              Mobile (< lg): tall min-height + the content area scrolls. */}
+          <div className="lg:flex-1 min-h-0 overflow-hidden max-lg:min-h-[70vh]">
             <PLCostTable
               tree={tree}
               viewMode={viewMode}

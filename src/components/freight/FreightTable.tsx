@@ -2,6 +2,7 @@ import * as React from "react";
 import { ChevronRight, ChevronDown, ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { trSort, formatDate, formatNumber } from "@/lib/format";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 import type { FreightLane } from "@/lib/selectors/freight";
 import type { FreightRow } from "@/lib/dataverse/freightPrices";
 import { FreightSparkline } from "./FreightSparkline";
@@ -81,6 +82,7 @@ export function FreightTable({
   selectedLaneKey?: string | null;
   onSelectLane?: (lane: FreightLane) => void;
 }) {
+  const isMobile = useIsMobile();
   const [sortKey, setSortKey] = React.useState<SortKey>("route");
   const [sortDir, setSortDir] = React.useState<SortDir>("asc");
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
@@ -108,6 +110,21 @@ export function FreightTable({
       return next;
     });
   };
+
+  // Mobile: a 9-column table is unreadable on a phone, so render a
+  // card-per-lane list (route + current rate + trend), tap → detail panel.
+  if (isMobile) {
+    return (
+      <FreightCardList
+        lanes={sorted}
+        sortKey={sortKey}
+        sortDir={sortDir}
+        onSort={toggleSort}
+        selectedLaneKey={selectedLaneKey}
+        onSelectLane={onSelectLane}
+      />
+    );
+  }
 
   return (
     <div className="h-full rounded-2xl border border-border/50 bg-white/60 overflow-auto">
@@ -415,5 +432,147 @@ function SortableTh({
           ))}
       </button>
     </th>
+  );
+}
+
+/* ─────────── mobile card list ─────────── */
+
+function FreightCardList({
+  lanes,
+  sortKey,
+  sortDir,
+  onSort,
+  selectedLaneKey,
+  onSelectLane,
+}: {
+  lanes: FreightLane[];
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onSort: (key: SortKey) => void;
+  selectedLaneKey?: string | null;
+  onSelectLane?: (lane: FreightLane) => void;
+}) {
+  return (
+    <div className="h-full flex flex-col rounded-2xl border border-border/50 bg-white/60 overflow-hidden">
+      <div className="flex items-center gap-1.5 px-2.5 py-2 border-b border-border/40 shrink-0 overflow-x-auto">
+        <span className="text-[10.5px] uppercase tracking-wider text-muted-foreground shrink-0 mr-0.5">
+          Sırala
+        </span>
+        <SortChip label="Rota" active={sortKey === "route"} dir={sortDir} onClick={() => onSort("route")} />
+        <SortChip label="Fiyat" active={sortKey === "price"} dir={sortDir} onClick={() => onSort("price")} />
+        <SortChip label="Trend" active={sortKey === "delta"} dir={sortDir} onClick={() => onSort("delta")} />
+        <SortChip label="Tarih" active={sortKey === "validity"} dir={sortDir} onClick={() => onSort("validity")} />
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-2">
+        {lanes.length === 0 ? (
+          <div className="py-10 text-center text-[13px] text-muted-foreground">
+            Filtreye uyan hat yok.
+          </div>
+        ) : (
+          lanes.map((lane) => {
+            const dColor = deltaColor(lane.deltaPct);
+            return (
+              <button
+                key={lane.laneKey}
+                type="button"
+                onClick={() => onSelectLane?.(lane)}
+                className={cn(
+                  "w-full text-left rounded-xl border p-3 transition-colors",
+                  selectedLaneKey === lane.laneKey
+                    ? "border-sky-300 bg-sky-50/70"
+                    : "border-border/50 bg-white hover:bg-foreground/[0.02]"
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[13.5px] font-semibold text-foreground/90 truncate">
+                      {lane.routeLabel}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1 min-w-0">
+                      {lane.shipSizeCategory && (
+                        <span className="inline-flex items-center rounded-md bg-sky-100/70 text-sky-700 px-1.5 py-0.5 text-[10px] font-semibold shrink-0">
+                          {lane.shipSizeCategory}
+                        </span>
+                      )}
+                      <span className="text-[11px] text-muted-foreground truncate">
+                        {lane.cargoGood || "—"}
+                        {lane.mixedCargo && (
+                          <span className="text-amber-600"> +karma</span>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className="text-[15px] font-bold tabular-nums text-foreground leading-tight">
+                      {priceRange(lane.currentPrice, lane.currentMaxPrice)}
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {lane.currency}/t
+                      {lane.isStale && <span className="text-amber-600"> · geçmiş</span>}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-2 mt-2">
+                  <div className="flex items-center gap-1.5">
+                    <FreightSparkline values={lane.trend.map((t) => t.price)} color={dColor} />
+                    {lane.deltaPct != null && (
+                      <span
+                        className="text-[11px] font-bold tabular-nums"
+                        style={{ color: dColor }}
+                      >
+                        {lane.deltaPct > 0 ? "+" : ""}
+                        {formatNumber(lane.deltaPct, 1)}%
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10.5px] text-muted-foreground whitespace-nowrap">
+                    {lane.current ? (
+                      <>
+                        {formatDate(lane.current.validityStart)}
+                        <span className="text-muted-foreground/50"> – </span>
+                        {formatDate(lane.current.validityFinish)}
+                      </>
+                    ) : (
+                      `${lane.quoteCount} teklif`
+                    )}
+                  </div>
+                </div>
+              </button>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SortChip({
+  label,
+  active,
+  dir,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  dir: SortDir;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[12px] font-semibold transition-colors shrink-0",
+        active ? "bg-sky-100 text-sky-700" : "bg-slate-100 text-slate-600"
+      )}
+    >
+      {label}
+      {active &&
+        (dir === "asc" ? (
+          <ArrowUp className="size-3" strokeWidth={2.5} />
+        ) : (
+          <ArrowDown className="size-3" strokeWidth={2.5} />
+        ))}
+    </button>
   );
 }
