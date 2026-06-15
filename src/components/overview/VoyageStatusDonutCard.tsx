@@ -5,6 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { PieChartIcon } from "@hugeicons/core-free-icons";
 import { GlassPanel } from "@/components/glass/GlassPanel";
 import { formatNumber } from "@/lib/format";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type { VoyageStatusAggregate } from "@/lib/selectors/overview";
 
 /**
@@ -46,6 +47,7 @@ export function VoyageStatusDonutCard({
   onStatusContext?: (status: string, e: React.MouseEvent) => void;
 }) {
   const reduceMotion = useReducedMotion();
+  const t = useT();
   const [hovered, setHovered] = React.useState<string | null>(null);
   const total = agg.total;
   const visible = agg.rows.filter((r) => r.count > 0);
@@ -75,11 +77,11 @@ export function VoyageStatusDonutCard({
             className="text-muted-foreground"
           />
           <h3 className="text-sm font-bold text-slate-900">
-            Sefer Durumuna Göre Gemi Sayıları
+            {t("ov.donut.title")}
           </h3>
         </div>
         <p className="text-[11px] text-muted-foreground mt-0.5">
-          Dilime veya duruma tıkla → sayfayı filtrele (tekrar tıkla → kaldır)
+          {t("ov.donut.subtitle")}
         </p>
       </div>
 
@@ -95,7 +97,7 @@ export function VoyageStatusDonutCard({
             height={SIZE}
             viewBox={`0 0 ${SIZE} ${SIZE}`}
             role="img"
-            aria-label={`Toplam ${total} proje — sefer durumu dağılımı`}
+            aria-label={`${total} ${t("ov.donut.ariaTotal")}`}
           >
             <circle
               cx={SIZE / 2}
@@ -151,7 +153,7 @@ export function VoyageStatusDonutCard({
                       opacity: { duration: 0.18 },
                     }}
                   >
-                    <title>{`${row.status}: ${row.count} proje (%${formatNumber(row.pct, 1)})`}</title>
+                    <title>{`${row.status}: ${row.count} ${t("ov.common.project")} (%${formatNumber(row.pct, 1)})`}</title>
                   </motion.circle>
                 );
               })}
@@ -196,7 +198,7 @@ export function VoyageStatusDonutCard({
                     {total}
                   </div>
                   <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-1">
-                    Proje
+                    {t("ov.common.project")}
                   </div>
                 </motion.div>
               )}
@@ -259,7 +261,7 @@ export function VoyageStatusDonutCard({
                 onMouseLeave={() => setHovered(null)}
                 onFocus={() => setHovered(row.status)}
                 onBlur={() => setHovered(null)}
-                title={`${row.status} seferlerine göre filtrele · sağ tık → detaya git`}
+                title={`${row.status} ${t("ov.donut.statusFilter")}`}
                 className="group w-full flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-foreground/[0.04] transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 style={{ opacity: isDimmed ? 0.45 : 1 }}
               >

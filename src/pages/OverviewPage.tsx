@@ -36,6 +36,7 @@ import {
   type DetailMenuState,
 } from "@/components/overview/DetailContextMenu";
 import { formatCurrency, formatNumber } from "@/lib/format";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
 /** Vessel-overview scope is FIXED to ship-plan projects — the page
  *  counts "gemi projesi"; Karayolu/Konteyner rows without a vessel plan
@@ -78,6 +79,7 @@ const OVERVIEW_DEFAULT_VOYAGE_STATUSES = [
  */
 export function OverviewPage() {
   const navigate = useNavigate();
+  const t = useT();
   const { projects: rawProjects, isEmpty, fetchedAt } = useProjects();
   const [filters, setFilters] = React.useState<ProjectFilterState>(() => {
     const base = makeEmptyFilters({
@@ -128,7 +130,7 @@ export function OverviewPage() {
      rows (longest-waiting, pending payments) still deep-link into
      Sefer Takibi — those are single-project detail jumps. */
   const sameSet = (current: Set<string>, target: string[]) =>
-    current.size === target.length && target.every((t) => current.has(t));
+    current.size === target.length && target.every((s) => current.has(s));
   const applySegments = React.useCallback(
     (segments: string[]) => {
       if (segments.length === 0) return;
@@ -219,11 +221,11 @@ export function OverviewPage() {
   );
   const heroContext = React.useCallback(
     (e: React.MouseEvent) =>
-      openDetailMenu(e, "Tüm gemi projeleri", {
+      openDetailMenu(e, t("ov.menu.allShipProjects"), {
         focusAll: true,
         ...carryState(),
       }),
-    [openDetailMenu, carryState]
+    [openDetailMenu, carryState, t]
   );
   const groupContext = React.useCallback(
     (group: VesselGroup, e: React.MouseEvent) => {
@@ -259,8 +261,8 @@ export function OverviewPage() {
     if (topGroup && topGroup.count > 0) {
       out.push({
         color: GROUP_META[topGroup.group].solid,
-        lead: "En büyük grup",
-        tail: `${GROUP_META[topGroup.group].label} · ${topGroup.count} proje (%${formatNumber(topGroup.pct, 1)})`,
+        lead: t("ov.insights.biggestGroup"),
+        tail: `${GROUP_META[topGroup.group].label} · ${topGroup.count} ${t("ov.insights.project")} (%${formatNumber(topGroup.pct, 1)})`,
         onClick: () => openGroup(topGroup.group),
         onContext: (e) => groupContext(topGroup.group, e),
       });
@@ -269,8 +271,8 @@ export function OverviewPage() {
     if (topSegment) {
       out.push({
         color: "#0284c7",
-        lead: "En yoğun segment",
-        tail: `${topSegment.segment} · ${topSegment.total} proje`,
+        lead: t("ov.insights.busiestSegment"),
+        tail: `${topSegment.segment} · ${topSegment.total} ${t("ov.insights.project")}`,
         onClick: () => openSegment(topSegment.segment),
         onContext: (e) => segmentContext(topSegment.segment, e),
       });
@@ -278,8 +280,8 @@ export function OverviewPage() {
     if (waiting.length > 0) {
       out.push({
         color: "#0ea5e9",
-        lead: "Yükleme bekleyen",
-        tail: `${waiting.length} gemi atanmış, yükleme bekliyor · en uzun ${waiting[0].days} gün (${voyageDisplayLabel(waiting[0].project)})`,
+        lead: t("ov.insights.waitingForLoading"),
+        tail: `${waiting.length} ${t("ov.insights.vesselsWaiting")} ${waiting[0].days} ${t("common.days")} (${voyageDisplayLabel(waiting[0].project)})`,
         onClick: openWaiting,
         onContext: (e) => statusContext("Nominated", e),
       });
@@ -287,8 +289,8 @@ export function OverviewPage() {
     if (pending.count > 0) {
       out.push({
         color: "#e11d48",
-        lead: "Ödeme bekleyen",
-        tail: `${pending.count} sefer · ${formatCurrency(pending.totalUsd, "USD", { maximumFractionDigits: 0 })}`,
+        lead: t("ov.insights.pendingPayment"),
+        tail: `${pending.count} ${t("ov.insights.voyage")} · ${formatCurrency(pending.totalUsd, "USD", { maximumFractionDigits: 0 })}`,
       });
     }
     return out;
@@ -303,6 +305,7 @@ export function OverviewPage() {
     groupContext,
     segmentContext,
     statusContext,
+    t,
   ]);
 
   if (isEmpty) {
@@ -324,11 +327,11 @@ export function OverviewPage() {
               <span className="font-semibold text-foreground/80 tabular-nums">
                 {projects.length}
               </span>{" "}
-              gemi projesi
+              {t("ov.page.shipProjects")}
               {fetchedAt && (
                 <>
                   {" "}
-                  · son güncelleme{" "}
+                  · {t("ov.page.lastUpdate")}{" "}
                   <span className="tabular-nums">{formatSync(fetchedAt)}</span>
                 </>
               )}

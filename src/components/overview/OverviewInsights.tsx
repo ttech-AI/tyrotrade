@@ -1,6 +1,7 @@
 import * as React from "react";
 import { ArrowUpRight } from "lucide-react";
 import { GlassPanel } from "@/components/glass/GlassPanel";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
 /**
  * Compact insight chip strip under the KPI row — 3-5 auto-derived
@@ -28,6 +29,7 @@ export function OverviewInsights({
 }: {
   insights: OverviewInsight[];
 }) {
+  const t = useT();
   if (insights.length === 0) return null;
   return (
     <GlassPanel tone="subtle" className="rounded-xl">
@@ -55,7 +57,7 @@ export function OverviewInsights({
                 type="button"
                 onClick={ins.onClick}
                 onContextMenu={ins.onContext}
-                title="Sayfayı bu veriye göre filtrele · sağ tık → detaya git"
+                title={t("ov.insights.title")}
                 className="group inline-flex items-center gap-1.5 min-w-0 text-[12px] rounded-lg px-1.5 py-1 hover:bg-foreground/[0.05] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 {inner}

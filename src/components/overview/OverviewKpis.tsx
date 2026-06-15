@@ -15,6 +15,7 @@ import {
 import { AnimatedNumber } from "@/components/dashboard/AnimatedNumber";
 import { useThemeAccent } from "@/components/layout/theme-accent";
 import { formatNumber } from "@/lib/format";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import {
   GROUP_META,
   type GroupCountRow,
@@ -71,6 +72,7 @@ export function OverviewKpis({
 }) {
   const accent = useThemeAccent();
   const reduceMotion = useReducedMotion();
+  const t = useT();
   const assignedPct =
     agg.total > 0 ? (agg.vesselAssignedCount / agg.total) * 100 : 0;
   // Group cards ordered by project count (desc) — the biggest book sits
@@ -95,7 +97,7 @@ export function OverviewKpis({
             onClick={onHeroClick}
             onContextMenu={onHeroContext}
             whileHover={reduceMotion ? undefined : { y: -2, scale: 1.005 }}
-            title="Filtreleri varsayılana sıfırla · sağ tık → detaya git"
+            title={t("ov.kpi.heroReset")}
             className="h-full w-full text-left rounded-2xl px-4 py-3.5 text-white overflow-hidden relative cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
             style={{
               background: accent.gradient,
@@ -123,32 +125,32 @@ export function OverviewKpis({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[10.5px] uppercase tracking-wider font-semibold text-white/85 truncate">
-                    Toplam Gemi Projesi
+                    {t("ov.kpi.totalShipProjects")}
                   </span>
                   <KpiInfoTooltip
                     variant="hero"
                     gradient={accent.gradient}
-                    title="Filo Özeti"
-                    subtitle="Filtrelenmiş tüm gemi projeleri"
+                    title={t("ov.kpi.fleetSummary")}
+                    subtitle={t("ov.kpi.fleetSummarySub")}
                     rows={[
                       {
-                        label: "Gemi atanmış / atanmamış",
+                        label: t("ov.kpi.vesselAssignedUnassigned"),
                         value: `${agg.vesselAssignedCount} / ${agg.total - agg.vesselAssignedCount}`,
                       },
                       {
-                        label: "Açık / Kapalı",
+                        label: t("ov.kpi.openClosed"),
                         value: `${agg.openCount} / ${agg.total - agg.openCount}`,
                       },
                       {
-                        label: "Aktif sefer (Commenced)",
+                        label: t("ov.kpi.activeVoyage"),
                         value: String(agg.commencedCount),
                       },
                       {
-                        label: "Atama / yükleme bekleyen",
+                        label: t("ov.kpi.waitingAssignLoad"),
                         value: String(agg.waitingCount),
                       },
                       {
-                        label: "Planlanan toplam tonaj",
+                        label: t("ov.kpi.plannedTotalTonnage"),
                         value: `${formatNumber(Math.round(agg.totalTonnageMt))} t`,
                       },
                       ...sortedRows.map((r) => ({
@@ -164,7 +166,7 @@ export function OverviewKpis({
                     <AnimatedNumber value={agg.total} preset="count" />
                   </span>
                   <span className="text-[11px] font-semibold text-white/80 tabular-nums">
-                    %{formatNumber(assignedPct, 0)} gemi atanmış
+                    %{formatNumber(assignedPct, 0)} {t("ov.kpi.vesselAssignedPct")}
                   </span>
                 </div>
               </div>
@@ -172,14 +174,17 @@ export function OverviewKpis({
 
             {/* Tek şerit — gemi var/yok + tonaj; gerisi tooltip'te */}
             <div className="relative mt-3 grid grid-cols-3 gap-x-3 border-t border-white/15 pt-2.5">
-              <HeroStat label="Gemi Atanmış" value={agg.vesselAssignedCount} />
               <HeroStat
-                label="Gemi Atanmamış"
+                label={t("ov.kpi.vesselAssigned")}
+                value={agg.vesselAssignedCount}
+              />
+              <HeroStat
+                label={t("ov.kpi.vesselUnassigned")}
                 value={agg.total - agg.vesselAssignedCount}
               />
               <div className="min-w-0">
                 <div className="text-[9.5px] uppercase tracking-wider text-white/65 truncate">
-                  Toplam Tonaj
+                  {t("ov.kpi.totalTonnage")}
                 </div>
                 <div className="text-[14px] font-bold tabular-nums leading-tight">
                   <AnimatedNumber value={agg.totalTonnageMt} preset="tons" />
@@ -224,6 +229,7 @@ function GroupKpiCard({
   onClick: () => void;
   onContext?: (e: React.MouseEvent) => void;
 }) {
+  const t = useT();
   const meta = GROUP_META[row.group];
   const assignedPct =
     row.count > 0 ? (row.vesselAssignedCount / row.count) * 100 : 0;
@@ -237,7 +243,7 @@ function GroupKpiCard({
         onClick={onClick}
         onContextMenu={onContext}
         whileHover={reduceMotion ? undefined : { y: -2, scale: 1.005 }}
-        title={`${meta.label} projelerine göre filtrele · sağ tık → detaya git`}
+        title={`${meta.label} ${t("ov.kpi.groupFilter")}`}
         className="group h-full w-full text-left glass glass-subtle rounded-2xl px-4 py-3.5 cursor-pointer focus-visible:outline-none focus-visible:ring-2"
         style={{ "--tw-ring-color": meta.ring } as React.CSSProperties}
       >
@@ -274,29 +280,32 @@ function GroupKpiCard({
                   variant="light"
                   gradient={meta.gradient}
                   accentColor={meta.solid}
-                  title={`${meta.label} Özeti`}
-                  subtitle="Segment ön ekine göre grup"
+                  title={`${meta.label} ${t("ov.kpi.groupSummary")}`}
+                  subtitle={t("ov.kpi.groupSummarySub")}
                   rows={[
                     {
-                      label: "Proje",
-                      value: `${row.count} (%${formatNumber(row.pct, 1)} pay)`,
+                      label: t("ov.kpi.project"),
+                      value: `${row.count} (%${formatNumber(row.pct, 1)} ${t("ov.kpi.share")})`,
                       dot: meta.solid,
                     },
                     {
-                      label: "Gemi atanmış / atanmamış",
+                      label: t("ov.kpi.vesselAssignedUnassigned"),
                       value: `${row.vesselAssignedCount} / ${row.count - row.vesselAssignedCount}`,
                     },
-                    { label: "Açık proje", value: String(row.openCount) },
                     {
-                      label: "Aktif sefer (Commenced)",
+                      label: t("ov.kpi.openProject"),
+                      value: String(row.openCount),
+                    },
+                    {
+                      label: t("ov.kpi.activeVoyage"),
                       value: String(row.commencedCount),
                     },
                     {
-                      label: "Atama / yükleme bekleyen",
+                      label: t("ov.kpi.waitingAssignLoad"),
                       value: String(row.waitingCount),
                     },
                     {
-                      label: "Planlanan tonaj",
+                      label: t("ov.kpi.plannedTonnage"),
                       value: `${formatNumber(Math.round(row.tonnageMt))} t`,
                     },
                   ]}
@@ -311,7 +320,7 @@ function GroupKpiCard({
                 className="text-[11.5px] font-bold tabular-nums truncate"
                 style={{ color: meta.solid }}
               >
-                %{formatNumber(assignedPct, 0)} gemi atanmış
+                %{formatNumber(assignedPct, 0)} {t("ov.kpi.vesselAssignedPct")}
               </span>
             </div>
             {/* Mini share bar */}
@@ -338,14 +347,17 @@ function GroupKpiCard({
 
         {/* Tek şerit — gemi var/yok + tonaj; gerisi tooltip'te */}
         <div className="mt-3 grid grid-cols-3 gap-x-3 border-t border-border/50 pt-2.5">
-          <LightStat label="Gemi Atanmış" value={row.vesselAssignedCount} />
           <LightStat
-            label="Gemi Atanmamış"
+            label={t("ov.kpi.vesselAssigned")}
+            value={row.vesselAssignedCount}
+          />
+          <LightStat
+            label={t("ov.kpi.vesselUnassigned")}
             value={row.count - row.vesselAssignedCount}
           />
           <div className="min-w-0">
             <div className="text-[9.5px] uppercase tracking-wider text-muted-foreground/80 truncate">
-              Tonaj
+              {t("ov.kpi.tonnage")}
             </div>
             <div className="text-[14px] font-bold tabular-nums leading-tight text-foreground">
               <AnimatedNumber value={row.tonnageMt} preset="tons" />
@@ -413,12 +425,13 @@ function KpiInfoTooltip({
   subtitle: string;
   rows: TooltipStatRow[];
 }) {
+  const t = useT();
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <span
           role="img"
-          aria-label={`${title} — sayısal döküm`}
+          aria-label={`${title} — ${t("ov.kpi.numericBreakdown")}`}
           onClick={(e) => e.stopPropagation()}
           className={
             variant === "hero"

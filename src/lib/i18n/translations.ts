@@ -185,6 +185,84 @@ const tr: StringMap = {
   "ft.field.laycan": "Laycan",
   "ft.field.parties": "Taraflar",
   "ft.field.packageType": "Paket Tipi",
+
+  /* ── Genel Bakış / Overview ── */
+  "ov.page.shipProjects": "gemi projesi",
+  "ov.page.lastUpdate": "son güncelleme",
+  /* KPI row */
+  "ov.kpi.totalShipProjects": "Toplam Gemi Projesi",
+  "ov.kpi.heroTitle": "Tüm gemi projeleri",
+  "ov.kpi.heroReset": "Filtreleri varsayılana sıfırla · sağ tık → detaya git",
+  "ov.kpi.fleetSummary": "Filo Özeti",
+  "ov.kpi.fleetSummarySub": "Filtrelenmiş tüm gemi projeleri",
+  "ov.kpi.vesselAssignedUnassigned": "Gemi atanmış / atanmamış",
+  "ov.kpi.openClosed": "Açık / Kapalı",
+  "ov.kpi.activeVoyage": "Aktif sefer (Commenced)",
+  "ov.kpi.waitingAssignLoad": "Atama / yükleme bekleyen",
+  "ov.kpi.plannedTotalTonnage": "Planlanan toplam tonaj",
+  "ov.kpi.vesselAssignedPct": "gemi atanmış",
+  "ov.kpi.vesselAssigned": "Gemi Atanmış",
+  "ov.kpi.vesselUnassigned": "Gemi Atanmamış",
+  "ov.kpi.totalTonnage": "Toplam Tonaj",
+  "ov.kpi.tonnage": "Tonaj",
+  "ov.kpi.groupFilter": "projelerine göre filtrele · sağ tık → detaya git",
+  "ov.kpi.groupSummary": "Özeti",
+  "ov.kpi.groupSummarySub": "Segment ön ekine göre grup",
+  "ov.kpi.project": "Proje",
+  "ov.kpi.share": "pay",
+  "ov.kpi.openProject": "Açık proje",
+  "ov.kpi.plannedTonnage": "Planlanan tonaj",
+  "ov.kpi.numericBreakdown": "sayısal döküm",
+  /* Group segment columns */
+  "ov.groupSeg.title": "Gruplara Göre Segment Dağılımı",
+  "ov.groupSeg.subtitle":
+    "Grup başlığına veya segmente tıkla → sayfayı filtrele (tekrar tıkla → kaldır)",
+  "ov.groupSeg.segmentFilter": "segmentine göre filtrele · sağ tık → detaya git",
+  "ov.groupSeg.noProjects": "Bu grupta proje yok",
+  "ov.common.other": "Diğer",
+  "ov.common.total": "Toplam",
+  "ov.common.segment": "Segment",
+  "ov.common.voyage": "Sefer",
+  "ov.common.project": "Proje",
+  /* Segment matrix */
+  "ov.matrix.title": "Segmentlere Göre Gemi Sayıları",
+  "ov.matrix.subtitle":
+    "Satıra tıkla → segmente göre filtrele (tekrar tıkla → kaldır)",
+  "ov.matrix.segmentFilter": "segmentine göre filtrele · sağ tık → detaya git",
+  /* Voyage status donut */
+  "ov.donut.title": "Sefer Durumuna Göre Gemi Sayıları",
+  "ov.donut.subtitle":
+    "Dilime veya duruma tıkla → sayfayı filtrele (tekrar tıkla → kaldır)",
+  "ov.donut.ariaTotal": "proje — sefer durumu dağılımı",
+  "ov.donut.statusFilter": "seferlerine göre filtrele · sağ tık → detaya git",
+  /* Pending payments */
+  "ov.pending.title": "Ödeme Bekleyen Gemiler",
+  "ov.pending.subtitle":
+    "Ödeme durumu \"Beklemede\" olan seferler · tutar = ürün bedeli",
+  "ov.pending.empty": "Ödeme bekleyen sefer yok — tüm navlunlar kapanmış. ✓",
+  "ov.pending.totalPending": "Toplam Bekleyen Tutar",
+  "ov.pending.openInProjects": "projesini Sefer Takibi'nde aç",
+  "ov.pending.showMore": "Daha fazla göster",
+  "ov.pending.showLess": "Daha az göster",
+  /* Longest waiting */
+  "ov.waiting.title": "En Uzun Bekleyen Gemi",
+  "ov.waiting.subtitlePrefix": "Gemi atanmış · yükleme bekleyen seferler ·",
+  "ov.waiting.empty": "Yükleme bekleyen gemi yok — atanmış tüm gemiler yolda. 🎉",
+  "ov.waiting.openInProjects": "projesini Sefer Takibi'nde aç",
+  "ov.waiting.reason": "Bekleme Nedeni",
+  "ov.waiting.since": "Beklemeye Başladığı Tarih",
+  /* Insights ribbon */
+  "ov.insights.title": "Sayfayı bu veriye göre filtrele · sağ tık → detaya git",
+  "ov.insights.biggestGroup": "En büyük grup",
+  "ov.insights.busiestSegment": "En yoğun segment",
+  "ov.insights.waitingForLoading": "Yükleme bekleyen",
+  "ov.insights.pendingPayment": "Ödeme bekleyen",
+  "ov.insights.project": "proje",
+  "ov.insights.vesselsWaiting": "gemi atanmış, yükleme bekliyor · en uzun",
+  "ov.insights.voyage": "sefer",
+  /* Detail context menu */
+  "ov.menu.allShipProjects": "Tüm gemi projeleri",
+  "ov.menu.goToDetail": "Sefer Takibi'nde detaya git",
 };
 
 const en: StringMap = {
@@ -346,6 +424,84 @@ const en: StringMap = {
   "ft.field.laycan": "Laycan",
   "ft.field.parties": "Parties",
   "ft.field.packageType": "Package Type",
+
+  /* ── Genel Bakış / Overview ── */
+  "ov.page.shipProjects": "vessel projects",
+  "ov.page.lastUpdate": "last updated",
+  /* KPI row */
+  "ov.kpi.totalShipProjects": "Total Vessel Projects",
+  "ov.kpi.heroTitle": "All vessel projects",
+  "ov.kpi.heroReset": "Reset filters to default · right-click → view detail",
+  "ov.kpi.fleetSummary": "Fleet Summary",
+  "ov.kpi.fleetSummarySub": "All filtered vessel projects",
+  "ov.kpi.vesselAssignedUnassigned": "Vessel assigned / unassigned",
+  "ov.kpi.openClosed": "Open / Closed",
+  "ov.kpi.activeVoyage": "Active voyage (Commenced)",
+  "ov.kpi.waitingAssignLoad": "Awaiting nomination / loading",
+  "ov.kpi.plannedTotalTonnage": "Planned total tonnage",
+  "ov.kpi.vesselAssignedPct": "vessel assigned",
+  "ov.kpi.vesselAssigned": "Vessel Assigned",
+  "ov.kpi.vesselUnassigned": "Vessel Unassigned",
+  "ov.kpi.totalTonnage": "Total Tonnage",
+  "ov.kpi.tonnage": "Tonnage",
+  "ov.kpi.groupFilter": "projects · right-click → view detail",
+  "ov.kpi.groupSummary": "Summary",
+  "ov.kpi.groupSummarySub": "Grouped by segment prefix",
+  "ov.kpi.project": "Projects",
+  "ov.kpi.share": "share",
+  "ov.kpi.openProject": "Open projects",
+  "ov.kpi.plannedTonnage": "Planned tonnage",
+  "ov.kpi.numericBreakdown": "numeric breakdown",
+  /* Group segment columns */
+  "ov.groupSeg.title": "Segment Distribution by Group",
+  "ov.groupSeg.subtitle":
+    "Click a group header or segment → filter the page (click again → clear)",
+  "ov.groupSeg.segmentFilter": "segment · right-click → view detail",
+  "ov.groupSeg.noProjects": "No projects in this group",
+  "ov.common.other": "Other",
+  "ov.common.total": "Total",
+  "ov.common.segment": "Segment",
+  "ov.common.voyage": "Voyage",
+  "ov.common.project": "Project",
+  /* Segment matrix */
+  "ov.matrix.title": "Vessel Counts by Segment",
+  "ov.matrix.subtitle":
+    "Click a row → filter by segment (click again → clear)",
+  "ov.matrix.segmentFilter": "segment · right-click → view detail",
+  /* Voyage status donut */
+  "ov.donut.title": "Vessel Counts by Voyage Status",
+  "ov.donut.subtitle":
+    "Click a slice or status → filter the page (click again → clear)",
+  "ov.donut.ariaTotal": "projects — voyage status distribution",
+  "ov.donut.statusFilter": "voyages · right-click → view detail",
+  /* Pending payments */
+  "ov.pending.title": "Vessels Awaiting Payment",
+  "ov.pending.subtitle":
+    "Voyages with payment status \"Pending\" · amount = product value",
+  "ov.pending.empty": "No voyages awaiting payment — all freight settled. ✓",
+  "ov.pending.totalPending": "Total Pending Amount",
+  "ov.pending.openInProjects": "project in Vessel Ops",
+  "ov.pending.showMore": "Show more",
+  "ov.pending.showLess": "Show less",
+  /* Longest waiting */
+  "ov.waiting.title": "Longest-Waiting Vessel",
+  "ov.waiting.subtitlePrefix": "Vessel assigned · awaiting loading ·",
+  "ov.waiting.empty": "No vessels awaiting loading — all assigned vessels under way. 🎉",
+  "ov.waiting.openInProjects": "project in Vessel Ops",
+  "ov.waiting.reason": "Waiting Reason",
+  "ov.waiting.since": "Waiting Since",
+  /* Insights ribbon */
+  "ov.insights.title": "Filter the page by this data · right-click → view detail",
+  "ov.insights.biggestGroup": "Largest group",
+  "ov.insights.busiestSegment": "Busiest segment",
+  "ov.insights.waitingForLoading": "Awaiting loading",
+  "ov.insights.pendingPayment": "Awaiting payment",
+  "ov.insights.project": "projects",
+  "ov.insights.vesselsWaiting": "vessels assigned, awaiting loading · longest",
+  "ov.insights.voyage": "voyages",
+  /* Detail context menu */
+  "ov.menu.allShipProjects": "All vessel projects",
+  "ov.menu.goToDetail": "View detail in Vessel Ops",
 };
 
 export const translations: Record<Lang, StringMap> = { tr, en };

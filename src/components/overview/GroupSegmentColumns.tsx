@@ -3,6 +3,7 @@ import { ArrowUpRight } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Layers01Icon } from "@hugeicons/core-free-icons";
 import { GlassPanel } from "@/components/glass/GlassPanel";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import {
   GROUP_META,
   type GroupSegmentColumn,
@@ -31,6 +32,7 @@ export function GroupSegmentColumns({
   onGroupContext?: (group: VesselGroup, e: React.MouseEvent) => void;
   onSegmentContext?: (segment: string, e: React.MouseEvent) => void;
 }) {
+  const t = useT();
   // Columns ranked by project count (desc) — mirrors the KPI-row order
   // so the biggest book (International) leads here too.
   const sorted = [...columns].sort((a, b) => b.total - a.total);
@@ -45,11 +47,11 @@ export function GroupSegmentColumns({
             className="text-muted-foreground"
           />
           <h3 className="text-sm font-bold text-slate-900">
-            Gruplara Göre Segment Dağılımı
+            {t("ov.groupSeg.title")}
           </h3>
         </div>
         <p className="text-[11px] text-muted-foreground mt-0.5">
-          Grup başlığına veya segmente tıkla → sayfayı filtrele (tekrar tıkla → kaldır)
+          {t("ov.groupSeg.subtitle")}
         </p>
       </div>
 
@@ -71,7 +73,7 @@ export function GroupSegmentColumns({
                     ? (e) => onGroupContext(col.group, e)
                     : undefined
                 }
-                title={`${meta.label} projelerine göre filtrele · sağ tık → detaya git`}
+                title={`${meta.label} ${t("ov.kpi.groupFilter")}`}
                 className="group px-3 py-2 flex items-center gap-2 border-b text-left transition-colors hover:bg-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 style={{ borderColor: meta.ring }}
               >
@@ -100,7 +102,7 @@ export function GroupSegmentColumns({
               <div className="flex-1 px-1.5 py-1">
                 {col.rows.length === 0 ? (
                   <p className="text-[11.5px] text-muted-foreground py-2 px-1.5">
-                    Bu grupta proje yok
+                    {t("ov.groupSeg.noProjects")}
                   </p>
                 ) : (
                   <>
@@ -114,7 +116,7 @@ export function GroupSegmentColumns({
                             ? (e) => onSegmentContext(r.segment, e)
                             : undefined
                         }
-                        title={`${r.segment} segmentine göre filtrele · sağ tık → detaya git`}
+                        title={`${r.segment} ${t("ov.groupSeg.segmentFilter")}`}
                         className="group w-full flex items-center justify-between gap-2 rounded-lg px-1.5 py-1 min-w-0 text-left transition-colors hover:bg-white/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                       >
                         <span
@@ -137,7 +139,9 @@ export function GroupSegmentColumns({
                     ))}
                     {col.otherCount > 0 && (
                       <div className="flex items-center justify-between gap-2 px-1.5 py-1 text-muted-foreground">
-                        <span className="text-[12px] italic">Diğer</span>
+                        <span className="text-[12px] italic">
+                          {t("ov.common.other")}
+                        </span>
                         <span className="text-[12px] font-semibold tabular-nums">
                           {col.otherCount}
                         </span>
@@ -152,7 +156,7 @@ export function GroupSegmentColumns({
                 style={{ borderColor: meta.ring }}
               >
                 <span className="text-[10.5px] font-bold uppercase tracking-wider text-foreground/70">
-                  Toplam
+                  {t("ov.common.total")}
                 </span>
                 <span
                   className="text-[13px] font-bold tabular-nums"

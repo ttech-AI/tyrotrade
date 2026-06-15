@@ -5,6 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { GridTableIcon } from "@hugeicons/core-free-icons";
 import { GlassPanel } from "@/components/glass/GlassPanel";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import {
   GROUP_META,
   GROUP_ORDER,
@@ -35,6 +36,7 @@ export function SegmentMatrixCard({
   onSegmentContext?: (segment: string, e: React.MouseEvent) => void;
 }) {
   const reduceMotion = useReducedMotion();
+  const t = useT();
   const maxRowTotal = Math.max(
     1,
     ...matrix.rows.map((r) => r.total),
@@ -52,11 +54,11 @@ export function SegmentMatrixCard({
             className="text-muted-foreground"
           />
           <h3 className="text-sm font-bold text-slate-900">
-            Segmentlere Göre Gemi Sayıları
+            {t("ov.matrix.title")}
           </h3>
         </div>
         <p className="text-[11px] text-muted-foreground mt-0.5">
-          Satıra tıkla → segmente göre filtrele (tekrar tıkla → kaldır)
+          {t("ov.matrix.subtitle")}
         </p>
       </div>
 
@@ -65,7 +67,7 @@ export function SegmentMatrixCard({
           <thead>
             <tr className="bg-foreground/[0.025]">
               <th className="text-left px-2 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground rounded-l-lg">
-                Segment
+                {t("ov.common.segment")}
               </th>
               {GROUP_ORDER.map((g) => (
                 <th
@@ -91,7 +93,7 @@ export function SegmentMatrixCard({
                 </th>
               ))}
               <th className="px-2 py-2 text-right text-[10px] font-semibold uppercase tracking-wider text-foreground/80 rounded-r-lg">
-                Toplam
+                {t("ov.common.total")}
               </th>
             </tr>
           </thead>
@@ -113,7 +115,7 @@ export function SegmentMatrixCard({
                     title={
                       isOther
                         ? undefined
-                        : `${row.segment} segmentine göre filtrele · sağ tık → detaya git`
+                        : `${row.segment} ${t("ov.matrix.segmentFilter")}`
                     }
                     className={cn(
                       "group border-t border-border/30 transition-colors",
@@ -217,7 +219,7 @@ export function SegmentMatrixCard({
           <tfoot>
             <tr className="border-t-2 border-border/60">
               <td className="px-2 py-2 text-[11px] font-bold uppercase tracking-wider text-foreground/80">
-                Toplam
+                {t("ov.common.total")}
               </td>
               {GROUP_ORDER.map((g) => (
                 <td

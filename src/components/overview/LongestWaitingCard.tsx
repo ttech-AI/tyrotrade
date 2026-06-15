@@ -6,6 +6,7 @@ import { GlassPanel } from "@/components/glass/GlassPanel";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/format";
 import { selectHeroImage } from "@/lib/routing/heroImages";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import {
   voyageDisplayLabel,
   type WaitingVessel,
@@ -33,6 +34,7 @@ export function LongestWaitingCard({
 }: {
   waiting: WaitingVessel[];
 }) {
+  const t = useT();
   const top = waiting[0];
   const runnersUp = waiting.slice(1, 4);
 
@@ -50,18 +52,19 @@ export function LongestWaitingCard({
             className="text-muted-foreground"
           />
           <h3 className="text-sm font-bold text-slate-900">
-            En Uzun Bekleyen Gemi
+            {t("ov.waiting.title")}
           </h3>
         </div>
         <p className="text-[11px] text-muted-foreground mt-0.5">
-          Gemi atanmış · yükleme bekleyen seferler · {waiting.length} sefer
+          {t("ov.waiting.subtitlePrefix")} {waiting.length}{" "}
+          {t("ov.common.voyage")}
         </p>
       </div>
 
       {!top ? (
         <div className="flex-1 grid place-items-center px-4 pb-6">
           <p className="text-[12.5px] text-muted-foreground text-center">
-            Yükleme bekleyen gemi yok — atanmış tüm gemiler yolda. 🎉
+            {t("ov.waiting.empty")}
           </p>
         </div>
       ) : (
@@ -71,7 +74,7 @@ export function LongestWaitingCard({
             to={`/projects/${top.project.projectNo}`}
             state={{ focusProjectNo: top.project.projectNo }}
             className="group block relative h-32 shrink-0 mx-3 rounded-xl overflow-hidden"
-            title={`${top.project.projectNo} projesini Sefer Takibi'nde aç`}
+            title={`${top.project.projectNo} ${t("ov.waiting.openInProjects")}`}
           >
             <img
               src={selectHeroImage(top.project)}
@@ -104,7 +107,7 @@ export function LongestWaitingCard({
                   {top.days}
                 </span>
                 <span className="text-[10px] font-semibold text-amber-700/80">
-                  gün
+                  {t("common.days")}
                 </span>
               </span>
             </div>
@@ -125,9 +128,9 @@ export function LongestWaitingCard({
                 </>
               )}
             </div>
-            <DetailRow label="Bekleme Nedeni" value={top.reason} />
+            <DetailRow label={t("ov.waiting.reason")} value={top.reason} />
             <DetailRow
-              label="Beklemeye Başladığı Tarih"
+              label={t("ov.waiting.since")}
               value={formatDate(top.sinceIso)}
             />
           </div>
@@ -140,7 +143,7 @@ export function LongestWaitingCard({
                   key={w.project.projectNo}
                   to={`/projects/${w.project.projectNo}`}
                   state={{ focusProjectNo: w.project.projectNo }}
-                  title={`${w.project.projectNo} projesini Sefer Takibi'nde aç`}
+                  title={`${w.project.projectNo} ${t("ov.waiting.openInProjects")}`}
                   className="group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-foreground/[0.04] transition-colors min-w-0"
                 >
                   <span
@@ -153,7 +156,7 @@ export function LongestWaitingCard({
                     {voyageDisplayLabel(w.project)}
                   </span>
                   <span className="text-[11.5px] font-bold tabular-nums text-amber-600 shrink-0">
-                    {w.days} gün
+                    {w.days} {t("common.days")}
                   </span>
                   <ArrowUpRight
                     className="size-3 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"

@@ -8,6 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
 /**
  * Sağ-tık "Detaya git" menüsü — Genel Bakış'taki aggregate kartlar
@@ -39,6 +40,7 @@ export function DetailContextMenu({
   menu: DetailMenuState | null;
   onClose: () => void;
 }) {
+  const t = useT();
   React.useEffect(() => {
     if (!menu) return;
     window.addEventListener("scroll", onClose, true);
@@ -80,7 +82,7 @@ export function DetailContextMenu({
         >
           <Ship className="size-4 text-sky-600 shrink-0" strokeWidth={2} />
           <span className="whitespace-nowrap flex-1">
-            Sefer Takibi'nde detaya git
+            {t("ov.menu.goToDetail")}
           </span>
           <ArrowUpRight
             aria-hidden

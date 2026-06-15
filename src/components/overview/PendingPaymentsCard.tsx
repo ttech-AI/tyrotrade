@@ -5,6 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Invoice03Icon } from "@hugeicons/core-free-icons";
 import { GlassPanel } from "@/components/glass/GlassPanel";
 import { formatCurrency } from "@/lib/format";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import {
   voyageDisplayLabel,
   type PendingPayments,
@@ -27,6 +28,7 @@ export function PendingPaymentsCard({
 }: {
   pending: PendingPayments;
 }) {
+  const t = useT();
   const [showAll, setShowAll] = React.useState(false);
   const visibleRows = showAll
     ? pending.rows
@@ -46,18 +48,18 @@ export function PendingPaymentsCard({
             className="text-muted-foreground"
           />
           <h3 className="text-sm font-bold text-slate-900">
-            Ödeme Bekleyen Gemiler
+            {t("ov.pending.title")}
           </h3>
         </div>
         <p className="text-[11px] text-muted-foreground mt-0.5">
-          Ödeme durumu "Beklemede" olan seferler · tutar = ürün bedeli
+          {t("ov.pending.subtitle")}
         </p>
       </div>
 
       {pending.count === 0 ? (
         <div className="flex-1 grid place-items-center px-4 pb-6">
           <p className="text-[12.5px] text-muted-foreground text-center">
-            Ödeme bekleyen sefer yok — tüm navlunlar kapanmış. ✓
+            {t("ov.pending.empty")}
           </p>
         </div>
       ) : (
@@ -69,12 +71,12 @@ export function PendingPaymentsCard({
                 {pending.count}
               </span>
               <span className="text-[11px] font-semibold text-rose-700/80">
-                Sefer
+                {t("ov.common.voyage")}
               </span>
             </div>
             <div className="text-right">
               <div className="text-[10px] uppercase tracking-wider text-rose-700/70 font-semibold">
-                Toplam Bekleyen Tutar
+                {t("ov.pending.totalPending")}
               </div>
               <div className="text-[15px] font-bold tabular-nums text-rose-600 leading-tight">
                 {formatCurrency(pending.totalUsd, "USD", {
@@ -92,7 +94,7 @@ export function PendingPaymentsCard({
                 to={`/projects/${r.project.projectNo}`}
                 state={{ focusProjectNo: r.project.projectNo }}
                 className="group flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-foreground/[0.04] transition-colors min-w-0"
-                title={`${r.project.projectNo} projesini Sefer Takibi'nde aç`}
+                title={`${r.project.projectNo} ${t("ov.pending.openInProjects")}`}
               >
                 <div className="min-w-0 flex-1">
                   <div className="text-[12px] font-medium text-foreground/90 truncate">
@@ -110,7 +112,7 @@ export function PendingPaymentsCard({
                     : "—"}
                 </span>
                 <span className="text-[11px] font-semibold tabular-nums text-muted-foreground w-[52px] text-right shrink-0">
-                  {r.days} gün
+                  {r.days} {t("common.days")}
                 </span>
                 <ArrowUpRight
                   className="size-3 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
@@ -129,12 +131,12 @@ export function PendingPaymentsCard({
                 {showAll ? (
                   <>
                     <ChevronUp className="size-3.5" strokeWidth={2.25} />
-                    Daha az göster
+                    {t("ov.pending.showLess")}
                   </>
                 ) : (
                   <>
                     <ChevronDown className="size-3.5" strokeWidth={2.25} />
-                    Daha fazla göster (+{hiddenCount})
+                    {t("ov.pending.showMore")} (+{hiddenCount})
                   </>
                 )}
               </button>
