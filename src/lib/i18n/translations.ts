@@ -939,6 +939,33 @@ const tr: StringMap = {
   /* Ask AI button */
   "dash.askAi.aria": "TYRO AI sohbetini aç",
 
+  /* ── TYRO AI (Gemini sohbet çekmecesi) ── */
+  "ai.subtitle": "Uluslararası ticaret asistanı",
+  "ai.clear": "Temizle",
+  "ai.clear.aria": "Sohbeti temizle",
+  "ai.input.placeholder": "Bir şey sorun…",
+  "ai.send.aria": "Gönder",
+  "ai.thinking": "TYRO AI düşünüyor",
+  "ai.welcome.title": "Nasıl yardımcı olabilirim?",
+  "ai.welcome.subtitle":
+    "Dashboard, projeler ve veri yönetimi hakkında doğal dil sorularınızı yanıtlayabilirim.",
+  "ai.footer.signature": "TYRO AI · Veriler dashboard'dan",
+  "ai.error.generic": "Bir hata oluştu. Birkaç saniye sonra tekrar deneyin.",
+  /* TYRO Chat (Copilot Studio çekmecesi) */
+  "ai.copilot.open.aria": "TYRO Chat'i aç",
+  "ai.copilot.close.aria": "TYRO Chat'i kapat",
+  "ai.copilot.clear.aria": "Sohbeti temizle",
+  "ai.copilot.loading": "Yükleniyor…",
+  "ai.copilot.welcome.title": "Yapay Zeka Asistanı",
+  "ai.copilot.welcome.desc":
+    "Proje, gemi ve finansal verilerinizi doğal dilde sorgulayın. TYRO Chat sevkiyat takibinden marj analizine kadar her sorunuza saniyeler içinde yanıt verir.",
+  "ai.copilot.welcome.projectDesc":
+    "projesi hakkında sorularınızı yanıtlamaya hazır. Sefer durumu, maliyet analizi ve daha fazlası için sorun.",
+  "ai.copilot.cta": "Yapay zeka sohbetine başla",
+  "ai.copilot.feature.shipments": "Aktif sevkiyat ve milestone takibi",
+  "ai.copilot.feature.finance": "Finansal analiz, marj ve K&Z sorguları",
+  "ai.copilot.feature.ports": "Liman, koridor ve gemi durum sorguları",
+
   /* ── Veri Yönetimi / Data Management ── */
   /* Top tabs */
   "dm.tab.projects": "Projeler",
@@ -2089,6 +2116,33 @@ const en: StringMap = {
   "dash.leaderboard.projectsUnit": "projects",
   /* Ask AI button */
   "dash.askAi.aria": "Open TYRO AI chat",
+
+  /* ── TYRO AI (Gemini chat drawer) ── */
+  "ai.subtitle": "International trade assistant",
+  "ai.clear": "Clear",
+  "ai.clear.aria": "Clear chat",
+  "ai.input.placeholder": "Ask something…",
+  "ai.send.aria": "Send",
+  "ai.thinking": "TYRO AI is thinking",
+  "ai.welcome.title": "How can I help?",
+  "ai.welcome.subtitle":
+    "I can answer your natural-language questions about the dashboard, projects and data management.",
+  "ai.footer.signature": "TYRO AI · Data from the dashboard",
+  "ai.error.generic": "Something went wrong. Please try again in a few seconds.",
+  /* TYRO Chat (Copilot Studio drawer) */
+  "ai.copilot.open.aria": "Open TYRO Chat",
+  "ai.copilot.close.aria": "Close TYRO Chat",
+  "ai.copilot.clear.aria": "Clear chat",
+  "ai.copilot.loading": "Loading…",
+  "ai.copilot.welcome.title": "AI Assistant",
+  "ai.copilot.welcome.desc":
+    "Query your project, vessel and financial data in natural language. From shipment tracking to margin analysis, TYRO Chat answers every question in seconds.",
+  "ai.copilot.welcome.projectDesc":
+    "is ready to answer your questions. Ask about voyage status, cost analysis and more.",
+  "ai.copilot.cta": "Start the AI chat",
+  "ai.copilot.feature.shipments": "Active shipment and milestone tracking",
+  "ai.copilot.feature.finance": "Financial analysis, margin and P&L queries",
+  "ai.copilot.feature.ports": "Port, corridor and vessel status queries",
 
   /* ── Veri Yönetimi / Data Management ── */
   /* Top tabs */

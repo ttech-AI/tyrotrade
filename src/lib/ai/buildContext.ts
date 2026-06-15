@@ -18,6 +18,136 @@ import { getFinancialYear } from "@/lib/dashboard/financialPeriod";
 import { formatCompactCurrency, formatTons } from "@/lib/format";
 import type { Project } from "@/lib/dataverse/entities";
 
+export type ContextLang = "tr" | "en";
+
+/**
+ * Structural labels for the DATA SUMMARY block, language-aware. Only the
+ * scaffolding (section headers, units, fixed phrases) is translated — the
+ * data values themselves (projectNo, vessel name, supplier, etc.) are never
+ * translated. The English headers here intentionally mirror the section
+ * names referenced in TYRO_AI_SYSTEM_PROMPT_EN so the model's reading guide
+ * matches what it actually receives.
+ */
+function ctxLabels(lang: ContextLang) {
+  const en = lang === "en";
+  return {
+    title: en
+      ? "=== TYRO INTERNATIONAL TRADE — DATA SUMMARY ==="
+      : "=== TYRO INTERNATIONAL TRADE — VERİ ÖZETİ ===",
+    date: en ? "Date" : "Tarih",
+    filterScope: en ? "Filter scope" : "Filtre kapsamı",
+    projects: en ? "projects" : "proje",
+    financialYear: en ? "Financial year" : "Finansal yıl",
+    emptyFilterNote: en
+      ? "NOTE: The current filter returned an empty set. Loosen the Filter selection at the top right and try again."
+      : "NOT: Şu anki filtre boş bir set döndürdü. Sağ üstteki Filtre seçimini gevşet ve tekrar dene.",
+    routeNone: en ? "No route" : "Rota yok",
+    // Section headers
+    portfolio: en ? "PORTFOLIO" : "PORTFÖY",
+    totalProjects: en ? "Total projects" : "Toplam proje",
+    totalCargoValue: en ? "Total cargo value" : "Toplam ürün değeri",
+    inTransitTonnage: en ? "Tonnage on active voyage" : "Aktif yolculukta tonaj",
+    plContribution: en
+      ? "USD-equivalent P&L contribution (priced lines)"
+      : "USD eşdeğeri P&L katkısı (priced lines)",
+    fxConvertedSuffix: en ? "FX-converted" : "tanesi FX dönüşümlü",
+    plHeading: en
+      ? "P&L (USD-equivalent, static FX rates)"
+      : "K&Z (USD eşdeğeri, statik FX kurları)",
+    estSales: en ? "Estimated Sales" : "Tahmini Satış",
+    estPurchase: en ? "Estimated Purchase" : "Tahmini Alım",
+    estExpense: en ? "Estimated Expense" : "Tahmini Gider",
+    netPL: en ? "Net P&L" : "Net K&Z",
+    margin: en ? "Margin" : "Marj",
+    marginDist: en ? "MARGIN DISTRIBUTION" : "MARJ DAĞILIMI",
+    healthy: en ? "Healthy (>5%)" : "Sağlıklı (>%5)",
+    marginal: en ? "Marginal (-5%..5%)" : "Marjinal (-%5..%5)",
+    lossMaking: en ? "Loss-making (<-5%)" : "Zararlı (<-%5)",
+    marginNotComputable: en
+      ? "Margin not computable"
+      : "Marj hesaplanamaz",
+    pipeline: en
+      ? (n: number) => `PIPELINE (voyage status — ${n} ship-planned projects total)`
+      : (n: number) => `PIPELINE (voyage durumu — toplam ${n} gemi planlı proje)`,
+    voyageStage: en
+      ? "VOYAGE STAGE (operational stage)"
+      : "VOYAGE STAGE (operasyonel evre)",
+    stagePreLoading: en ? "Pre-loading" : "Pre-loading",
+    stageAtLoading: en ? "At loading port" : "Yükleme limanında",
+    stageLoading: en ? "Loading" : "Yükleme",
+    stageInTransit: en ? "In transit" : "Yolda",
+    stageAtDischarge: en ? "At discharge port" : "Tahliye limanında",
+    stageDischarged: en ? "Discharged" : "Tahliye edildi",
+    stageUnscheduled: en ? "No ship plan" : "Gemi planı yok",
+    currencyExposure: en ? "CURRENCY EXPOSURE" : "PARA BİRİMİ MARUZİYETİ",
+    dominant: en ? "Dominant" : "Dominant",
+    hhiHealthy: en
+      ? "<0.15 healthy, >0.25 concentrated"
+      : "<0.15 sağlıklı, >0.25 yoğun",
+    avgTransit: en ? "AVERAGE TRANSIT" : "ORTALAMA TRANSİT",
+    avgTransitLine: en
+      ? (avg: number, min: number, max: number, n: number) =>
+          `─ Average: ${avg} days (min ${min}, max ${max}, ${n} voyages in sample)`
+      : (avg: number, min: number, max: number, n: number) =>
+          `─ Ortalama: ${avg} gün (min ${min}, max ${max}, ${n} sefer örneklemde)`,
+    avgTransitNone: en
+      ? "─ Not enough LP-(ED)/DP-ETA dates, average not computable"
+      : "─ Yeterli LP-(ED)/DP-ETA tarihi yok, ortalama hesaplanamadı",
+    top5Value: en
+      ? "TOP 5 PROJECTS (by cargo value)"
+      : "EN BÜYÜK 5 PROJE (ürün değerine göre)",
+    noData: en ? "(no data)" : "(veri yok)",
+    top3Sales: en
+      ? "TOP 3 PROJECTS BY INVOICED SALES (actual sales USD)"
+      : "EN ÇOK FATURALI 3 PROJE (gerçekleşen satış USD)",
+    noSales: en
+      ? "(no invoiced sales record)"
+      : "(faturalı satış kaydı yok)",
+    top3Lowest: en
+      ? "LOWEST 3 MARGIN PROJECTS (at risk)"
+      : "EN DÜŞÜK MARJLI 3 PROJE (riskli)",
+    noMargin: en
+      ? "(no project with a computable margin)"
+      : "(marj hesaplanabilir proje yok)",
+    top3Highest: en
+      ? "HIGHEST 3 MARGIN PROJECTS"
+      : "EN YÜKSEK MARJLI 3 PROJE",
+    top5Corridors: en ? "TOP 5 CORRIDORS" : "EN AKTİF 5 KORİDOR",
+    noRoute: en ? "(no route data)" : "(rota verisi yok)",
+    corridorHhi: en ? "─ Corridor HHI" : "─ Koridor HHI",
+    top3Suppliers: en
+      ? "TOP 3 SUPPLIERS (project count)"
+      : "EN BÜYÜK 3 TEDARİKÇİ (proje sayısı)",
+    noSupplier: en ? "(no supplier data)" : "(tedarikçi verisi yok)",
+    supplierHhi: en ? "─ Supplier HHI" : "─ Tedarikçi HHI",
+    top3Buyers: en
+      ? "TOP 3 BUYERS (project count)"
+      : "EN BÜYÜK 3 ALICI (proje sayısı)",
+    noBuyer: en ? "(no buyer data)" : "(alıcı verisi yok)",
+    buyerHhi: en ? "─ Buyer HHI" : "─ Alıcı HHI",
+    top3Segments: en ? "TOP 3 SEGMENTS (P&L)" : "EN BÜYÜK 3 SEGMENT (K&Z)",
+    noSegment: en ? "(no segment data)" : "(segment verisi yok)",
+    activeVoyagesHeading: en
+      ? "═══ ACTIVE VOYAGES (Commenced — currently in transit/loading/discharging) ═══"
+      : "═══ AKTİF SEFERLER (Commenced — şu an yolda/yüklemede/tahliyede) ═══",
+    activeVoyagesNone: en
+      ? "(no project currently in Commenced status)"
+      : "(şu anda Commenced statüde proje yok)",
+    upcomingHeading: en
+      ? "═══ UPCOMING MILESTONES (next 14 days) ═══"
+      : "═══ YAKLAŞAN MILESTONE'LAR (önümüzdeki 14 gün) ═══",
+    upcomingNone: en
+      ? "(no milestone planned in the next 14 days)"
+      : "(önümüzdeki 14 gün içinde planlı milestone yok)",
+    directoryHeading: en
+      ? "═══ PROJECTS DIRECTORY (1 project per line — search by vessel/projectNo/segment) ═══"
+      : "═══ PROJELER DİZİNİ (her satırda 1 proje — vessel/projectNo/segment ile arama yap) ═══",
+    footerNote: en
+      ? 'NOTE: All numbers above were computed over the subset of projects the user selected in the Filter at the top right. If "the whole portfolio" is asked, the filter may need to be loosened.'
+      : 'NOT: Yukarıdaki tüm sayılar kullanıcının sağ üstteki Filtre\'de seçtiği projelerin alt kümesinde hesaplandı. "Tüm portföy" sorulursa filtreyi gevşetmesi gerekebilir.',
+  } as const;
+}
+
 /**
  * Serialize the active project set into a compact Turkish summary that
  * Gemini can use to answer questions about specific vessels, projects,
@@ -41,16 +171,18 @@ import type { Project } from "@/lib/dataverse/entities";
  */
 export function buildDashboardContext(
   projects: Project[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  lang: ContextLang = "tr"
 ): string {
+  const L = ctxLabels(lang);
   const fy = getFinancialYear(now);
   const totalProjects = projects.length;
 
   if (totalProjects === 0) {
-    return `=== TYRO INTERNATIONAL TRADE — VERİ ÖZETİ ===
-Tarih: ${formatDayMonth(now)}
-Filtre kapsamı: 0 proje
-NOT: Şu anki filtre boş bir set döndürdü. Sağ üstteki Filtre seçimini gevşet ve tekrar dene.`;
+    return `${L.title}
+${L.date}: ${formatDayMonth(now, lang)}
+${L.filterScope}: 0 ${L.projects}
+${L.emptyFilterNote}`;
   }
 
   // Totals
@@ -90,7 +222,7 @@ NOT: Şu anki filtre boş bir set döndürdü. Sağ üstteki Filtre seçimini ge
       const route =
         p.vesselPlan?.loadingPort?.name && p.vesselPlan?.dischargePort?.name
           ? `${p.vesselPlan.loadingPort.name} → ${p.vesselPlan.dischargePort.name}`
-          : "Rota yok";
+          : L.routeNone;
       return `${i + 1}. ${p.projectNo} — ${truncate(p.projectName, 60)} · ${formatCompactCurrency(p.cargoValueUsd, "USD")} · ${route}`;
     })
     .join("\n");
@@ -182,101 +314,106 @@ NOT: Şu anki filtre boş bir set döndürdü. Sağ üstteki Filtre seçimini ge
 
   // PROJECTS DIRECTORY — one line per project, used by Gemini to
   // resolve subject-matching queries (vessel name, projectNo, segment).
-  const directory = buildProjectDirectory(projects);
+  const directory = buildProjectDirectory(projects, lang);
 
   // ACTIVE VOYAGES — Commenced ships only, with their next milestone
-  const activeVoyages = buildActiveVoyages(projects, now);
+  const activeVoyages = buildActiveVoyages(projects, now, lang);
 
   // UPCOMING MILESTONES — anything due in the next 14 days
-  const upcoming = buildUpcomingMilestones(projects, now);
+  const upcoming = buildUpcomingMilestones(projects, now, lang);
 
-  return `=== TYRO INTERNATIONAL TRADE — VERİ ÖZETİ ===
-Tarih: ${formatDayMonth(now)}
-Filtre kapsamı: ${totalProjects} proje · Finansal yıl: ${fy.fullLabel}
+  return `${L.title}
+${L.date}: ${formatDayMonth(now, lang)}
+${L.filterScope}: ${totalProjects} ${L.projects} · ${L.financialYear}: ${fy.fullLabel}
 
-PORTFÖY
-─ Toplam proje: ${totalProjects}
-─ Toplam ürün değeri: ${formatCompactCurrency(totalCargoUsd, "USD")}
-─ Aktif yolculukta tonaj: ${formatTons(inTransit.kg)} (${inTransit.projectCount} proje)
-─ USD eşdeğeri P&L katkısı (priced lines): ${pl.contributingCount} proje${
+${L.portfolio}
+─ ${L.totalProjects}: ${totalProjects}
+─ ${L.totalCargoValue}: ${formatCompactCurrency(totalCargoUsd, "USD")}
+─ ${L.inTransitTonnage}: ${formatTons(inTransit.kg)} (${inTransit.projectCount} ${L.projects})
+─ ${L.plContribution}: ${pl.contributingCount} ${L.projects}${
     pl.fxConvertedCount > 0
-      ? ` (${pl.fxConvertedCount} tanesi FX dönüşümlü)`
+      ? ` (${pl.fxConvertedCount} ${L.fxConvertedSuffix})`
       : ""
   }
 
-K&Z (USD eşdeğeri, statik FX kurları)
-─ Tahmini Satış: ${formatCompactCurrency(pl.salesTotalUsd, "USD")}
-─ Tahmini Alım: ${formatCompactCurrency(pl.purchaseTotalUsd, "USD")}
-─ Tahmini Gider: ${formatCompactCurrency(pl.expenseTotalUsd, "USD")}
-─ Net K&Z: ${pl.pl >= 0 ? "+" : ""}${formatCompactCurrency(pl.pl, "USD")}
-─ Marj: ${pl.marginPct >= 0 ? "+" : ""}${pl.marginPct.toFixed(1)}%
+${L.plHeading}
+─ ${L.estSales}: ${formatCompactCurrency(pl.salesTotalUsd, "USD")}
+─ ${L.estPurchase}: ${formatCompactCurrency(pl.purchaseTotalUsd, "USD")}
+─ ${L.estExpense}: ${formatCompactCurrency(pl.expenseTotalUsd, "USD")}
+─ ${L.netPL}: ${pl.pl >= 0 ? "+" : ""}${formatCompactCurrency(pl.pl, "USD")}
+─ ${L.margin}: ${pl.marginPct >= 0 ? "+" : ""}${pl.marginPct.toFixed(1)}%
 
-MARJ DAĞILIMI
-─ Sağlıklı (>%5): ${marginDist.positive} proje
-─ Marjinal (-%5..%5): ${marginDist.marginal} proje
-─ Zararlı (<-%5): ${marginDist.negative} proje
-─ Marj hesaplanamaz: ${marginDist.unknown} proje
+${L.marginDist}
+─ ${L.healthy}: ${marginDist.positive} ${L.projects}
+─ ${L.marginal}: ${marginDist.marginal} ${L.projects}
+─ ${L.lossMaking}: ${marginDist.negative} ${L.projects}
+─ ${L.marginNotComputable}: ${marginDist.unknown} ${L.projects}
 
-PIPELINE (voyage durumu — toplam ${pipelineTotal} gemi planlı proje)
+${L.pipeline(pipelineTotal)}
 ${pipelineLine}
 
-VOYAGE STAGE (operasyonel evre)
-─ Pre-loading: ${stageCounts["pre-loading"]}
-─ Yükleme limanında: ${stageCounts["at-loading-port"]}
-─ Yükleme: ${stageCounts.loading}
-─ Yolda: ${stageCounts["in-transit"]}
-─ Tahliye limanında: ${stageCounts["at-discharge-port"]}
-─ Tahliye edildi: ${stageCounts.discharged}
-─ Gemi planı yok: ${stageCounts.unscheduled}
+${L.voyageStage}
+─ ${L.stagePreLoading}: ${stageCounts["pre-loading"]}
+─ ${L.stageAtLoading}: ${stageCounts["at-loading-port"]}
+─ ${L.stageLoading}: ${stageCounts.loading}
+─ ${L.stageInTransit}: ${stageCounts["in-transit"]}
+─ ${L.stageAtDischarge}: ${stageCounts["at-discharge-port"]}
+─ ${L.stageDischarged}: ${stageCounts.discharged}
+─ ${L.stageUnscheduled}: ${stageCounts.unscheduled}
 
-PARA BİRİMİ MARUZİYETİ
+${L.currencyExposure}
 ${currencyLines}
-─ Dominant: ${currency.dominant} · HHI: ${currency.hhi.toFixed(2)} (<0.15 sağlıklı, >0.25 yoğun)
+─ ${L.dominant}: ${currency.dominant} · HHI: ${currency.hhi.toFixed(2)} (${L.hhiHealthy})
 
-ORTALAMA TRANSİT
+${L.avgTransit}
 ${
   velocity.sampleSize > 0
-    ? `─ Ortalama: ${Math.round(velocity.avgDays)} gün (min ${Math.round(velocity.minDays)}, max ${Math.round(velocity.maxDays)}, ${velocity.sampleSize} sefer örneklemde)`
-    : "─ Yeterli LP-(ED)/DP-ETA tarihi yok, ortalama hesaplanamadı"
+    ? L.avgTransitLine(
+        Math.round(velocity.avgDays),
+        Math.round(velocity.minDays),
+        Math.round(velocity.maxDays),
+        velocity.sampleSize
+      )
+    : L.avgTransitNone
 }
 
-EN BÜYÜK 5 PROJE (ürün değerine göre)
-${top5Value || "(veri yok)"}
+${L.top5Value}
+${top5Value || L.noData}
 
-EN ÇOK FATURALI 3 PROJE (gerçekleşen satış USD)
-${top3SalesActual || "(faturalı satış kaydı yok)"}
+${L.top3Sales}
+${top3SalesActual || L.noSales}
 
-EN DÜŞÜK MARJLI 3 PROJE (riskli)
-${top3LowestMargin || "(marj hesaplanabilir proje yok)"}
+${L.top3Lowest}
+${top3LowestMargin || L.noMargin}
 
-EN YÜKSEK MARJLI 3 PROJE
-${top3HighestMargin || "(marj hesaplanabilir proje yok)"}
+${L.top3Highest}
+${top3HighestMargin || L.noMargin}
 
-EN AKTİF 5 KORİDOR
-${top5Corridors || "(rota verisi yok)"}
-─ Koridor HHI: ${corridorHhi.toFixed(2)}
+${L.top5Corridors}
+${top5Corridors || L.noRoute}
+${L.corridorHhi}: ${corridorHhi.toFixed(2)}
 
-EN BÜYÜK 3 TEDARİKÇİ (proje sayısı)
-${top3Suppliers || "(tedarikçi verisi yok)"}
-─ Tedarikçi HHI: ${counterparty.supplierHHI.toFixed(2)}
+${L.top3Suppliers}
+${top3Suppliers || L.noSupplier}
+${L.supplierHhi}: ${counterparty.supplierHHI.toFixed(2)}
 
-EN BÜYÜK 3 ALICI (proje sayısı)
-${top3Buyers || "(alıcı verisi yok)"}
-─ Alıcı HHI: ${counterparty.buyerHHI.toFixed(2)}
+${L.top3Buyers}
+${top3Buyers || L.noBuyer}
+${L.buyerHhi}: ${counterparty.buyerHHI.toFixed(2)}
 
-EN BÜYÜK 3 SEGMENT (K&Z)
-${top3SegmentsByPL || "(segment verisi yok)"}
+${L.top3Segments}
+${top3SegmentsByPL || L.noSegment}
 
-═══ AKTİF SEFERLER (Commenced — şu an yolda/yüklemede/tahliyede) ═══
-${activeVoyages || "(şu anda Commenced statüde proje yok)"}
+${L.activeVoyagesHeading}
+${activeVoyages || L.activeVoyagesNone}
 
-═══ YAKLAŞAN MILESTONE'LAR (önümüzdeki 14 gün) ═══
-${upcoming || "(önümüzdeki 14 gün içinde planlı milestone yok)"}
+${L.upcomingHeading}
+${upcoming || L.upcomingNone}
 
-═══ PROJELER DİZİNİ (her satırda 1 proje — vessel/projectNo/segment ile arama yap) ═══
+${L.directoryHeading}
 ${directory}
 
-NOT: Yukarıdaki tüm sayılar kullanıcının sağ üstteki Filtre'de seçtiği projelerin alt kümesinde hesaplandı. "Tüm portföy" sorulursa filtreyi gevşetmesi gerekebilir.`;
+${L.footerNote}`;
 }
 
 /* ─────────── Projects directory ─────────── */
@@ -293,7 +430,12 @@ NOT: Yukarıdaki tüm sayılar kullanıcının sağ üstteki Filtre'de seçtiği
  * buyer, segment, route. Truncation is conservative (60 chars on the
  * project name) so most names survive intact.
  */
-function buildProjectDirectory(projects: Project[]): string {
+function buildProjectDirectory(projects: Project[], lang: ContextLang): string {
+  const en = lang === "en";
+  const vesselLbl = en ? "Vessel" : "Gemi";
+  const routeNone = en ? "Route: —" : "Rota: —";
+  const productLbl = en ? "Product" : "Ürün";
+  const marginLbl = en ? "margin" : "marj";
   const lines: string[] = [];
   for (const p of projects) {
     const vp = p.vesselPlan;
@@ -303,7 +445,7 @@ function buildProjectDirectory(projects: Project[]): string {
     const route =
       vp?.loadingPort?.name && vp?.dischargePort?.name
         ? `${vp.loadingPort.name}→${vp.dischargePort.name}`
-        : "Rota: —";
+        : routeNone;
     const supplier = vp?.supplier?.trim() || "—";
     const buyer = vp?.buyer?.trim() || "—";
     const seg = (p.segment ?? "").trim() || "—";
@@ -313,12 +455,12 @@ function buildProjectDirectory(projects: Project[]): string {
     const pl = selectProjectPL(p);
     const margin =
       pl.marginPct === null
-        ? "marj —"
-        : `marj ${pl.marginPct >= 0 ? "+" : ""}${pl.marginPct.toFixed(1)}%`;
+        ? `${marginLbl} —`
+        : `${marginLbl} ${pl.marginPct >= 0 ? "+" : ""}${pl.marginPct.toFixed(1)}%`;
     const cargoValue = selectCargoValueUsd(p);
 
     lines.push(
-      `[${p.projectNo}] ${truncate(p.projectName, 60)} | Gemi: ${vessel} | ${route} | Ürün: ${cargoProduct} | Seg: ${seg}/${grp} | Sup: ${truncate(supplier, 25)} · Buy: ${truncate(buyer, 25)} | ${margin} · ${formatCompactCurrency(cargoValue, "USD")} · Status: ${p.status}`
+      `[${p.projectNo}] ${truncate(p.projectName, 60)} | ${vesselLbl}: ${vessel} | ${route} | ${productLbl}: ${cargoProduct} | Seg: ${seg}/${grp} | Sup: ${truncate(supplier, 25)} · Buy: ${truncate(buyer, 25)} | ${margin} · ${formatCompactCurrency(cargoValue, "USD")} · Status: ${p.status}`
     );
   }
   return lines.join("\n");
@@ -331,19 +473,27 @@ function buildProjectDirectory(projects: Project[]): string {
  * closest to today). Useful for "şu an yolda olan gemiler" / "hangi
  * gemiler yüklemede" style queries.
  */
-function buildActiveVoyages(projects: Project[], now: Date): string {
+function buildActiveVoyages(
+  projects: Project[],
+  now: Date,
+  lang: ContextLang
+): string {
+  const en = lang === "en";
+  const vesselLbl = en ? "Vessel" : "Gemi";
+  const nextLbl = en ? "Next" : "Sonraki";
+  const labels = milestoneLabels(lang);
   const rows: string[] = [];
   for (const p of projects) {
     const vp = p.vesselPlan;
     if (!vp || vp.vesselStatus !== "Commenced") continue;
     const stage = selectStage(p, now);
-    const nextMs = nextPendingMilestone(vp.milestones, now);
+    const nextMs = nextPendingMilestone(vp.milestones, now, labels);
     const route =
       vp.loadingPort?.name && vp.dischargePort?.name
         ? `${vp.loadingPort.name}→${vp.dischargePort.name}`
         : "—";
     rows.push(
-      `[${p.projectNo}] ${truncate(p.projectName, 50)} | Gemi: ${vp.vesselName} | ${route} | Stage: ${stage ?? "—"}${nextMs ? ` | Sonraki: ${nextMs.label} ${formatDate(nextMs.date)}` : ""}`
+      `[${p.projectNo}] ${truncate(p.projectName, 50)} | ${vesselLbl}: ${vp.vesselName} | ${route} | Stage: ${stage ?? "—"}${nextMs ? ` | ${nextLbl}: ${nextMs.label} ${formatDate(nextMs.date, lang)}` : ""}`
     );
   }
   return rows.join("\n");
@@ -351,7 +501,12 @@ function buildActiveVoyages(projects: Project[], now: Date): string {
 
 /* ─────────── Upcoming milestones (next 14 days) ─────────── */
 
-const MILESTONE_LABELS: Record<keyof import("@/lib/dataverse/entities").VesselMilestones, string> = {
+type MilestoneLabelMap = Record<
+  keyof import("@/lib/dataverse/entities").VesselMilestones,
+  string
+>;
+
+const MILESTONE_LABELS_TR: MilestoneLabelMap = {
   lpEta: "LP-ETA (yükleme limanına varış)",
   lpNorAccepted: "LP-NOR Kabul",
   lpSd: "Yükleme başlangıcı",
@@ -363,6 +518,22 @@ const MILESTONE_LABELS: Record<keyof import("@/lib/dataverse/entities").VesselMi
   dpEd: "Tahliye bitişi",
 };
 
+const MILESTONE_LABELS_EN: MilestoneLabelMap = {
+  lpEta: "LP-ETA (arrival at loading port)",
+  lpNorAccepted: "LP-NOR Accepted",
+  lpSd: "Loading start",
+  lpEd: "Loading end",
+  blDate: "BL issue",
+  dpEta: "DP-ETA (arrival estimate)",
+  dpNorAccepted: "DP-NOR Accepted",
+  dpSd: "Discharge start",
+  dpEd: "Discharge end",
+};
+
+function milestoneLabels(lang: ContextLang): MilestoneLabelMap {
+  return lang === "en" ? MILESTONE_LABELS_EN : MILESTONE_LABELS_TR;
+}
+
 interface UpcomingRow {
   projectNo: string;
   projectName: string;
@@ -372,16 +543,22 @@ interface UpcomingRow {
   daysFromNow: number;
 }
 
-function buildUpcomingMilestones(projects: Project[], now: Date): string {
+function buildUpcomingMilestones(
+  projects: Project[],
+  now: Date,
+  lang: ContextLang
+): string {
+  const en = lang === "en";
+  const vesselLbl = en ? "Vessel" : "Gemi";
+  const dayUnit = en ? "d" : "g";
+  const labels = milestoneLabels(lang);
   const horizon = now.getTime() + 14 * 24 * 60 * 60 * 1000;
   const rows: UpcomingRow[] = [];
   for (const p of projects) {
     const vp = p.vesselPlan;
     if (!vp) continue;
     const ms = vp.milestones;
-    for (const key of Object.keys(MILESTONE_LABELS) as Array<
-      keyof typeof MILESTONE_LABELS
-    >) {
+    for (const key of Object.keys(labels) as Array<keyof MilestoneLabelMap>) {
       const iso = ms[key];
       if (!iso) continue;
       const t = new Date(iso);
@@ -394,7 +571,7 @@ function buildUpcomingMilestones(projects: Project[], now: Date): string {
         projectNo: p.projectNo,
         projectName: truncate(p.projectName, 45),
         vessel: vp.vesselName ?? "—",
-        label: MILESTONE_LABELS[key],
+        label: labels[key],
         date: t,
         daysFromNow,
       });
@@ -405,7 +582,7 @@ function buildUpcomingMilestones(projects: Project[], now: Date): string {
     .slice(0, 30) // cap so the bundle stays compact
     .map(
       (r) =>
-        `${formatDate(r.date)} (+${r.daysFromNow}g) — [${r.projectNo}] ${r.projectName} | Gemi: ${r.vessel} | ${r.label}`
+        `${formatDate(r.date, lang)} (+${r.daysFromNow}${dayUnit}) — [${r.projectNo}] ${r.projectName} | ${vesselLbl}: ${r.vessel} | ${r.label}`
     )
     .join("\n");
 }
@@ -414,19 +591,18 @@ function buildUpcomingMilestones(projects: Project[], now: Date): string {
 
 function nextPendingMilestone(
   ms: import("@/lib/dataverse/entities").VesselMilestones,
-  now: Date
+  now: Date,
+  labels: MilestoneLabelMap
 ): { label: string; date: Date } | null {
   let best: { label: string; date: Date } | null = null;
-  for (const key of Object.keys(MILESTONE_LABELS) as Array<
-    keyof typeof MILESTONE_LABELS
-  >) {
+  for (const key of Object.keys(labels) as Array<keyof MilestoneLabelMap>) {
     const iso = ms[key];
     if (!iso) continue;
     const t = new Date(iso);
     if (Number.isNaN(t.getTime())) continue;
     if (t.getTime() < now.getTime()) continue;
     if (!best || t.getTime() < best.date.getTime()) {
-      best = { label: MILESTONE_LABELS[key], date: t };
+      best = { label: labels[key], date: t };
     }
   }
   return best;
@@ -438,16 +614,16 @@ function truncate(s: string, max: number): string {
   return t.slice(0, max - 1) + "…";
 }
 
-function formatDayMonth(d: Date): string {
-  return new Intl.DateTimeFormat("tr-TR", {
+function formatDayMonth(d: Date, lang: ContextLang): string {
+  return new Intl.DateTimeFormat(lang === "en" ? "en-GB" : "tr-TR", {
     day: "numeric",
     month: "long",
     year: "numeric",
   }).format(d);
 }
 
-function formatDate(d: Date): string {
-  return new Intl.DateTimeFormat("tr-TR", {
+function formatDate(d: Date, lang: ContextLang): string {
+  return new Intl.DateTimeFormat(lang === "en" ? "en-GB" : "tr-TR", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

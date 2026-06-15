@@ -14,13 +14,8 @@ import {
 } from "@/components/ui/sheet";
 import { TYRO_CHAT_TONE } from "@/components/layout/TyroChatButton";
 import { ProjectWebChat, type ProjectContext, type UserContext } from "./ProjectWebChat";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
-
-const FEATURES: string[] = [
-  "Aktif sevkiyat ve milestone takibi",
-  "Finansal analiz, marj ve K&Z sorguları",
-  "Liman, koridor ve gemi durum sorguları",
-];
 
 interface TyroChatDrawerProps {
   open: boolean;
@@ -42,6 +37,13 @@ export function TyroChatDrawer({
   projectContext,
   userContext,
 }: TyroChatDrawerProps) {
+  const t = useT();
+  const features: string[] = [
+    t("ai.copilot.feature.shipments"),
+    t("ai.copilot.feature.finance"),
+    t("ai.copilot.feature.ports"),
+  ];
+
   // Lazy-mount the webchat — only starts connecting after the first open.
   // Stays mounted afterwards so subsequent re-opens skip the cold-start.
   const [hasOpened, setHasOpened] = React.useState(false);
@@ -103,13 +105,13 @@ export function TyroChatDrawer({
             <SheetDescription className="text-[12px] text-muted-foreground leading-tight mt-0.5">
               {projectContext
                 ? projectContext.projectName
-                : "Uluslararası ticaret asistanı"}
+                : t("ai.subtitle")}
             </SheetDescription>
           </div>
           <button
             type="button"
             onClick={clearChat}
-            title="Sohbeti temizle"
+            title={t("ai.copilot.clear.aria")}
             className="shrink-0 size-8 rounded-lg grid place-items-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
           >
             <Trash2 className="size-4" />
@@ -181,22 +183,18 @@ export function TyroChatDrawer({
                       className="text-center mt-5"
                     >
                       <h3 className="text-[18px] font-bold tracking-tight text-slate-900 leading-tight">
-                        Yapay Zeka Asistanı
+                        {t("ai.copilot.welcome.title")}
                       </h3>
                       {projectContext ? (
                         <p className="text-[12.5px] text-muted-foreground mt-2 leading-relaxed max-w-[320px] mx-auto">
                           <span className="font-semibold text-slate-700">
                             {projectContext.projectName}
                           </span>{" "}
-                          projesi hakkında sorularınızı yanıtlamaya hazır. Sefer
-                          durumu, maliyet analizi ve daha fazlası için sorun.
+                          {t("ai.copilot.welcome.projectDesc")}
                         </p>
                       ) : (
                         <p className="text-[12.5px] text-muted-foreground mt-2 leading-relaxed max-w-[320px] mx-auto">
-                          Proje, gemi ve finansal verilerinizi doğal dilde
-                          sorgulayın. TYRO Chat sevkiyat takibinden marj
-                          analizine kadar her sorunuza saniyeler içinde
-                          yanıt verir.
+                          {t("ai.copilot.welcome.desc")}
                         </p>
                       )}
                     </motion.div>
@@ -214,7 +212,7 @@ export function TyroChatDrawer({
                       }}
                       className="mt-6 w-full max-w-[320px] flex flex-col gap-2.5"
                     >
-                      {FEATURES.map((feature) => (
+                      {features.map((feature) => (
                         <motion.li
                           key={feature}
                           variants={{
@@ -268,7 +266,7 @@ export function TyroChatDrawer({
                       }}
                     >
                       <span className="relative z-[1] tracking-tight">
-                        Yapay zeka sohbetine başla
+                        {t("ai.copilot.cta")}
                       </span>
                       <ArrowRight className="relative z-[1] size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
                     </motion.button>
@@ -278,7 +276,7 @@ export function TyroChatDrawer({
             </>
           ) : (
             <div className="h-full grid place-items-center text-[12px] text-muted-foreground">
-              Yükleniyor…
+              {t("ai.copilot.loading")}
             </div>
           )}
         </div>

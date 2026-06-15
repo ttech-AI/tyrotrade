@@ -1,6 +1,7 @@
 import * as React from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Robot01Icon } from "@hugeicons/core-free-icons";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
 
 interface TyroChatButtonProps {
@@ -38,13 +39,14 @@ export function TyroChatButton({
   compact,
 }: TyroChatButtonProps) {
   const [hovered, setHovered] = React.useState(false);
+  const t = useT();
   return (
     <button
       type="button"
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      aria-label={active ? "TYRO Chat'i kapat" : "TYRO Chat'i aç"}
+      aria-label={active ? t("ai.copilot.close.aria") : t("ai.copilot.open.aria")}
       aria-pressed={active}
       className={cn(
         "group relative inline-flex items-center justify-center gap-2 shrink-0",

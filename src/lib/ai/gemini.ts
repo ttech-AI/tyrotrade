@@ -17,7 +17,7 @@ export interface AiChatMessage {
 export interface GenerateAnswerArgs {
   apiKey: string;
   model: GeminiModel;
-  /** Static system instruction (TYRO_AI_SYSTEM_PROMPT). */
+  /** System instruction for the active language (getSystemPrompt(lang)). */
   systemInstruction: string;
   /** Prior turns in the conversation (oldest → newest). Excludes
    *  the current `userPrompt`. */

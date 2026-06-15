@@ -7,6 +7,8 @@ interface ChatInputProps {
   onSubmit: (text: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  /** aria-label for the send button (localised by the parent). */
+  sendAria?: string;
   className?: string;
 }
 
@@ -20,6 +22,7 @@ export function ChatInput({
   onSubmit,
   disabled,
   placeholder = "Bir şey sorun…",
+  sendAria = "Gönder",
   className,
 }: ChatInputProps) {
   const [value, setValue] = React.useState("");
@@ -95,7 +98,7 @@ export function ChatInput({
         type="button"
         onClick={handleSubmit}
         disabled={!canSend}
-        aria-label="Gönder"
+        aria-label={sendAria}
         className={cn(
           "size-8 rounded-xl grid place-items-center shrink-0 shadow-sm text-white",
           "transition-all duration-200",

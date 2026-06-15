@@ -18,8 +18,9 @@ import { ChatInput } from "./ChatInput";
 import { useSettings } from "@/hooks/useSettings";
 import { useProjects } from "@/hooks/useProjects";
 import { generateAnswer, GeminiError } from "@/lib/ai/gemini";
-import { TYRO_AI_SYSTEM_PROMPT } from "@/lib/ai/systemPrompt";
+import { getSystemPrompt } from "@/lib/ai/systemPrompt";
 import { buildDashboardContext } from "@/lib/ai/buildContext";
+import { useLanguage } from "@/lib/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
 
 interface TyroAiDrawerProps {
@@ -43,6 +44,7 @@ export function TyroAiDrawer({ open, onOpenChange }: TyroAiDrawerProps) {
   const { settings } = useSettings();
   const { projects } = useProjects();
   const accent = useThemeAccent();
+  const { lang, t } = useLanguage();
 
   const [messages, setMessages] = React.useState<ChatMessageData[]>([]);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -85,12 +87,16 @@ export function TyroAiDrawer({ open, onOpenChange }: TyroAiDrawerProps) {
       setIsLoading(true);
 
       try {
-        const context = buildDashboardContext(projects, new Date());
-        const promptWithContext = `${text}\n\n--- VERİ ÖZETİ (kullanıcının dashboard filtresinde aktif olan projeler) ---\n${context}`;
+        const context = buildDashboardContext(projects, new Date(), lang);
+        const contextHeader =
+          lang === "en"
+            ? "DATA SUMMARY (the projects active in the user's dashboard filter)"
+            : "VERİ ÖZETİ (kullanıcının dashboard filtresinde aktif olan projeler)";
+        const promptWithContext = `${text}\n\n--- ${contextHeader} ---\n${context}`;
         const answer = await generateAnswer({
           apiKey: settings.geminiApiKey,
           model: settings.geminiModel,
-          systemInstruction: TYRO_AI_SYSTEM_PROMPT,
+          systemInstruction: getSystemPrompt(lang),
           history: historyForApi,
           userPrompt: promptWithContext,
         });
@@ -105,7 +111,7 @@ export function TyroAiDrawer({ open, onOpenChange }: TyroAiDrawerProps) {
         const message =
           err instanceof GeminiError
             ? err.userMessage
-            : "Bir hata oluştu. Birkaç saniye sonra tekrar deneyin.";
+            : t("ai.error.generic");
         setError(message);
         // Replace the pending bubble with the error so it doesn't sit empty
         setMessages((prev) =>
@@ -123,7 +129,7 @@ export function TyroAiDrawer({ open, onOpenChange }: TyroAiDrawerProps) {
         setIsLoading(false);
       }
     },
-    [isLoading, messages, projects, settings]
+    [isLoading, messages, projects, settings, lang, t]
   );
 
   const hasMessages = messages.length > 0;
@@ -171,7 +177,7 @@ export function TyroAiDrawer({ open, onOpenChange }: TyroAiDrawerProps) {
               TYRO AI
             </SheetTitle>
             <SheetDescription className="text-[11.5px] text-muted-foreground leading-tight mt-0.5">
-              Uluslararası ticaret asistanı
+              {t("ai.subtitle")}
             </SheetDescription>
           </div>
           <Button
@@ -183,10 +189,10 @@ export function TyroAiDrawer({ open, onOpenChange }: TyroAiDrawerProps) {
               setError(null);
             }}
             className="h-7 px-2.5 gap-1.5 text-[11px] rounded-full mr-7"
-            aria-label="Sohbeti temizle"
+            aria-label={t("ai.clear.aria")}
           >
             <Eraser className="size-3" />
-            Temizle
+            {t("ai.clear")}
           </Button>
         </div>
 
@@ -210,16 +216,21 @@ export function TyroAiDrawer({ open, onOpenChange }: TyroAiDrawerProps) {
 
         {/* Footer — input + signature line */}
         <div className="px-4 py-3 shrink-0 border-t border-border/40 bg-white/95">
-          <ChatInput onSubmit={sendPrompt} disabled={isLoading} />
+          <ChatInput
+            onSubmit={sendPrompt}
+            disabled={isLoading}
+            placeholder={t("ai.input.placeholder")}
+            sendAria={t("ai.send.aria")}
+          />
           <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
-            <span>TYRO AI · Veriler dashboard'dan</span>
+            <span>{t("ai.footer.signature")}</span>
             {error && (
               <Link
                 to="/settings"
                 onClick={() => onOpenChange(false)}
                 className="text-rose-600 hover:underline"
               >
-                Ayarlar
+                {t("nav.settings")}
               </Link>
             )}
           </div>
@@ -239,6 +250,7 @@ function WelcomeState({
   disabled: boolean;
 }) {
   const accent = useThemeAccent();
+  const { lang, t } = useLanguage();
   return (
     <div className="h-full flex flex-col px-4 py-6 gap-5">
       <div className="flex flex-col items-center gap-3 mt-4">
@@ -253,15 +265,15 @@ function WelcomeState({
         </span>
         <div className="text-center">
           <h3 className="text-[15px] font-semibold tracking-tight">
-            Nasıl yardımcı olabilirim?
+            {t("ai.welcome.title")}
           </h3>
           <p className="text-[12px] text-muted-foreground mt-1 leading-snug max-w-[280px]">
-            Dashboard, projeler ve veri yönetimi hakkında doğal dil
-            sorularınızı yanıtlayabilirim.
+            {t("ai.welcome.subtitle")}
           </p>
         </div>
       </div>
       <ChatSuggestions
+        lang={lang}
         onPick={(prompt) => onPick(prompt)}
         disabled={disabled}
       />

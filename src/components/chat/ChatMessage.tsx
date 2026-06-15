@@ -1,6 +1,7 @@
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AiBrain02Icon } from "@hugeicons/core-free-icons";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
 
 export interface ChatMessageData {
@@ -151,9 +152,10 @@ function Inline({ text }: { text: string }) {
 /* ─────────── Pending state ─────────── */
 
 function PendingDots() {
+  const t = useT();
   return (
     <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-      <span className="text-[12px]">TYRO AI düşünüyor</span>
+      <span className="text-[12px]">{t("ai.thinking")}</span>
       <span className="inline-flex gap-0.5">
         <Dot delay="0ms" />
         <Dot delay="150ms" />

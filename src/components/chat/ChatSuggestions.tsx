@@ -1,8 +1,11 @@
 import { ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { TYRO_AI_SUGGESTIONS } from "@/lib/ai/systemPrompt";
+import { getSuggestions } from "@/lib/ai/systemPrompt";
+import type { Lang } from "@/lib/i18n/translations";
 
 interface ChatSuggestionsProps {
+  /** Active app language — selects the TR or EN suggestion set. */
+  lang: Lang;
   onPick: (prompt: string, label: string) => void;
   disabled?: boolean;
   className?: string;
@@ -10,17 +13,20 @@ interface ChatSuggestionsProps {
 
 /**
  * Welcome-state quick prompts. Each chip is a full-width button that
- * fires a pre-canned Turkish prompt from `TYRO_AI_SUGGESTIONS` when
- * tapped — so the user can kick the tyres without typing anything.
+ * fires a pre-canned prompt (in the active language) from
+ * `getSuggestions(lang)` when tapped — so the user can kick the tyres
+ * without typing anything. The prompt language matches the response
+ * language so the model replies in the user's chosen language.
  */
 export function ChatSuggestions({
+  lang,
   onPick,
   disabled,
   className,
 }: ChatSuggestionsProps) {
   return (
     <div className={cn("flex flex-col gap-2", className)}>
-      {TYRO_AI_SUGGESTIONS.map((s) => (
+      {getSuggestions(lang).map((s) => (
         <button
           key={s.label}
           type="button"
