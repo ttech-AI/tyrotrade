@@ -13,6 +13,7 @@ import { ChartContainer, type ChartConfig } from "@/components/ui/chart";
 import { GlassPanel } from "@/components/glass/GlassPanel";
 import { useThemeAccent } from "@/components/layout/theme-accent";
 import { formatFreightRate, formatNumber } from "@/lib/format";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type { FreightMonthlyPoint } from "@/lib/selectors/freight";
 
 const CHART_CONFIG: ChartConfig = {
@@ -32,6 +33,7 @@ export function FreightTrendChart({
   points: FreightMonthlyPoint[];
   currency: string;
 }) {
+  const t = useT();
   const accent = useThemeAccent();
   const data = points.map((p) => ({
     label: p.label,
@@ -48,13 +50,13 @@ export function FreightTrendChart({
   return (
     <GlassPanel tone="default" className="rounded-2xl h-full flex flex-col">
       <Header
-        title="Navlun Trend"
-        sub={`Aylık ortalama · ${currency}/t · min–maks bandı`}
+        title={t("ft.chart.trend")}
+        sub={`${t("ft.chart.trend.subA")} · ${currency}/t · ${t("ft.chart.trend.subB")}`}
         solid={accent.solid}
       />
       <div className="flex-1 min-h-0 px-2 pb-2">
         {data.length < 2 ? (
-          <EmptyChart text="Trend için yeterli veri yok" />
+          <EmptyChart text={t("ft.chart.noTrend")} />
         ) : (
           <ChartContainer config={CHART_CONFIG} className="h-full w-full aspect-auto">
             <ComposedChart
@@ -123,16 +125,17 @@ function TrendTooltip({
   payload?: Array<{ payload: TrendDatum }>;
   currency?: string;
 }) {
+  const t = useT();
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
     <div className="rounded-lg border border-border/50 bg-white px-2.5 py-2 text-[11.5px] shadow-xl min-w-36">
       <div className="font-semibold text-foreground mb-1">{d.label}</div>
-      <Row label="Ortalama" value={formatFreightRate(d.avg, currency)} bold />
-      <Row label="En düşük" value={formatFreightRate(d.min, currency)} />
-      <Row label="En yüksek" value={formatFreightRate(d.max, currency)} />
+      <Row label={t("ft.chart.avg")} value={formatFreightRate(d.avg, currency)} bold />
+      <Row label={t("ft.chart.min")} value={formatFreightRate(d.min, currency)} />
+      <Row label={t("ft.chart.max")} value={formatFreightRate(d.max, currency)} />
       <div className="mt-1 pt-1 border-t border-border/40 text-[10.5px] text-muted-foreground">
-        {formatNumber(d.count)} teklif
+        {formatNumber(d.count)} {t("ft.meta.quotes")}
       </div>
     </div>
   );

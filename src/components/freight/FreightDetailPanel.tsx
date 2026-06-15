@@ -8,6 +8,7 @@ import {
   Note01Icon,
 } from "@hugeicons/core-free-icons";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
 import { formatFreightRate, formatDate, formatNumber } from "@/lib/format";
 import type { FreightLane } from "@/lib/selectors/freight";
@@ -54,6 +55,7 @@ export function FreightDetailPanel({
   onClose: () => void;
 }) {
   const accent = useThemeAccent();
+  const t = useT();
   return (
     <AnimatePresence>
       {lane && (
@@ -104,7 +106,7 @@ export function FreightDetailPanel({
                 <button
                   type="button"
                   onClick={onClose}
-                  aria-label="Kapat"
+                  aria-label={t("ft.panel.close")}
                   className="shrink-0 grid place-items-center size-8 rounded-lg bg-white/15 hover:bg-white/25 transition-colors"
                 >
                   <X className="size-4" strokeWidth={2.5} />
@@ -117,7 +119,7 @@ export function FreightDetailPanel({
               {/* Current rate hero */}
               <div className="rounded-xl border border-border/50 bg-slate-50/60 px-4 py-3">
                 <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-medium">
-                  Güncel Navlun
+                  {t("ft.col.currentRate")}
                 </div>
                 <div className="flex items-baseline gap-2 mt-1">
                   <span className="text-[26px] font-bold tabular-nums leading-none text-foreground">
@@ -144,12 +146,12 @@ export function FreightDetailPanel({
                       {formatDate(lane.current.validityFinish)}
                       {lane.isStale && (
                         <span className="ml-1.5 text-amber-600 font-medium">
-                          · son bilinen (güncel değil)
+                          · {t("ft.panel.stale")}
                         </span>
                       )}
                     </>
                   ) : (
-                    "Geçerli teklif yok"
+                    t("ft.panel.noQuote")
                   )}
                 </div>
                 {lane.trend.length >= 2 && (
@@ -166,12 +168,12 @@ export function FreightDetailPanel({
               </div>
 
               {/* Route meta */}
-              <Section icon={BoatIcon} title="Rota Bilgisi" solid={accent.solid}>
+              <Section icon={BoatIcon} title={t("ft.panel.route")} solid={accent.solid}>
                 <Grid>
-                  <Field label="Yükleme Limanı" value={lane.loadingPort} />
-                  <Field label="Boşaltma Limanı" value={lane.dischargePort} />
+                  <Field label={t("ft.filter.loadingPort")} value={lane.loadingPort} />
+                  <Field label={t("ft.filter.dischargePort")} value={lane.dischargePort} />
                   <Field
-                    label="Mesafe"
+                    label={t("ft.field.distance")}
                     value={
                       lane.distance != null && lane.distance > 0
                         ? formatNumber(lane.distance)
@@ -179,10 +181,10 @@ export function FreightDetailPanel({
                     }
                   />
                   <Field
-                    label="Süre"
+                    label={t("ft.field.duration")}
                     value={
                       lane.durationDays != null && lane.durationDays > 0
-                        ? `${formatNumber(lane.durationDays)} gün`
+                        ? `${formatNumber(lane.durationDays)} ${t("common.days")}`
                         : "—"
                     }
                   />
@@ -193,17 +195,17 @@ export function FreightDetailPanel({
               {lane.current && (
                 <Section
                   icon={Package01Icon}
-                  title="Güncel Teklif Detayı"
+                  title={t("ft.panel.currentQuote")}
                   solid={accent.solid}
                 >
                   <Grid>
-                    <Field label="Gemi Tipi" value={lane.current.vesselType || "—"} />
-                    <Field label="Gemi Sınıfı" value={lane.current.shipSizeCategory || "—"} />
-                    <Field label="Kargo" value={lane.current.cargoGood || "—"} />
-                    <Field label="Kargo Tipi" value={lane.current.freightCargoType || "—"} />
-                    <Field label="Tonaj" value={tonnage(lane.current.minTonnage, lane.current.maxTonnage)} />
+                    <Field label={t("ft.filter.vesselType")} value={lane.current.vesselType || "—"} />
+                    <Field label={t("ft.filter.shipClass")} value={lane.current.shipSizeCategory || "—"} />
+                    <Field label={t("ft.filter.cargo")} value={lane.current.cargoGood || "—"} />
+                    <Field label={t("ft.field.cargoType")} value={lane.current.freightCargoType || "—"} />
+                    <Field label={t("ft.col.tonnage")} value={tonnage(lane.current.minTonnage, lane.current.maxTonnage)} />
                     <Field
-                      label="İstif Faktörü"
+                      label={t("ft.field.stowage")}
                       value={
                         lane.current.stowageFactor != null
                           ? formatNumber(lane.current.stowageFactor, 2)
@@ -211,7 +213,7 @@ export function FreightDetailPanel({
                       }
                     />
                     <Field
-                      label="Yükleme Oranı"
+                      label={t("ft.field.loadingRate")}
                       value={
                         [lane.current.loadingRate, lane.current.loadingRateTerm]
                           .filter(Boolean)
@@ -219,7 +221,7 @@ export function FreightDetailPanel({
                       }
                     />
                     <Field
-                      label="Tahliye Oranı"
+                      label={t("ft.field.dischargeRate")}
                       value={
                         [
                           lane.current.dischargeRate,
@@ -231,7 +233,7 @@ export function FreightDetailPanel({
                     />
                     {(lane.current.laycanFrom || lane.current.laycanTo) && (
                       <Field
-                        label="Laycan"
+                        label={t("ft.field.laycan")}
                         value={`${formatDate(lane.current.laycanFrom)} – ${formatDate(lane.current.laycanTo)}`}
                         wide
                       />
@@ -239,7 +241,7 @@ export function FreightDetailPanel({
                     {(lane.current.loadingPartyName ||
                       lane.current.dischargePartyName) && (
                       <Field
-                        label="Taraflar"
+                        label={t("ft.field.parties")}
                         value={
                           [
                             lane.current.loadingPartyName,
@@ -252,7 +254,7 @@ export function FreightDetailPanel({
                       />
                     )}
                     {lane.current.packageType && (
-                      <Field label="Paket Tipi" value={lane.current.packageType} wide />
+                      <Field label={t("ft.field.packageType")} value={lane.current.packageType} wide />
                     )}
                   </Grid>
                   {lane.current.notes && (
@@ -274,7 +276,7 @@ export function FreightDetailPanel({
               {/* Quote history */}
               <Section
                 icon={Calendar03Icon}
-                title={`Teklif Geçmişi (${lane.quoteCount})`}
+                title={`${t("ft.panel.history")} (${lane.quoteCount})`}
                 solid={accent.solid}
               >
                 <div className="space-y-1.5">

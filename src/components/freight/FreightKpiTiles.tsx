@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/tooltip";
 import { GlassPanel } from "@/components/glass/GlassPanel";
 import { formatFreightRate, formatNumber } from "@/lib/format";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type { FreightKpis } from "@/lib/selectors/freight";
 
 /** Same per-tile gradient palette language as the Trade Cost KPI bar. */
@@ -53,6 +54,7 @@ const TONE_PALETTE: Record<Tone, { gradient: string; ring: string }> = {
  * Each tile carries an explanatory hover tooltip.
  */
 export function FreightKpiTiles({ kpis }: { kpis: FreightKpis }) {
+  const t = useT();
   const firming = kpis.netMomentum > 0;
   const softening = kpis.netMomentum < 0;
   const momentumTone: Tone = firming ? "rose" : softening ? "emerald" : "slate";
@@ -62,38 +64,36 @@ export function FreightKpiTiles({ kpis }: { kpis: FreightKpis }) {
     <TooltipProvider delayDuration={250}>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <Tile
-          label="Aktif Hat"
+          label={t("ft.kpi.activeLanes")}
           value={formatNumber(kpis.activeLanes)}
-          sub={`${formatNumber(kpis.totalLanes)} hattan`}
+          sub={`${formatNumber(kpis.totalLanes)} ${t("ft.kpi.lanesTotal")}`}
           icon={BoatIcon}
           tone="sky"
           tooltip={{
-            title: "Aktif Hat Sayısı",
-            body:
-              "Bugün geçerli (validity penceresi bugünü kapsayan) bir teklifi olan rota+gemi sınıfı hatlarının sayısı. Parantezdeki toplam, geçmiş/gelecek teklifleri de dahil tüm hat sayısıdır. Aradaki fark, şu an fiyat kotası olmayan (boşta) hatları gösterir.",
-            formula: "count(hat: güncel teklif bugünü kapsıyor)",
+            title: t("ft.kpi.activeLanes.t"),
+            body: t("ft.kpi.activeLanes.b"),
+            formula: t("ft.kpi.activeLanes.f"),
           }}
         />
         <Tile
-          label="Ortalama Güncel Navlun"
+          label={t("ft.kpi.avg")}
           value={
             kpis.avgCurrentPrice == null
               ? "—"
               : formatFreightRate(kpis.avgCurrentPrice, kpis.avgCurrency, false)
           }
-          sub={kpis.avgCurrentPrice == null ? "veri yok" : unit}
+          sub={kpis.avgCurrentPrice == null ? t("common.noData") : unit}
           icon={BadgeDollarSignIcon}
           tone="slate"
           valueBold
           tooltip={{
-            title: "Ortalama Güncel Navlun",
-            body:
-              "Fiyatı olan tüm hatların güncel navlununun ortalaması, baskın para biriminde (ton başına). Farklı para birimleri tek eksende karışmasın diye yalnızca en sık görülen para biriminin hatları ortalamaya katılır.",
-            formula: "ort(hat.güncelFiyat | para birimi = baskın)",
+            title: t("ft.kpi.avg"),
+            body: t("ft.kpi.avg.b"),
+            formula: t("ft.kpi.avg.f"),
           }}
         />
         <Tile
-          label="En Pahalı Hat"
+          label={t("ft.kpi.priciest")}
           value={
             kpis.maxPrice
               ? formatFreightRate(
@@ -103,18 +103,17 @@ export function FreightKpiTiles({ kpis }: { kpis: FreightKpis }) {
                 )
               : "—"
           }
-          sub={kpis.maxPrice ? kpis.maxPrice.lane.routeLabel : "veri yok"}
+          sub={kpis.maxPrice ? kpis.maxPrice.lane.routeLabel : t("common.noData")}
           icon={TrendingUp}
           tone="rose"
           tooltip={{
-            title: "En Pahalı Hat",
-            body:
-              "Güncel navlunu en yüksek olan hat (baskın para birimi içinde). Maliyet baskısının en yoğun olduğu rotayı işaret eder — alt satırda rota adı yer alır.",
-            formula: "arg max hat.güncelFiyat",
+            title: t("ft.kpi.priciest"),
+            body: t("ft.kpi.priciest.b"),
+            formula: t("ft.kpi.priciest.f"),
           }}
         />
         <Tile
-          label="En Ucuz Hat"
+          label={t("ft.kpi.cheapest")}
           value={
             kpis.minPrice
               ? formatFreightRate(
@@ -124,18 +123,17 @@ export function FreightKpiTiles({ kpis }: { kpis: FreightKpis }) {
                 )
               : "—"
           }
-          sub={kpis.minPrice ? kpis.minPrice.lane.routeLabel : "veri yok"}
+          sub={kpis.minPrice ? kpis.minPrice.lane.routeLabel : t("common.noData")}
           icon={TrendingDown}
           tone="emerald"
           tooltip={{
-            title: "En Ucuz Hat",
-            body:
-              "Güncel navlunu en düşük olan hat (baskın para birimi içinde). En uygun maliyetli rotayı gösterir — alt satırda rota adı yer alır.",
-            formula: "arg min hat.güncelFiyat",
+            title: t("ft.kpi.cheapest"),
+            body: t("ft.kpi.cheapest.b"),
+            formula: t("ft.kpi.cheapest.f"),
           }}
         />
         <Tile
-          label="Piyasa Yönü"
+          label={t("ft.kpi.momentum")}
           value={
             kpis.rising + kpis.falling === 0
               ? "—"
@@ -152,10 +150,9 @@ export function FreightKpiTiles({ kpis }: { kpis: FreightKpis }) {
           tone={momentumTone}
           valueBold
           tooltip={{
-            title: "Piyasa Yönü (Momentum)",
-            body:
-              "Her hattın güncel teklifi bir önceki geçerlilik penceresine göre yükseldi mi düştü mü? Net = yükselen − düşen. Pozitif değer piyasanın genel olarak sertleştiğini (navlunlar artıyor), negatif değer yumuşadığını gösterir. ±%0,5 altı değişim 'yatay' sayılır.",
-            formula: "yükselen − düşen (Δ%, pencere bazında)",
+            title: t("ft.kpi.momentum.t"),
+            body: t("ft.kpi.momentum.b"),
+            formula: t("ft.kpi.momentum.f"),
           }}
         />
       </div>
@@ -181,6 +178,7 @@ function Tile({
   valueBold?: boolean;
   tooltip: { title: string; body: string; formula: string };
 }) {
+  const t = useT();
   const palette = TONE_PALETTE[tone];
   return (
     <Tooltip>
@@ -245,7 +243,7 @@ function Tile({
           </p>
           <div className="mt-2 pt-1.5 border-t border-foreground/10">
             <div className="text-[9.5px] uppercase tracking-wider text-muted-foreground font-semibold mb-0.5">
-              Formül
+              {t("ft.kpi.formula")}
             </div>
             <code className="text-[11px] font-mono text-foreground/90 leading-tight">
               {tooltip.formula}

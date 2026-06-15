@@ -6,6 +6,7 @@ import { useIsMobile } from "@/hooks/useMediaQuery";
 import type { FreightLane } from "@/lib/selectors/freight";
 import type { FreightRow } from "@/lib/dataverse/freightPrices";
 import { FreightSparkline } from "./FreightSparkline";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
 type SortKey = "route" | "price" | "delta" | "validity";
 type SortDir = "asc" | "desc";
@@ -82,6 +83,7 @@ export function FreightTable({
   selectedLaneKey?: string | null;
   onSelectLane?: (lane: FreightLane) => void;
 }) {
+  const t = useT();
   const isMobile = useIsMobile();
   const [sortKey, setSortKey] = React.useState<SortKey>("route");
   const [sortDir, setSortDir] = React.useState<SortDir>("asc");
@@ -132,16 +134,16 @@ export function FreightTable({
         <thead className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm shadow-[0_1px_0_0_rgba(15,23,42,0.08)]">
           <tr className="text-[10.5px] uppercase tracking-wider text-muted-foreground">
             <SortableTh
-              label="Hat"
+              label={t("ft.col.lane")}
               active={sortKey === "route"}
               dir={sortDir}
               onClick={() => toggleSort("route")}
               className="pl-3 min-w-[230px]"
             />
-            <Th className="min-w-[110px]">Gemi Tipi</Th>
-            <Th className="min-w-[120px]">Kargo</Th>
+            <Th className="min-w-[110px]">{t("ft.filter.vesselType")}</Th>
+            <Th className="min-w-[120px]">{t("ft.filter.cargo")}</Th>
             <SortableTh
-              label="Güncel Navlun"
+              label={t("ft.col.currentRate")}
               active={sortKey === "price"}
               dir={sortDir}
               onClick={() => toggleSort("price")}
@@ -149,29 +151,29 @@ export function FreightTable({
               className="min-w-[120px]"
             />
             <SortableTh
-              label="Trend"
+              label={t("ft.col.trend")}
               active={sortKey === "delta"}
               dir={sortDir}
               onClick={() => toggleSort("delta")}
               className="min-w-[120px]"
             />
             <SortableTh
-              label="Geçerlilik"
+              label={t("ft.col.validity")}
               active={sortKey === "validity"}
               dir={sortDir}
               onClick={() => toggleSort("validity")}
               className="min-w-[150px]"
             />
-            <Th className="min-w-[100px]">Tonaj</Th>
-            <Th className="min-w-[120px]">Yükleme</Th>
-            <Th className="min-w-[120px] pr-3">Tahliye</Th>
+            <Th className="min-w-[100px]">{t("ft.col.tonnage")}</Th>
+            <Th className="min-w-[120px]">{t("ft.col.loading")}</Th>
+            <Th className="min-w-[120px] pr-3">{t("ft.col.discharge")}</Th>
           </tr>
         </thead>
         <tbody>
           {sorted.length === 0 ? (
             <tr>
               <td colSpan={9} className="py-10 text-center text-[13px] text-muted-foreground">
-                Filtreye uyan hat yok.
+                {t("ft.table.empty")}
               </td>
             </tr>
           ) : (
@@ -205,6 +207,7 @@ function LaneRows({
   onToggle: () => void;
   onSelect: () => void;
 }) {
+  const t = useT();
   const dColor = deltaColor(lane.deltaPct);
   const sparkValues = lane.trend.map((t) => t.price);
   return (
@@ -215,7 +218,7 @@ function LaneRows({
           "group border-t border-border/40 cursor-pointer transition-colors align-middle",
           isSelected ? "bg-sky-50/80" : "hover:bg-foreground/[0.025]"
         )}
-        title={`${lane.routeLabel} — detay için tıkla`}
+        title={`${lane.routeLabel} — ${t("ft.col.openDetail")}`}
       >
         {/* Hat */}
         <td className="py-2 pl-3 pr-2">
@@ -226,7 +229,7 @@ function LaneRows({
                 e.stopPropagation();
                 onToggle();
               }}
-              aria-label={isExpanded ? "Geçmişi gizle" : "Geçmişi göster"}
+              aria-label={isExpanded ? t("ft.col.hideHistory") : t("ft.col.showHistory")}
               aria-expanded={isExpanded}
               className="mt-0.5 shrink-0 grid place-items-center size-5 rounded-md text-muted-foreground/70 hover:bg-foreground/[0.06] hover:text-foreground transition-colors"
             >
@@ -247,7 +250,7 @@ function LaneRows({
                   </span>
                 )}
                 <span className="text-[10.5px] text-muted-foreground tabular-nums">
-                  {lane.quoteCount} teklif
+                  {lane.quoteCount} {t("ft.meta.quotes")}
                 </span>
               </div>
             </div>
@@ -261,7 +264,7 @@ function LaneRows({
         <td className="py-2 px-2 text-[12px] text-foreground/80">
           <span className="line-clamp-2">{lane.cargoGood || "—"}</span>
           {lane.mixedCargo && (
-            <span className="ml-1 text-[10px] text-amber-600 font-medium">+karma</span>
+            <span className="ml-1 text-[10px] text-amber-600 font-medium">{t("ft.col.mixed")}</span>
           )}
         </td>
         {/* Güncel Navlun */}
@@ -272,7 +275,7 @@ function LaneRows({
           <div className="text-[10px] text-muted-foreground">
             {lane.currency}/t
             {lane.isStale && (
-              <span className="ml-1 text-amber-600 font-medium">· geçmiş</span>
+              <span className="ml-1 text-amber-600 font-medium">· {t("ft.col.stale")}</span>
             )}
           </div>
         </td>
@@ -452,21 +455,22 @@ function FreightCardList({
   selectedLaneKey?: string | null;
   onSelectLane?: (lane: FreightLane) => void;
 }) {
+  const t = useT();
   return (
     <div className="h-full flex flex-col rounded-2xl border border-border/50 bg-white/60 overflow-hidden">
       <div className="flex items-center gap-1.5 px-2.5 py-2 border-b border-border/40 shrink-0 overflow-x-auto">
         <span className="text-[10.5px] uppercase tracking-wider text-muted-foreground shrink-0 mr-0.5">
-          Sırala
+          {t("ft.table.sort")}
         </span>
-        <SortChip label="Rota" active={sortKey === "route"} dir={sortDir} onClick={() => onSort("route")} />
-        <SortChip label="Fiyat" active={sortKey === "price"} dir={sortDir} onClick={() => onSort("price")} />
-        <SortChip label="Trend" active={sortKey === "delta"} dir={sortDir} onClick={() => onSort("delta")} />
-        <SortChip label="Tarih" active={sortKey === "validity"} dir={sortDir} onClick={() => onSort("validity")} />
+        <SortChip label={t("ft.sort.route")} active={sortKey === "route"} dir={sortDir} onClick={() => onSort("route")} />
+        <SortChip label={t("ft.sort.price")} active={sortKey === "price"} dir={sortDir} onClick={() => onSort("price")} />
+        <SortChip label={t("ft.sort.trend")} active={sortKey === "delta"} dir={sortDir} onClick={() => onSort("delta")} />
+        <SortChip label={t("ft.sort.date")} active={sortKey === "validity"} dir={sortDir} onClick={() => onSort("validity")} />
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto p-2 space-y-2">
         {lanes.length === 0 ? (
           <div className="py-10 text-center text-[13px] text-muted-foreground">
-            Filtreye uyan hat yok.
+            {t("ft.table.empty")}
           </div>
         ) : (
           lanes.map((lane) => {
@@ -497,7 +501,7 @@ function FreightCardList({
                       <span className="text-[11px] text-muted-foreground truncate">
                         {lane.cargoGood || "—"}
                         {lane.mixedCargo && (
-                          <span className="text-amber-600"> +karma</span>
+                          <span className="text-amber-600"> {t("ft.col.mixed")}</span>
                         )}
                       </span>
                     </div>
@@ -508,7 +512,7 @@ function FreightCardList({
                     </div>
                     <div className="text-[10px] text-muted-foreground">
                       {lane.currency}/t
-                      {lane.isStale && <span className="text-amber-600"> · geçmiş</span>}
+                      {lane.isStale && <span className="text-amber-600"> · {t("ft.col.stale")}</span>}
                     </div>
                   </div>
                 </div>
@@ -533,7 +537,7 @@ function FreightCardList({
                         {formatDate(lane.current.validityFinish)}
                       </>
                     ) : (
-                      `${lane.quoteCount} teklif`
+                      `${lane.quoteCount} ${t("ft.meta.quotes")}`
                     )}
                   </div>
                 </div>

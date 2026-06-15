@@ -13,6 +13,7 @@ import { GlassPanel } from "@/components/glass/GlassPanel";
 import { useThemeAccent } from "@/components/layout/theme-accent";
 import { formatFreightRate, formatNumber } from "@/lib/format";
 import type { FreightLane } from "@/lib/selectors/freight";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { Header } from "./FreightTrendChart";
 
 const CHART_CONFIG: ChartConfig = { value: { label: "Güncel Navlun" } };
@@ -38,6 +39,7 @@ export function FreightTopLanesChart({
   lanes: FreightLane[];
   onSelectLane?: (laneKey: string) => void;
 }) {
+  const t = useT();
   const accent = useThemeAccent();
   const data: LaneDatum[] = lanes.map((l) => ({
     key: l.laneKey,
@@ -53,15 +55,15 @@ export function FreightTopLanesChart({
   return (
     <GlassPanel tone="default" className="rounded-2xl h-full flex flex-col">
       <Header
-        title="Hat Bazında Güncel Navlun"
-        sub={`En pahalı ${data.length} hat · ton başına`}
+        title={t("ft.chart.topLanes")}
+        sub={`${t("ft.chart.topLanes.subA")} ${data.length} ${t("ft.chart.topLanes.subB")}`}
         solid={accent.solid}
       />
       <div className="flex-1 min-h-0 px-2 pb-2 overflow-hidden">
         {data.length === 0 ? (
           <div className="h-full min-h-[160px] grid place-items-center">
             <p className="text-[12.5px] text-muted-foreground">
-              Fiyatlı hat bulunamadı
+              {t("ft.chart.noLanes")}
             </p>
           </div>
         ) : (
@@ -160,6 +162,7 @@ function LaneTooltip({
   active?: boolean;
   payload?: Array<{ payload: LaneDatum }>;
 }) {
+  const t = useT();
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
@@ -169,7 +172,7 @@ function LaneTooltip({
         {[d.ship, d.cargo].filter(Boolean).join(" · ") || "—"}
       </div>
       <div className="flex items-center justify-between gap-4">
-        <span className="text-muted-foreground">Güncel</span>
+        <span className="text-muted-foreground">{t("ft.chart.current")}</span>
         <span className="tabular-nums font-bold text-foreground">
           {formatFreightRate(d.value, d.currency)}
         </span>
