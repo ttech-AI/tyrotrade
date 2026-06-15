@@ -33,6 +33,7 @@ import {
 } from "@/lib/settings/userSettings";
 import { TYRO_CHAT_TONE } from "@/components/layout/TyroChatButton";
 import { generateAnswer, GeminiError } from "@/lib/ai/gemini";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
 
 /**
@@ -45,6 +46,7 @@ import { cn } from "@/lib/utils";
  * a status row, and a footer help link.
  */
 export function SettingsPage() {
+  const t = useT();
   return (
     <ScrollArea className="h-full">
       <div className="max-w-3xl mx-auto py-3 px-1 space-y-3">
@@ -52,9 +54,9 @@ export function SettingsPage() {
         <CopilotChatCard />
         <LocalStorageCard />
         <PlaceholderCard
-          title="Tema & Görünüm"
-          tagline="Sidebar tema seçimi"
-          body="Açık / Lacivert / Siyah tema arasında geçişi sidebar'ın altındaki tema değiştiriciden yapabilirsin."
+          title={t("set.theme.title")}
+          tagline={t("set.theme.tagline")}
+          body={t("set.theme.body")}
         />
       </div>
     </ScrollArea>
@@ -64,6 +66,7 @@ export function SettingsPage() {
 /* ─────────── AI Chatbot Card ─────────── */
 
 function AiChatbotCard() {
+  const t = useT();
   const { settings, setSettings, resetToDefaults } = useSettings();
   const accent = useThemeAccent();
   const [draftKey, setDraftKey] = React.useState(settings.geminiApiKey);
@@ -111,13 +114,13 @@ function AiChatbotCard() {
       });
       setTestStatus({
         kind: "ok",
-        message: `Bağlantı başarılı — yanıt geldi (${answer.slice(0, 40).trim()}…)`,
+        message: t("set.ai.testOk").replace("{answer}", answer.slice(0, 40).trim()),
       });
     } catch (err) {
       const message =
         err instanceof GeminiError
           ? err.userMessage
-          : "Bilinmeyen bir hata oluştu.";
+          : t("set.ai.testUnknownError");
       setTestStatus({ kind: "error", message });
     }
   }
@@ -136,11 +139,10 @@ function AiChatbotCard() {
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="text-[15px] font-semibold tracking-tight leading-tight">
-            AI Chatbot (Gemini)
+            {t("set.ai.title")}
           </h2>
           <p className="text-[12px] text-muted-foreground mt-0.5 leading-snug">
-            Google Gemini AI ile dashboard, projeler ve veri yönetimi
-            içeriğinizi doğal dilde sorgulayın. Ücretsiz API key gereklidir.
+            {t("set.ai.desc")}
           </p>
         </div>
       </div>
@@ -150,7 +152,7 @@ function AiChatbotCard() {
         <div className="space-y-2">
           <div className="flex items-baseline justify-between gap-2">
             <label className="text-[11.5px] font-semibold uppercase tracking-wider text-foreground/70">
-              Gemini API Key
+              {t("set.ai.keyLabel")}
             </label>
             <StatusDot usingDefault={usingDefault} />
           </div>
@@ -168,7 +170,7 @@ function AiChatbotCard() {
                 type="button"
                 onClick={() => setShow((v) => !v)}
                 className="absolute right-2 top-1/2 -translate-y-1/2 size-7 rounded-md grid place-items-center text-muted-foreground hover:text-foreground hover:bg-foreground/[0.04]"
-                aria-label={show ? "Key'i gizle" : "Key'i göster"}
+                aria-label={show ? t("set.ai.keyHide") : t("set.ai.keyShow")}
               >
                 {show ? (
                   <EyeOff className="size-3.5" />
@@ -188,7 +190,7 @@ function AiChatbotCard() {
                 boxShadow: `0 4px 12px -4px ${accent.ring}`,
               }}
             >
-              {testStatus.kind === "loading" ? "Test ediliyor…" : "Test Et"}
+              {testStatus.kind === "loading" ? t("set.ai.testing") : t("set.ai.test")}
             </Button>
             <Button
               type="button"
@@ -196,7 +198,7 @@ function AiChatbotCard() {
               onClick={handleSaveKey}
               disabled={!isDirty}
             >
-              Kaydet
+              {t("set.common.save")}
             </Button>
           </div>
           {testStatus.kind === "ok" && (
@@ -215,7 +217,7 @@ function AiChatbotCard() {
         <div className="space-y-2">
           <label className="text-[11.5px] font-semibold uppercase tracking-wider text-foreground/70 flex items-center gap-1.5">
             <HugeiconsIcon icon={AiBrain02Icon} size={12} strokeWidth={2} />
-            Model
+            {t("set.ai.modelLabel")}
           </label>
           <Select value={settings.geminiModel} onValueChange={handleModelChange}>
             <SelectTrigger className="w-full">
@@ -223,13 +225,13 @@ function AiChatbotCard() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="gemini-2.5-flash">
-                Gemini 2.5 Flash · hızlı, ücretsiz tier
+                {t("set.ai.model.flash25")}
               </SelectItem>
               <SelectItem value="gemini-2.5-pro">
-                Gemini 2.5 Pro · daha güçlü, kotalı
+                {t("set.ai.model.pro25")}
               </SelectItem>
               <SelectItem value="gemini-1.5-flash">
-                Gemini 1.5 Flash · klasik
+                {t("set.ai.model.flash15")}
               </SelectItem>
             </SelectContent>
           </Select>
@@ -246,7 +248,7 @@ function AiChatbotCard() {
             )}
           >
             <ExternalLink className="size-3" />
-            Google AI Studio'dan ücretsiz key alın · Key sadece bu tarayıcıda saklanır
+            {t("set.ai.getKeyLink")}
           </a>
           {!usingDefault && (
             <Button
@@ -257,7 +259,7 @@ function AiChatbotCard() {
               className="h-7 px-2 gap-1.5 text-[11px]"
             >
               <RotateCcw className="size-3" />
-              Varsayılana sıfırla
+              {t("set.common.resetToDefault")}
             </Button>
           )}
         </div>
@@ -267,6 +269,7 @@ function AiChatbotCard() {
 }
 
 function StatusDot({ usingDefault }: { usingDefault: boolean }) {
+  const t = useT();
   return (
     <span
       className={cn(
@@ -280,7 +283,7 @@ function StatusDot({ usingDefault }: { usingDefault: boolean }) {
           usingDefault ? "bg-foreground/35" : "bg-emerald-500"
         )}
       />
-      {usingDefault ? "Varsayılan key kullanılıyor" : "Özel key girildi"}
+      {usingDefault ? t("set.ai.statusDefault") : t("set.ai.statusCustom")}
     </span>
   );
 }
@@ -298,6 +301,7 @@ function StatusDot({ usingDefault }: { usingDefault: boolean }) {
  * topbar pill + drawer chrome it controls.
  */
 function CopilotChatCard() {
+  const t = useT();
   const { settings, setSettings } = useSettings();
   const [draft, setDraft] = React.useState(settings.copilotChatUrl);
 
@@ -337,11 +341,10 @@ function CopilotChatCard() {
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="text-[15px] font-semibold tracking-tight leading-tight">
-            TYRO Chat (Copilot Studio)
+            {t("set.chat.title")}
           </h2>
           <p className="text-[12px] text-muted-foreground mt-0.5 leading-snug">
-            Topbar'daki TYRO Chat butonu bu URL'i iframe içinde açar. Boş
-            bırakıp kaydedersen varsayılana geri döner.
+            {t("set.chat.desc")}
           </p>
         </div>
       </div>
@@ -350,7 +353,7 @@ function CopilotChatCard() {
         <div className="space-y-2">
           <div className="flex items-baseline justify-between gap-2">
             <label className="text-[11.5px] font-semibold uppercase tracking-wider text-foreground/70">
-              Webchat URL
+              {t("set.chat.urlLabel")}
             </label>
             <span
               className={cn(
@@ -364,7 +367,7 @@ function CopilotChatCard() {
                   usingDefault ? "bg-foreground/35" : "bg-indigo-500"
                 )}
               />
-              {usingDefault ? "Varsayılan URL" : "Özel URL"}
+              {usingDefault ? t("set.chat.statusDefault") : t("set.chat.statusCustom")}
             </span>
           </div>
           <div className="flex gap-2">
@@ -383,14 +386,14 @@ function CopilotChatCard() {
               onClick={handleSave}
               disabled={!isDirty}
             >
-              Kaydet
+              {t("set.common.save")}
             </Button>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/40">
           <span className="text-[11.5px] text-muted-foreground">
-            URL sadece bu tarayıcıda saklanır (localStorage).
+            {t("set.chat.storedLocally")}
           </span>
           {!usingDefault && (
             <Button
@@ -401,7 +404,7 @@ function CopilotChatCard() {
               className="h-7 px-2 gap-1.5 text-[11px]"
             >
               <RotateCcw className="size-3" />
-              Varsayılana sıfırla
+              {t("set.common.resetToDefault")}
             </Button>
           )}
         </div>
@@ -451,6 +454,7 @@ interface StorageEntry {
  * that have grown large after a Dataverse sync.
  */
 function LocalStorageCard() {
+  const t = useT();
   const [entries, setEntries] = React.useState<StorageEntry[]>([]);
   const [tick, setTick] = React.useState(0);
 
@@ -483,7 +487,7 @@ function LocalStorageCard() {
   function clearAll() {
     if (
       !window.confirm(
-        `${entries.length} öğeyi silmek istediğinden emin misin? Bu işlem geri alınamaz.`
+        t("set.storage.confirmClear").replace("{count}", String(entries.length))
       )
     ) {
       return;
@@ -503,17 +507,15 @@ function LocalStorageCard() {
         </span>
         <div className="min-w-0 flex-1">
           <h2 className="text-[15px] font-semibold tracking-tight leading-tight">
-            Yerel Depolama (localStorage)
+            {t("set.storage.title")}
           </h2>
           <p className="text-[12px] text-muted-foreground mt-0.5 leading-snug">
-            Bu tarayıcıda saklanan TYRO verileri. Dataverse cache'i,
-            sidebar tercihleri, AI ayarları burada tutulur — sadece
-            okuma için, sunucuya gitmez.
+            {t("set.storage.desc")}
           </p>
         </div>
         <div className="text-right shrink-0">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Toplam
+            {t("set.storage.total")}
           </div>
           <div className="text-[15px] font-bold tabular-nums">
             {formatSize(totalSize)}
@@ -524,7 +526,7 @@ function LocalStorageCard() {
       <div className="px-5 py-3 space-y-1.5">
         {entries.length === 0 ? (
           <p className="text-[12px] text-muted-foreground italic py-2">
-            Henüz hiçbir veri saklanmamış.
+            {t("set.storage.empty")}
           </p>
         ) : (
           entries.map((e) => (
@@ -549,7 +551,7 @@ function LocalStorageCard() {
                 size="sm"
                 className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-rose-600"
                 onClick={() => deleteKey(e.key)}
-                aria-label={`${e.key} sil`}
+                aria-label={t("set.storage.deleteAria").replace("{key}", e.key)}
               >
                 <Trash2 className="size-3.5" />
               </Button>
@@ -561,7 +563,8 @@ function LocalStorageCard() {
       {entries.length > 0 && (
         <div className="px-5 py-3 border-t border-border/40 flex items-center justify-between gap-2">
           <span className="text-[11px] text-muted-foreground">
-            {entries.length} öğe · {formatSize(totalSize)} kullanılıyor
+            {entries.length} {t("set.storage.itemsUnit")} · {formatSize(totalSize)}{" "}
+            {t("set.storage.usageSuffix")}
           </span>
           <Button
             type="button"
@@ -571,7 +574,7 @@ function LocalStorageCard() {
             className="h-7 px-3 gap-1.5 text-[11px] text-rose-600 hover:bg-rose-50 hover:text-rose-700 border-rose-200"
           >
             <Trash2 className="size-3" />
-            Tümünü Temizle
+            {t("set.storage.clearAll")}
           </Button>
         </div>
       )}

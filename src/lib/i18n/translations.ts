@@ -478,6 +478,54 @@ const tr: StringMap = {
   "filter.resultCountSuffix": "proje",
   "filter.allLead": "Tüm",
   "filter.allTail": "proje",
+
+  /* ── Ayarlar / Settings ── */
+  "set.common.save": "Kaydet",
+  "set.common.resetToDefault": "Varsayılana sıfırla",
+  /* AI Chatbot card */
+  "set.ai.title": "AI Chatbot (Gemini)",
+  "set.ai.desc":
+    "Google Gemini AI ile dashboard, projeler ve veri yönetimi içeriğinizi doğal dilde sorgulayın. Ücretsiz API key gereklidir.",
+  "set.ai.keyLabel": "Gemini API Key",
+  "set.ai.keyShow": "Key'i göster",
+  "set.ai.keyHide": "Key'i gizle",
+  "set.ai.test": "Test Et",
+  "set.ai.testing": "Test ediliyor…",
+  "set.ai.testOk": "Bağlantı başarılı — yanıt geldi ({answer}…)",
+  "set.ai.testUnknownError": "Bilinmeyen bir hata oluştu.",
+  "set.ai.statusDefault": "Varsayılan key kullanılıyor",
+  "set.ai.statusCustom": "Özel key girildi",
+  "set.ai.modelLabel": "Model",
+  "set.ai.model.flash25": "Gemini 2.5 Flash · hızlı, ücretsiz tier",
+  "set.ai.model.pro25": "Gemini 2.5 Pro · daha güçlü, kotalı",
+  "set.ai.model.flash15": "Gemini 1.5 Flash · klasik",
+  "set.ai.getKeyLink":
+    "Google AI Studio'dan ücretsiz key alın · Key sadece bu tarayıcıda saklanır",
+  /* Copilot / TYRO Chat card */
+  "set.chat.title": "TYRO Chat (Copilot Studio)",
+  "set.chat.desc":
+    "Topbar'daki TYRO Chat butonu bu URL'i iframe içinde açar. Boş bırakıp kaydedersen varsayılana geri döner.",
+  "set.chat.urlLabel": "Webchat URL",
+  "set.chat.statusDefault": "Varsayılan URL",
+  "set.chat.statusCustom": "Özel URL",
+  "set.chat.storedLocally": "URL sadece bu tarayıcıda saklanır (localStorage).",
+  /* LocalStorage card */
+  "set.storage.title": "Yerel Depolama (localStorage)",
+  "set.storage.desc":
+    "Bu tarayıcıda saklanan TYRO verileri. Dataverse cache'i, sidebar tercihleri, AI ayarları burada tutulur — sadece okuma için, sunucuya gitmez.",
+  "set.storage.total": "Toplam",
+  "set.storage.empty": "Henüz hiçbir veri saklanmamış.",
+  "set.storage.deleteAria": "{key} sil",
+  "set.storage.usageSuffix": "kullanılıyor",
+  "set.storage.itemsUnit": "öğe",
+  "set.storage.clearAll": "Tümünü Temizle",
+  "set.storage.confirmClear":
+    "{count} öğeyi silmek istediğinden emin misin? Bu işlem geri alınamaz.",
+  /* Theme & appearance placeholder card */
+  "set.theme.title": "Tema & Görünüm",
+  "set.theme.tagline": "Sidebar tema seçimi",
+  "set.theme.body":
+    "Açık / Lacivert / Siyah tema arasında geçişi sidebar'ın altındaki tema değiştiriciden yapabilirsin.",
 };
 
 const en: StringMap = {
@@ -932,6 +980,54 @@ const en: StringMap = {
   "filter.resultCountSuffix": "projects",
   "filter.allLead": "All",
   "filter.allTail": "projects",
+
+  /* ── Ayarlar / Settings ── */
+  "set.common.save": "Save",
+  "set.common.resetToDefault": "Reset to default",
+  /* AI Chatbot card */
+  "set.ai.title": "AI Chatbot (Gemini)",
+  "set.ai.desc":
+    "Query your dashboard, projects and data management content in natural language with Google Gemini AI. A free API key is required.",
+  "set.ai.keyLabel": "Gemini API Key",
+  "set.ai.keyShow": "Show key",
+  "set.ai.keyHide": "Hide key",
+  "set.ai.test": "Test",
+  "set.ai.testing": "Testing…",
+  "set.ai.testOk": "Connection successful — response received ({answer}…)",
+  "set.ai.testUnknownError": "An unknown error occurred.",
+  "set.ai.statusDefault": "Using default key",
+  "set.ai.statusCustom": "Custom key entered",
+  "set.ai.modelLabel": "Model",
+  "set.ai.model.flash25": "Gemini 2.5 Flash · fast, free tier",
+  "set.ai.model.pro25": "Gemini 2.5 Pro · more powerful, quota-limited",
+  "set.ai.model.flash15": "Gemini 1.5 Flash · classic",
+  "set.ai.getKeyLink":
+    "Get a free key from Google AI Studio · The key is stored in this browser only",
+  /* Copilot / TYRO Chat card */
+  "set.chat.title": "TYRO Chat (Copilot Studio)",
+  "set.chat.desc":
+    "The TYRO Chat button in the topbar opens this URL inside an iframe. Leave it empty and save to revert to the default.",
+  "set.chat.urlLabel": "Webchat URL",
+  "set.chat.statusDefault": "Default URL",
+  "set.chat.statusCustom": "Custom URL",
+  "set.chat.storedLocally": "The URL is stored in this browser only (localStorage).",
+  /* LocalStorage card */
+  "set.storage.title": "Local Storage (localStorage)",
+  "set.storage.desc":
+    "TYRO data stored in this browser. The Dataverse cache, sidebar preferences and AI settings are kept here — read-only, never sent to the server.",
+  "set.storage.total": "Total",
+  "set.storage.empty": "No data stored yet.",
+  "set.storage.deleteAria": "Delete {key}",
+  "set.storage.usageSuffix": "used",
+  "set.storage.itemsUnit": "items",
+  "set.storage.clearAll": "Clear All",
+  "set.storage.confirmClear":
+    "Are you sure you want to delete {count} items? This action cannot be undone.",
+  /* Theme & appearance placeholder card */
+  "set.theme.title": "Theme & Appearance",
+  "set.theme.tagline": "Sidebar theme selection",
+  "set.theme.body":
+    "Switch between Light / Navy / Black themes using the theme switcher at the bottom of the sidebar.",
 };
 
 export const translations: Record<Lang, StringMap> = { tr, en };
