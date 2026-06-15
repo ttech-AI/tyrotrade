@@ -1,6 +1,7 @@
 import * as React from "react";
 import {
   CACHE_UPDATED_EVENT,
+  cacheFingerprint,
   readCache,
   type CacheUpdatedDetail,
 } from "@/lib/storage/entityCache";
@@ -177,11 +178,8 @@ function useCacheFingerprint(entitySet: string): string {
 }
 
 function readFingerprint(entitySet: string): string {
-  try {
-    const raw = localStorage.getItem(`tyro:dv:${entitySet}`);
-    if (!raw) return "";
-    return raw.slice(0, 80);
-  } catch {
-    return "";
-  }
+  // Reads the in-memory mirror (IndexedDB-backed). Was a
+  // `localStorage.getItem(...).slice(0,80)` before the cache moved to
+  // IndexedDB; the mirror is now the synchronous source of truth.
+  return cacheFingerprint(entitySet);
 }

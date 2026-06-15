@@ -7,6 +7,7 @@ import "@fontsource-variable/inter/index.css";
 import App from "./App";
 import "./globals.css";
 import { getMsalInstance, isAuthConfigured } from "./lib/auth/msal";
+import { hydrateEntityCache } from "./lib/storage/entityCache";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,12 +30,25 @@ const tree = (
   </QueryClientProvider>
 );
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    {isAuthConfigured ? (
-      <MsalProvider instance={getMsalInstance()}>{tree}</MsalProvider>
-    ) : (
-      tree
-    )}
-  </StrictMode>
-);
+function renderApp() {
+  createRoot(document.getElementById("root")!).render(
+    <StrictMode>
+      {isAuthConfigured ? (
+        <MsalProvider instance={getMsalInstance()}>{tree}</MsalProvider>
+      ) : (
+        tree
+      )}
+    </StrictMode>
+  );
+}
+
+// Hydrate the entity cache (IndexedDB → in-memory mirror, migrating any
+// leftover localStorage) BEFORE first paint, so Sefer Takibi / Genel Bakış
+// render populated instead of empty. Capped at 2s so a slow/flaky IndexedDB
+// (some mobile browsers) can never block boot — hydration keeps running and
+// its `tyro:cache-updated` dispatches refresh consumers once it lands.
+const HYDRATE_TIMEOUT_MS = 2000;
+void Promise.race([
+  hydrateEntityCache(),
+  new Promise<void>((resolve) => setTimeout(resolve, HYDRATE_TIMEOUT_MS)),
+]).finally(renderApp);

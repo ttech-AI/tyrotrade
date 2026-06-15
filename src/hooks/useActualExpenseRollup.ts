@@ -2,6 +2,7 @@ import * as React from "react";
 import { getDataverseClient } from "@/lib/dataverse";
 import {
   CACHE_UPDATED_EVENT,
+  cacheFingerprint,
   readCache,
   writeCache,
   type CacheUpdatedDetail,
@@ -247,11 +248,6 @@ function useCacheFingerprint(entitySet: string): string {
 }
 
 function readFingerprint(entitySet: string): string {
-  try {
-    const raw = localStorage.getItem(`tyro:dv:${entitySet}`);
-    if (!raw) return "";
-    return raw.slice(0, 80);
-  } catch {
-    return "";
-  }
+  // Mirror-backed (IndexedDB) fingerprint — see entityCache.cacheFingerprint.
+  return cacheFingerprint(entitySet);
 }
