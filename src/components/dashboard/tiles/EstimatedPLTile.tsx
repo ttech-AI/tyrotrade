@@ -13,6 +13,7 @@ import {
   type ChartConfig,
 } from "@/components/evilcharts/ui/chart";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { aggregateEstimatedPL } from "@/lib/selectors/aggregate";
 import { selectProjectPL } from "@/lib/selectors/profitLoss";
 import { selectExecutionDate } from "@/lib/selectors/project";
@@ -70,6 +71,7 @@ export function EstimatedPLTile({
   onClick,
 }: EstimatedPLTileProps) {
   const accent = useThemeAccent();
+  const t = useT();
   const pl = React.useMemo(() => aggregateEstimatedPL(projects), [projects]);
 
   const positive = pl.pl > 0;
@@ -138,18 +140,23 @@ export function EstimatedPLTile({
   // theme accent — config only feeds the ChartContainer wrapper).
   const chartConfig: ChartConfig = {
     pl: {
-      label: "K&Z",
+      label: t("dash.tile.pl.title"),
       colors: { light: [accent.solid], dark: [accent.solid] },
     },
   };
 
   return (
     <BentoTile
-      title="Tahmini K&Z"
+      title={t("dash.tile.pl.title")}
       subtitle={
         pl.fxConvertedCount > 0
-          ? `USD eşdeğeri · ${pl.contributingCount} proje · ${pl.fxConvertedCount} FX`
-          : `USD bazlı · ${pl.contributingCount} proje`
+          ? t("dash.tile.pl.subtitleFx")
+              .replace("{count}", String(pl.contributingCount))
+              .replace("{fx}", String(pl.fxConvertedCount))
+          : t("dash.tile.pl.subtitlePlain").replace(
+              "{count}",
+              String(pl.contributingCount)
+            )
       }
       icon={Coins02Icon}
       iconTone={iconTone}
@@ -174,7 +181,7 @@ export function EstimatedPLTile({
           <div className="flex items-baseline gap-3 min-w-0">
             <div className="flex flex-col gap-1.5 min-w-0">
               <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-foreground/70 leading-none">
-                Toplam
+                {t("dash.tile.pl.total")}
               </span>
               <span
                 className="text-[22px] font-semibold leading-none tracking-tight tabular-nums"
@@ -190,10 +197,15 @@ export function EstimatedPLTile({
                 <span className="border-l border-dashed border-border/70 h-9 self-end mb-0.5" />
                 <div
                   className="flex flex-col gap-1.5 min-w-0"
-                  title={`En yüksek |K&Z| ${peak.monthLong} ayı — ${peak.pl >= 0 ? "+" : ""}${formatCompactCurrency(peak.pl, "USD")}`}
+                  title={t("dash.tile.pl.peakTip")
+                    .replace("{month}", peak.monthLong)
+                    .replace(
+                      "{amount}",
+                      `${peak.pl >= 0 ? "+" : ""}${formatCompactCurrency(peak.pl, "USD")}`
+                    )}
                 >
                   <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-foreground/70 leading-none">
-                    Zirve
+                    {t("dash.tile.pl.peak")}
                   </span>
                   <span
                     className="text-[22px] font-semibold leading-none tracking-tight truncate"
@@ -216,9 +228,21 @@ export function EstimatedPLTile({
               gridTemplateColumns: "auto auto minmax(64px, max-content)",
             }}
           >
-            <RightMetric label="Satış" value={pl.salesTotalUsd} dot="#10b981" />
-            <RightMetric label="Alım" value={pl.purchaseTotalUsd} dot="#f59e0b" />
-            <RightMetric label="Gider" value={pl.expenseTotalUsd} dot="#dc2626" />
+            <RightMetric
+              label={t("dash.tile.pl.sales")}
+              value={pl.salesTotalUsd}
+              dot="#10b981"
+            />
+            <RightMetric
+              label={t("dash.tile.pl.purchase")}
+              value={pl.purchaseTotalUsd}
+              dot="#f59e0b"
+            />
+            <RightMetric
+              label={t("dash.tile.pl.expense")}
+              value={pl.expenseTotalUsd}
+              dot="#dc2626"
+            />
           </div>
         </div>
 
@@ -263,13 +287,16 @@ export function EstimatedPLTile({
           </ChartContainer>
         ) : (
           <div className="flex-1 grid place-items-center text-[10.5px] text-muted-foreground/70">
-            Aylık K&Z dağılımı için veri yok
+            {t("dash.tile.pl.noChartData")}
           </div>
         )}
 
         {pl.unknownCurrencyCount > 0 && (
           <div className="text-[9.5px] text-muted-foreground/70 italic mt-1">
-            {pl.unknownCurrencyCount} proje tanımsız para birimi — kur uygulanmadı
+            {t("dash.tile.pl.unknownCurrency").replace(
+              "{count}",
+              String(pl.unknownCurrencyCount)
+            )}
           </div>
         )}
       </div>

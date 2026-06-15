@@ -72,6 +72,7 @@ import {
   getFinancialYear,
 } from "@/lib/dashboard/financialPeriod";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type { Project } from "@/lib/dataverse/entities";
 
 // Dashboard default = inclusive (all projects flow into KPIs unless
@@ -85,6 +86,7 @@ export function DashboardPage() {
   // selectors (stage classification, period filters) all read this; freezing
   // it prevents downstream memos from invalidating on every render.
   const now = React.useMemo(() => new Date(), []);
+  const t = useT();
   const { accounts, instance } = useMsal();
   const account = accounts[0] ?? instance.getActiveAccount() ?? null;
   const firstName = account?.name?.trim().split(/\s+/)[0] ?? null;
@@ -179,7 +181,7 @@ export function DashboardPage() {
     return n;
   }, [projects, drawerQuery, drawerKpi]);
 
-  const greeting = getGreeting();
+  const greeting = t(getGreetingKey());
   const lastSyncLabel = fetchedAt ? formatSyncTime(fetchedAt) : null;
 
   // Subtitle scope label — reflects the active period filter selection
@@ -196,20 +198,21 @@ export function DashboardPage() {
           getFinancialYear(now);
         return {
           label: fy.fullLabel.replace(/^FY\s*/, ""),
-          preposition: "finansal döneminde",
+          preposition: t("dash.period.fyPreposition"),
         };
       }
       case "monthly":
-        return { label: "Son 30 gün", preposition: "içinde" };
+        return { label: t("dash.period.last30"), preposition: t("dash.period.within") };
       case "quarterly":
-        return { label: "Son 90 gün", preposition: "içinde" };
+        return { label: t("dash.period.last90"), preposition: t("dash.period.within") };
       case "yearly":
-        return { label: "Son 1 yıl", preposition: "içinde" };
+        return { label: t("dash.period.last1y"), preposition: t("dash.period.within") };
       case "all":
       default:
-        return { label: "Tüm zamanlar", preposition: "kapsamında" };
+        return { label: t("dash.period.allTime"), preposition: t("dash.period.allScope") };
     }
-  }, [filters.period, filters.fyKey, now]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.period, filters.fyKey, now, t]);
 
   if (isEmpty) {
     return <ProjectsEmptyState />;
@@ -243,17 +246,18 @@ export function DashboardPage() {
                 </span>{" "}
                 {periodScope.preposition}{" "}
                 <span className="font-semibold text-foreground">
-                  {totalProjects} proje
+                  {totalProjects} {t("dash.greeting.projectsTracked")}
                 </span>{" "}
-                izleniyor.
+                {t("dash.greeting.tracking")}
                 {(inTransit > 0 || loading > 0 || atDischarge > 0) && (
                   <span className="ml-0.5 inline-flex items-baseline flex-wrap gap-x-1.5">
                     <TooltipProvider delayDuration={120}>
                       {inTransit > 0 && (
                         <PipelineCountTooltip
                           count={inTransit}
-                          label="yolda"
+                          label={t("dash.greeting.inTransit")}
                           projects={pipelineLists.inTransit}
+                          t={t}
                         />
                       )}
                       {loading > 0 && (
@@ -263,8 +267,9 @@ export function DashboardPage() {
                           )}
                           <PipelineCountTooltip
                             count={loading}
-                            label="yüklemede"
+                            label={t("dash.greeting.loading")}
                             projects={pipelineLists.loading}
+                            t={t}
                           />
                         </>
                       )}
@@ -275,8 +280,9 @@ export function DashboardPage() {
                           )}
                           <PipelineCountTooltip
                             count={atDischarge}
-                            label="tahliyede"
+                            label={t("dash.greeting.atDischarge")}
                             projects={pipelineLists.atDischarge}
+                            t={t}
                           />
                         </>
                       )}
@@ -287,12 +293,12 @@ export function DashboardPage() {
                 {activeFilterCount > 0 && (
                   <span className="ml-1.5 text-foreground/70">
                     · <span className="font-medium">{activeFilterCount}</span>{" "}
-                    filtre aktif
+                    {t("dash.greeting.filtersActive")}
                   </span>
                 )}
                 {lastSyncLabel && (
                   <span className="ml-1.5 text-muted-foreground/70">
-                    · son senkron {lastSyncLabel}
+                    · {t("dash.greeting.lastSync")} {lastSyncLabel}
                   </span>
                 )}
               </p>
@@ -337,10 +343,15 @@ export function DashboardPage() {
       <KpiDetailDrawer
         open={drawerKpi !== null}
         onOpenChange={(open) => !open && closeDrawer()}
-        title={drawerKpi ? KPI_META[drawerKpi].title : ""}
+        title={drawerKpi ? t(KPI_META[drawerKpi].titleKey) : ""}
         subtitle={
           drawerKpi
-            ? KPI_META[drawerKpi].subtitle?.(projects)
+            ? KPI_META[drawerKpi].subtitleKey
+              ? t(KPI_META[drawerKpi].subtitleKey!).replace(
+                  "{count}",
+                  String(projects.length)
+                )
+              : undefined
             : undefined
         }
         icon={drawerKpi ? KPI_META[drawerKpi].icon : undefined}
@@ -357,8 +368,8 @@ export function DashboardPage() {
                   ? {
                       value: drawerSortReversed ? "reverse" : "default",
                       onChange: (v) => setDrawerSortReversed(v === "reverse"),
-                      defaultLabel: KPI_META[drawerKpi].sort!.default,
-                      reverseLabel: KPI_META[drawerKpi].sort!.reverse,
+                      defaultLabel: t(KPI_META[drawerKpi].sort!.defaultKey),
+                      reverseLabel: t(KPI_META[drawerKpi].sort!.reverseKey),
                     }
                   : undefined
               }
@@ -446,90 +457,91 @@ export function DashboardPage() {
 /* ─────────── KPI metadata ─────────── */
 
 interface KpiMeta {
-  title: string;
-  /** Subtitle factory — receives the filtered project set so it can
-   *  surface a count or context fragment that matches the data the
-   *  drawer is about to render. */
-  subtitle?: (projects: Project[]) => string;
+  /** i18n key for the drawer header title. */
+  titleKey: string;
+  /** i18n key for the subtitle template — holds a `{count}` placeholder
+   *  resolved against the filtered project count at render time. */
+  subtitleKey?: string;
   icon: IconSvgElement;
   tone: IconBadgeTone;
-  /** Optional sort flip labels — when omitted the toolbar's sort
+  /** Optional sort flip label keys — when omitted the toolbar's sort
    *  toggle is hidden (Pipeline / Currency keep their canonical order). */
-  sort?: { default: string; reverse: string };
+  sort?: { defaultKey: string; reverseKey: string };
 }
 
 const KPI_META: Record<KpiId, KpiMeta> = {
   period: {
-    title: "Dönem Performansı",
-    subtitle: (p) => `${p.length} proje · finansal görünüm`,
+    titleKey: "dash.kpi.period.title",
+    subtitleKey: "dash.kpi.period.subtitle",
     icon: ChartLineData01Icon,
     tone: TONE_FORECAST,
-    sort: { default: "En değerliden", reverse: "En düşük değerden" },
+    sort: { defaultKey: "dash.sort.period.default", reverseKey: "dash.sort.period.reverse" },
   },
   pl: {
-    title: "Tahmini Kâr & Zarar",
-    subtitle: (p) => `${p.length} proje · USD eşdeğeri`,
+    titleKey: "dash.kpi.pl.title",
+    subtitleKey: "dash.kpi.pl.subtitle",
     icon: Coins02Icon,
     tone: TONE_PL,
-    sort: { default: "En kârlıdan", reverse: "En zararlıdan" },
+    sort: { defaultKey: "dash.sort.pl.default", reverseKey: "dash.sort.pl.reverse" },
   },
   quantity: {
-    title: "Tahmini Miktar",
-    subtitle: (p) => `${p.length} proje · toplam tonaj dağılımı`,
+    titleKey: "dash.kpi.quantity.title",
+    subtitleKey: "dash.kpi.quantity.subtitle",
     icon: BalanceScaleIcon,
     tone: TONE_CARGO,
-    sort: { default: "En çok tonajdan", reverse: "En az tonajdan" },
+    sort: { defaultKey: "dash.sort.quantity.default", reverseKey: "dash.sort.quantity.reverse" },
   },
   expense: {
-    title: "Tahmini Gider",
-    subtitle: (p) => `${p.length} proje · USD bazlı kalemler`,
+    titleKey: "dash.kpi.expense.title",
+    subtitleKey: "dash.kpi.expense.subtitle",
     icon: Wallet01Icon,
     tone: TONE_EXPENSE,
-    sort: { default: "En pahalıdan", reverse: "En ucuzdan" },
+    sort: { defaultKey: "dash.sort.expense.default", reverseKey: "dash.sort.expense.reverse" },
   },
   pipeline: {
-    title: "Aktif Pipeline",
-    subtitle: (p) => `${p.length} proje · sefer durumuna göre`,
+    titleKey: "dash.kpi.pipeline.title",
+    subtitleKey: "dash.kpi.pipeline.subtitle",
     icon: ContainerIcon,
     tone: TONE_SEA,
     // Pipeline order is workflow-driven; no flip.
   },
   currency: {
-    title: "Para Birimi Maruziyeti",
-    subtitle: (p) => `${p.length} proje · USD / EUR / TRY`,
+    titleKey: "dash.kpi.currency.title",
+    subtitleKey: "dash.kpi.currency.subtitle",
     icon: MoneyExchange01Icon,
     tone: TONE_CURRENCY,
     // Currency order is canonical (USD → EUR → TRY); no flip.
   },
   corridor: {
-    title: "Koridor Konsantrasyonu",
-    subtitle: (p) => `${p.length} proje · LP → DP dağılımı`,
+    titleKey: "dash.kpi.corridor.title",
+    subtitleKey: "dash.kpi.corridor.subtitle",
     icon: Route01Icon,
     tone: TONE_CORRIDOR,
-    sort: { default: "En çok projeli koridor", reverse: "En az projeli koridor" },
+    sort: { defaultKey: "dash.sort.corridor.default", reverseKey: "dash.sort.corridor.reverse" },
   },
   velocity: {
-    title: "Ortalama Transit",
-    subtitle: (p) => `${p.length} proje · LP-(ED) → DP-ETA`,
+    titleKey: "dash.kpi.velocity.title",
+    subtitleKey: "dash.kpi.velocity.subtitle",
     icon: Clock01Icon,
     tone: TONE_VELOCITY,
-    sort: { default: "En yavaştan", reverse: "En hızlıdan" },
+    sort: { defaultKey: "dash.sort.velocity.default", reverseKey: "dash.sort.velocity.reverse" },
   },
   counterparty: {
-    title: "Karşı Taraf Dağılımı",
-    subtitle: (p) => `${p.length} proje · tedarikçi & alıcı`,
+    titleKey: "dash.kpi.counterparty.title",
+    subtitleKey: "dash.kpi.counterparty.subtitle",
     icon: UserGroupIcon,
     tone: TONE_COUNTERPARTY,
-    sort: { default: "En çok projeli", reverse: "En az projeli" },
+    sort: { defaultKey: "dash.sort.counterparty.default", reverseKey: "dash.sort.counterparty.reverse" },
   },
 };
 
-function getGreeting(): string {
+/** Returns the greeting i18n key for the current hour. */
+function getGreetingKey(): string {
   const h = new Date().getHours();
-  if (h < 5) return "İyi geceler";
-  if (h < 12) return "Günaydın";
-  if (h < 18) return "İyi günler";
-  return "İyi akşamlar";
+  if (h < 5) return "dash.greeting.night";
+  if (h < 12) return "dash.greeting.morning";
+  if (h < 18) return "dash.greeting.day";
+  return "dash.greeting.evening";
 }
 
 /** Compact "saat:dakika" if today, otherwise "dd.MM HH:mm". Used for the
@@ -565,10 +577,12 @@ function PipelineCountTooltip({
   count,
   label,
   projects,
+  t,
 }: {
   count: number;
   label: string;
   projects: Project[];
+  t: (key: string) => string;
 }) {
   const accent = useThemeAccent();
   const navigate = useNavigate();
@@ -610,7 +624,7 @@ function PipelineCountTooltip({
             style={{ background: accent.solid }}
           />
           <span className="text-[11px] font-bold uppercase tracking-wider text-slate-900">
-            {count} proje · {label}
+            {count} {t("dash.greeting.projectsTracked")} · {label}
           </span>
         </div>
         <div className="py-1">
@@ -651,7 +665,7 @@ function PipelineCountTooltip({
           ))}
           {remainder > 0 && (
             <div className="px-3 py-1.5 text-[10.5px] text-foreground/65 italic">
-              + {remainder} proje daha
+              + {remainder} {t("dash.greeting.moreProjects")}
             </div>
           )}
         </div>

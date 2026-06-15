@@ -4,6 +4,7 @@ import { BentoTile } from "../BentoTile";
 import { AnimatedNumber } from "../AnimatedNumber";
 import { TONE_SEA } from "@/components/details/AccentIconBadge";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type { Project } from "@/lib/dataverse/entities";
 
 interface ActivePipelineTileProps {
@@ -46,6 +47,7 @@ export function ActivePipelineTile({
 }: ActivePipelineTileProps) {
   const reduceMotion = useReducedMotion();
   const accent = useThemeAccent();
+  const t = useT();
 
   // Two counters: `activeTotal` (headline — sadece To Be Nominated +
   // Nominated + Commenced) ve `sumStages` (bar payda — 6 kategorinin
@@ -67,8 +69,8 @@ export function ActivePipelineTile({
 
   return (
     <BentoTile
-      title="Aktif Pipeline"
-      subtitle="Voyage durumu · gemi planlı projeler"
+      title={t("dash.tile.pipeline.title")}
+      subtitle={t("dash.tile.pipeline.subtitle")}
       icon={ContainerIcon}
       iconTone={TONE_SEA}
       span={span}
@@ -78,7 +80,9 @@ export function ActivePipelineTile({
       <div className="flex flex-col gap-3 h-full">
         <div
           className="flex items-baseline gap-3"
-          title={`Aktif: ${activeTotal} (To Be Nominated + Nominated + Commenced). Bar tüm ${sumStages} voyage'ın dağılımını gösterir.`}
+          title={t("dash.tile.pipeline.headlineTip")
+            .replace("{active}", String(activeTotal))
+            .replace("{total}", String(sumStages))}
         >
           {/* Headline = sadece aktif 3 statü (TBN + Nom + Commenced).
               Terminal kategoriler (Completed/Closed/Cancelled) bar'da
@@ -93,7 +97,7 @@ export function ActivePipelineTile({
             className="text-[11px] font-medium"
             style={{ color: accent.stops[2], opacity: 0.75 }}
           >
-            aktif proje
+            {t("dash.tile.pipeline.activeProjects")}
           </span>
         </div>
 
@@ -109,7 +113,7 @@ export function ActivePipelineTile({
                 "inset 0 1px 1px 0 rgba(15,23,42,0.08), inset 0 -1px 0 0 rgba(255,255,255,0.6)",
             }}
             role="progressbar"
-            aria-label="Voyage durum dağılımı"
+            aria-label={t("dash.tile.pipeline.barAria")}
           >
             {sumStages > 0 &&
               STATUS_CATEGORIES.map((s, i) => {
@@ -142,7 +146,16 @@ export function ActivePipelineTile({
                       // okunur kalsın ama aktif kategoriler öne çıksın.
                       opacity: s.active ? 1 : 0.7,
                     }}
-                    title={`${s.label}: ${value} proje · %${pct.toFixed(1)}${s.active ? " · aktif" : " · terminal"}`}
+                    title={t("dash.tile.pipeline.segTip")
+                      .replace("{label}", s.label)
+                      .replace("{count}", String(value))
+                      .replace("{pct}", pct.toFixed(1))
+                      .replace(
+                        "{state}",
+                        s.active
+                          ? t("dash.tile.pipeline.segActive")
+                          : t("dash.tile.pipeline.segTerminal")
+                      )}
                   />
                 );
               })}
@@ -157,7 +170,16 @@ export function ActivePipelineTile({
                 <div
                   key={s.key}
                   className="flex items-center gap-1.5 min-w-0 truncate"
-                  title={`${s.label} — ${value} proje · %${pct.toFixed(1)}${s.active ? " · aktif sayıma dahil" : " · terminal"}`}
+                  title={t("dash.tile.pipeline.legendTip")
+                    .replace("{label}", s.label)
+                    .replace("{count}", String(value))
+                    .replace("{pct}", pct.toFixed(1))
+                    .replace(
+                      "{state}",
+                      s.active
+                        ? t("dash.tile.pipeline.legendActive")
+                        : t("dash.tile.pipeline.segTerminal")
+                    )}
                   style={{ opacity: s.active ? 1 : 0.6 }}
                 >
                   <span

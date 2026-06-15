@@ -3,6 +3,7 @@ import { Clock01Icon } from "@hugeicons/core-free-icons";
 import { BentoTile } from "../BentoTile";
 import { TONE_VELOCITY } from "@/components/details/AccentIconBadge";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { aggregateAvgTransitDays } from "@/lib/selectors/aggregate";
 import type { Project } from "@/lib/dataverse/entities";
 
@@ -27,6 +28,7 @@ export function VelocityTile({
   onClick,
 }: VelocityTileProps) {
   const accent = useThemeAccent();
+  const t = useT();
   const stats = React.useMemo(
     () => aggregateAvgTransitDays(projects),
     [projects]
@@ -34,8 +36,8 @@ export function VelocityTile({
 
   return (
     <BentoTile
-      title="Ortalama Transit"
-      subtitle="LP-(ED) → DP-ETA"
+      title={t("dash.tile.velocity.title")}
+      subtitle={t("dash.tile.velocity.subtitle")}
       icon={Clock01Icon}
       iconTone={TONE_VELOCITY}
       span={span}
@@ -45,7 +47,10 @@ export function VelocityTile({
       <div className="flex flex-col gap-2 h-full">
         <div
           className="flex items-baseline gap-1"
-          title={`Ortalama transit — yükleme bitişi (LP-ED ya da BL) ile varış limanına ulaşma (DP-ETA) arasındaki gün farkı. ${stats.sampleSize} seferde ölçüldü.`}
+          title={t("dash.tile.velocity.headlineTip").replace(
+            "{count}",
+            String(stats.sampleSize)
+          )}
         >
           {/* Plain text instead of AnimatedNumber so the "gün" suffix
               picks up the same accent colour as the digits. The
@@ -57,7 +62,9 @@ export function VelocityTile({
             style={{ color: accent.solid }}
           >
             {Math.round(stats.avgDays)}
-            <span className="text-[16px] font-medium ml-1">gün</span>
+            <span className="text-[16px] font-medium ml-1">
+              {t("dash.tile.velocity.daysUnit")}
+            </span>
           </span>
         </div>
 
@@ -69,49 +76,51 @@ export function VelocityTile({
                 stays comfortably readable. */}
             <div
               className="flex items-baseline justify-between gap-2 text-[10.5px]"
-              title="En kısa transit süresi"
+              title={t("dash.tile.velocity.minTip")}
             >
               <span
                 className="font-medium"
                 style={{ color: accent.stops[0] }}
               >
-                Min
+                {t("dash.tile.velocity.min")}
               </span>
               <span
                 className="font-semibold tabular-nums"
                 style={{ color: accent.stops[0] }}
               >
-                {Math.round(stats.minDays)} gün
+                {Math.round(stats.minDays)} {t("dash.tile.velocity.daysUnit")}
               </span>
             </div>
             <div
               className="flex items-baseline justify-between gap-2 text-[10.5px]"
-              title="En uzun transit süresi"
+              title={t("dash.tile.velocity.maxTip")}
             >
               <span
                 className="font-medium"
                 style={{ color: accent.stops[2] }}
               >
-                Max
+                {t("dash.tile.velocity.max")}
               </span>
               <span
                 className="font-semibold tabular-nums"
                 style={{ color: accent.stops[2] }}
               >
-                {Math.round(stats.maxDays)} gün
+                {Math.round(stats.maxDays)} {t("dash.tile.velocity.daysUnit")}
               </span>
             </div>
             <div
               className="flex items-baseline justify-between gap-2 text-[10px] text-foreground/65"
-              title="LP-ED ve DP-ETA tarihlerinin ikisi de dolu olan sefer sayısı"
+              title={t("dash.tile.velocity.sampleTip")}
             >
-              <span>Örneklem</span>
-              <span className="tabular-nums">{stats.sampleSize} sefer</span>
+              <span>{t("dash.tile.velocity.sample")}</span>
+              <span className="tabular-nums">
+                {stats.sampleSize} {t("dash.tile.velocity.voyagesUnit")}
+              </span>
             </div>
           </div>
         ) : (
           <div className="mt-auto text-[10.5px] text-muted-foreground/70">
-            Tarihler eksik
+            {t("dash.tile.velocity.datesMissing")}
           </div>
         )}
       </div>

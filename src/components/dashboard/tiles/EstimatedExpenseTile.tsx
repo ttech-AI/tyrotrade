@@ -5,6 +5,7 @@ import { BentoTile } from "../BentoTile";
 import { AnimatedNumber } from "../AnimatedNumber";
 import { TONE_EXPENSE } from "@/components/details/AccentIconBadge";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { selectProjectPL } from "@/lib/selectors/profitLoss";
 import { formatCompactCurrency } from "@/lib/format";
 import type { Project } from "@/lib/dataverse/entities";
@@ -49,6 +50,7 @@ export function EstimatedExpenseTile({
 }: EstimatedExpenseTileProps) {
   const reduce = useReducedMotion();
   const accent = useThemeAccent();
+  const t = useT();
   const { buckets, contributingCount } = React.useMemo(() => {
     let freight = 0;
     let opex = 0;
@@ -107,8 +109,11 @@ export function EstimatedExpenseTile({
 
   return (
     <BentoTile
-      title="Tahmini Gider"
-      subtitle={`USD · ${contributingCount} proje`}
+      title={t("dash.tile.expense.title")}
+      subtitle={t("dash.tile.expense.subtitle").replace(
+        "{count}",
+        String(contributingCount)
+      )}
       icon={Wallet01Icon}
       iconTone={TONE_EXPENSE}
       span={span}
@@ -126,7 +131,9 @@ export function EstimatedExpenseTile({
       <div className="flex flex-col gap-3 h-full">
         <div
           className="flex items-baseline gap-3"
-          title={`Tahmini toplam gider — ${formatCompactCurrency(total, "USD")} · ${contributingCount} proje. Gider kalemleri zaten USD bazlı (mserp_expamountusdd).`}
+          title={t("dash.tile.expense.headlineTip")
+            .replace("{amount}", formatCompactCurrency(total, "USD"))
+            .replace("{count}", String(contributingCount))}
         >
           {/* 30px sits between the original 26px and Pipeline's 40px —
               "80,3 Mn $" carries more characters than Pipeline's bare
@@ -153,7 +160,7 @@ export function EstimatedExpenseTile({
             className="text-[11px] font-medium"
             style={{ color: accent.stops[2], opacity: 0.75 }}
           >
-            toplam gider
+            {t("dash.tile.expense.totalLabel")}
           </span>
         </div>
 
@@ -194,7 +201,10 @@ export function EstimatedExpenseTile({
                       boxShadow:
                         "inset 0 1px 0 0 rgba(255,255,255,0.4), inset 0 -1px 0 0 rgba(0,0,0,0.08)",
                     }}
-                    title={`${b.label}: ${formatCompactCurrency(b.value, "USD")} · %${pct.toFixed(1)}`}
+                    title={t("dash.tile.expense.shareTip")
+                      .replace("{label}", b.label)
+                      .replace("{amount}", formatCompactCurrency(b.value, "USD"))
+                      .replace("{pct}", pct.toFixed(1))}
                   />
                 );
               })}
@@ -211,7 +221,10 @@ export function EstimatedExpenseTile({
                   <div
                     key={b.key}
                     className="flex items-center gap-1.5 min-w-0 truncate"
-                    title={`${b.label}: ${formatCompactCurrency(b.value, "USD")} · %${pct.toFixed(1)} pay`}
+                    title={t("dash.tile.expense.legendTip")
+                      .replace("{label}", b.label)
+                      .replace("{amount}", formatCompactCurrency(b.value, "USD"))
+                      .replace("{pct}", pct.toFixed(1))}
                   >
                     <span
                       className="size-1.5 rounded-full shrink-0"
@@ -236,7 +249,7 @@ export function EstimatedExpenseTile({
           </div>
         ) : (
           <div className="mt-auto text-[10.5px] text-muted-foreground/70">
-            Gider tahmini henüz tanımlı değil
+            {t("dash.tile.expense.empty")}
           </div>
         )}
       </div>

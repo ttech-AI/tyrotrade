@@ -3,6 +3,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { ChatEdit01Icon } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
 interface AskAiButtonProps {
   onClick: () => void;
@@ -29,6 +30,7 @@ interface AskAiButtonProps {
 export function AskAiButton({ onClick, className }: AskAiButtonProps) {
   const [hovered, setHovered] = React.useState(false);
   const accent = useThemeAccent();
+  const t = useT();
   return (
     <button
       type="button"
@@ -37,7 +39,7 @@ export function AskAiButton({ onClick, className }: AskAiButtonProps) {
       onMouseLeave={() => setHovered(false)}
       onFocus={() => setHovered(true)}
       onBlur={() => setHovered(false)}
-      aria-label="TYRO AI sohbetini aç"
+      aria-label={t("dash.askAi.aria")}
       className={cn(
         "group relative inline-flex items-center shrink-0 overflow-hidden",
         "rounded-full h-9 text-[13px] font-semibold text-white",

@@ -3,6 +3,7 @@ import { Route01Icon } from "@hugeicons/core-free-icons";
 import { BentoTile } from "../BentoTile";
 import { TONE_CORRIDOR } from "@/components/details/AccentIconBadge";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { aggregateByCorridor } from "@/lib/selectors/aggregate";
 import type { Project } from "@/lib/dataverse/entities";
 
@@ -29,6 +30,7 @@ export function CorridorConcentrationTile({
   onClick,
 }: CorridorConcentrationTileProps) {
   const accent = useThemeAccent();
+  const t = useT();
   const corridors = React.useMemo(() => aggregateByCorridor(projects), [projects]);
   const totalRoutedProjects = React.useMemo(
     () => corridors.reduce((sum, c) => sum + c.count, 0),
@@ -48,14 +50,14 @@ export function CorridorConcentrationTile({
 
   const concentrationLabel =
     hhi < 0.15
-      ? "Çeşitli"
+      ? t("dash.tile.corridor.diverse")
       : hhi < 0.25
-        ? "Orta"
-        : "Yoğun";
+        ? t("dash.tile.corridor.moderate")
+        : t("dash.tile.corridor.heavy");
   return (
     <BentoTile
-      title="Koridor Konsantrasyonu"
-      subtitle="LP→DP yoğunluğu"
+      title={t("dash.tile.corridor.title")}
+      subtitle={t("dash.tile.corridor.subtitle")}
       icon={Route01Icon}
       iconTone={TONE_CORRIDOR}
       span={span}
@@ -65,7 +67,7 @@ export function CorridorConcentrationTile({
       <div className="flex flex-col gap-2 h-full">
         <div
           className="flex items-baseline gap-2"
-          title={`Herfindahl–Hirschman Index (HHI) — koridor konsantrasyonu. < 15: çeşitli (sağlıklı) · 15-25: orta · > 25: yoğun (tek koridora bağımlılık riski)`}
+          title={t("dash.tile.corridor.hhiTip")}
         >
           {/* HHI number tracks the sidebar accent. The secondary
               "Çeşitli / Orta / Yoğun" label keeps its status palette
@@ -101,7 +103,12 @@ export function CorridorConcentrationTile({
                 <div
                   key={`${c.loadingPort}-${c.dischargePort}`}
                   className="flex items-baseline justify-between gap-2 text-[10.5px] min-w-0"
-                  title={`#${idx + 1} koridor — ${c.loadingPort} → ${c.dischargePort}: ${c.count} proje · %${pct.toFixed(1)} pay`}
+                  title={t("dash.tile.corridor.rowTip")
+                    .replace("{rank}", String(idx + 1))
+                    .replace("{lp}", c.loadingPort)
+                    .replace("{dp}", c.dischargePort)
+                    .replace("{count}", String(c.count))
+                    .replace("{pct}", pct.toFixed(1))}
                 >
                   <span className="truncate min-w-0 flex-1">
                     <span
@@ -127,7 +134,7 @@ export function CorridorConcentrationTile({
           </div>
         ) : (
           <div className="mt-auto text-[10.5px] text-muted-foreground/70">
-            Rota verisi yok
+            {t("dash.tile.corridor.empty")}
           </div>
         )}
       </div>

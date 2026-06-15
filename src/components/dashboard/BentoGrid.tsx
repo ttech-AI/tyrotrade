@@ -10,6 +10,7 @@ import { CorridorConcentrationTile as CorridorConcentrationTileBase } from "./ti
 import { VelocityTile as VelocityTileBase } from "./tiles/VelocityTile";
 import { CounterpartyMixTile as CounterpartyMixTileBase } from "./tiles/CounterpartyMixTile";
 import type { KpiId } from "./KpiDetailDrawer";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type { Project } from "@/lib/dataverse/entities";
 
 // Module-level React.memo wrappers — re-render the tile only when its
@@ -57,6 +58,7 @@ const containerVariants: Variants = {
  */
 export function BentoGrid({ projects, now = new Date(), onSelectKpi }: BentoGridProps) {
   const reduceMotion = useReducedMotion();
+  const t = useT();
 
   // Stable click handlers — recreated only when `onSelectKpi` itself
   // changes. Each tile receives the SAME function reference across renders
@@ -83,7 +85,7 @@ export function BentoGrid({ projects, now = new Date(), onSelectKpi }: BentoGrid
       initial="hidden"
       animate="show"
       className="grid grid-cols-12 auto-rows-min gap-3"
-      aria-label="Yönetici özeti"
+      aria-label={t("dash.grid.aria")}
     >
       {/* Row 1 — Hero + headline P&L + tonnage */}
       <PeriodPerformanceTile

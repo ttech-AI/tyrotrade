@@ -11,6 +11,7 @@ import {
 import { BentoTile } from "../BentoTile";
 import { AnimatedNumber } from "../AnimatedNumber";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { TONE_FORECAST } from "@/components/details/AccentIconBadge";
 import { aggregateEstimatedPL } from "@/lib/selectors/aggregate";
 import {
@@ -52,6 +53,7 @@ export function PeriodPerformanceTile({
   onClick,
 }: PeriodPerformanceTileProps) {
   const accent = useThemeAccent();
+  const t = useT();
 
   const totalProjects = projects.length;
   const totalCargoValueUsd = React.useMemo(
@@ -102,8 +104,8 @@ export function PeriodPerformanceTile({
 
   return (
     <BentoTile
-      title="Dönem Performansı"
-      subtitle="Seçili dönem · finansal bakış"
+      title={t("dash.tile.period.title")}
+      subtitle={t("dash.tile.period.subtitle")}
       icon={ChartLineData01Icon}
       iconTone={TONE_FORECAST}
       span={span}
@@ -114,8 +116,8 @@ export function PeriodPerformanceTile({
         {/* 4-up KPI row */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           <KPI
-            label="Proje sayısı"
-            tooltip={`Filtrelenmiş dönemdeki toplam proje sayısı`}
+            label={t("dash.tile.period.projectCount")}
+            tooltip={t("dash.tile.period.projectCountTip")}
             value={
               <span className="text-[22px] font-semibold leading-none tracking-tight">
                 <AnimatedNumber value={totalProjects} preset="count" />
@@ -123,8 +125,8 @@ export function PeriodPerformanceTile({
             }
           />
           <KPI
-            label="Ürün değeri"
-            tooltip={`Toplam ürün değeri (USD) — Gemi Planı'ndaki "Ürün Bedeli" toplamı; ürün bedeli girilmemiş projelerde Σ (miktar × birim fiyat) ile tamamlanır.`}
+            label={t("dash.tile.period.productValue")}
+            tooltip={t("dash.tile.period.productValueTip")}
             value={
               <span className="text-[22px] font-semibold leading-none tracking-tight">
                 <AnimatedNumber
@@ -136,8 +138,11 @@ export function PeriodPerformanceTile({
             }
           />
           <KPI
-            label="Tahmini K&Z"
-            tooltip={`Net Kâr/Zarar — Satış − Alım − Gider. USD bazlı ${pl.contributingCount} proje.`}
+            label={t("dash.tile.period.estPL")}
+            tooltip={t("dash.tile.period.estPLTip").replace(
+              "{count}",
+              String(pl.contributingCount)
+            )}
             value={
               <span
                 className="text-[22px] font-semibold leading-none tracking-tight"
@@ -148,8 +153,8 @@ export function PeriodPerformanceTile({
             }
           />
           <KPI
-            label="Tahmini marj"
-            tooltip={`Marj % — K&Z / Satış × 100`}
+            label={t("dash.tile.period.estMargin")}
+            tooltip={t("dash.tile.period.estMarginTip")}
             value={
               <span
                 className="inline-flex items-center mt-0.5 px-1.5 py-0.5 rounded text-[12px] font-bold tabular-nums"
@@ -208,8 +213,16 @@ export function PeriodPerformanceTile({
                 // recharts' Formatter type widens `value` to `ValueType |
                 // undefined`. Coerce to number and return the [value, name]
                 // tuple it expects.
-                formatter={(v) => [`${Number(v ?? 0)} proje açıldı`, "Adet"]}
-                labelFormatter={(l) => `${l} ayı`}
+                formatter={(v) => [
+                  t("dash.tile.period.sparkOpened").replace(
+                    "{count}",
+                    String(Number(v ?? 0))
+                  ),
+                  t("dash.tile.period.sparkUnit"),
+                ]}
+                labelFormatter={(l) =>
+                  t("dash.tile.period.sparkMonth").replace("{month}", String(l))
+                }
               />
               <Area
                 type="monotone"

@@ -34,6 +34,7 @@ import {
   aggregateBySegment,
   type SegmentRollup,
 } from "@/lib/selectors/aggregate";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type { Project } from "@/lib/dataverse/entities";
 
 // Yan yana 2-kolon layout'a uygun cap — eskiden 10 satırlık liste
@@ -64,10 +65,12 @@ interface ChartRow {
 
 interface BoardConfig {
   key: BoardKey;
-  label: string;
+  /** i18n key for the tab label. */
+  labelKey: string;
   icon: typeof LaurelWreathFirst01Icon;
   iconColor: string;
-  emptyMessage: string;
+  /** i18n key for the empty-state message. */
+  emptyKey: string;
   build: (rollups: SegmentRollup[]) => ChartRow[];
   formatValue: (n: number, row: ChartRow) => string;
   formatTick: (n: number) => string;
@@ -76,10 +79,10 @@ interface BoardConfig {
 const BOARDS: BoardConfig[] = [
   {
     key: "top-sales",
-    label: "Satış Liderleri | Gerçekleşen",
+    labelKey: "dash.leaderboard.board.topSales",
     icon: LaurelWreathFirst01Icon,
     iconColor: "#e0ad3e",
-    emptyMessage: "Bu filtrede faturalı segment yok.",
+    emptyKey: "dash.leaderboard.segments.emptySales",
     build: (rollups) =>
       rollups
         .filter((r) => r.salesActualUsd > 0)
@@ -96,10 +99,10 @@ const BOARDS: BoardConfig[] = [
   },
   {
     key: "top-expense",
-    label: "El Yakanlar | Tahmini",
+    labelKey: "dash.leaderboard.board.topExpense",
     icon: Wallet01Icon,
     iconColor: "#f43f5e",
-    emptyMessage: "Bu filtrede gider tahmini olan segment yok.",
+    emptyKey: "dash.leaderboard.segments.emptyExpense",
     build: (rollups) =>
       rollups
         .filter((r) => r.expenseEstimateUsd > 0)
@@ -116,10 +119,10 @@ const BOARDS: BoardConfig[] = [
   },
   {
     key: "lowest-margin",
-    label: "En Düşük Marj | Tahmini",
+    labelKey: "dash.leaderboard.board.lowestMargin",
     icon: ChartDownIcon,
     iconColor: "#f43f5e",
-    emptyMessage: "Bu filtrede marj hesaplanabilir segment yok.",
+    emptyKey: "dash.leaderboard.segments.emptyMargin",
     build: (rollups) =>
       rollups
         .filter((r) => r.marginPct !== null && r.salesEstimateUsd > 0)
@@ -139,10 +142,10 @@ const BOARDS: BoardConfig[] = [
   },
   {
     key: "highest-margin",
-    label: "En Yüksek Marj | Tahmini",
+    labelKey: "dash.leaderboard.board.highestMargin",
     icon: ChartUpIcon,
     iconColor: "#10b981",
-    emptyMessage: "Bu filtrede marj hesaplanabilir segment yok.",
+    emptyKey: "dash.leaderboard.segments.emptyMargin",
     build: (rollups) =>
       rollups
         .filter((r) => r.marginPct !== null && r.salesEstimateUsd > 0)
@@ -162,9 +165,6 @@ const BOARDS: BoardConfig[] = [
   },
 ];
 
-const chartConfig: ChartConfig = {
-  value: { label: "Değer", color: "#6366f1" },
-};
 
 /* ─────────── Bar palette per board ─────────── */
 
@@ -315,8 +315,13 @@ function SegmentTick(props: {
 export function LeaderboardSegmentsPanel({
   projects,
 }: LeaderboardSegmentsPanelProps) {
+  const t = useT();
   const [board, setBoard] = React.useState<BoardKey>("top-sales");
   const config = BOARDS.find((b) => b.key === board) ?? BOARDS[0];
+
+  const chartConfig: ChartConfig = {
+    value: { label: t("dash.leaderboard.valueLabel"), color: "#6366f1" },
+  };
 
   const data: ChartRow[] = React.useMemo(() => {
     const rollups = aggregateBySegment(projects);
@@ -334,7 +339,7 @@ export function LeaderboardSegmentsPanel({
             className="shrink-0"
             style={{ color: "#6366f1" }}
           />
-          Kral Segmentler
+          {t("dash.leaderboard.segments.title")}
         </CardTitle>
         {/* Board selector */}
         <Tabs
@@ -356,7 +361,7 @@ export function LeaderboardSegmentsPanel({
                   style={{ color: b.iconColor }}
                   className="shrink-0"
                 />
-                <span className="truncate">{b.label}</span>
+                <span className="truncate">{t(b.labelKey)}</span>
               </TabsTrigger>
             ))}
           </TabsList>
@@ -365,7 +370,7 @@ export function LeaderboardSegmentsPanel({
       <CardContent>
         {data.length === 0 ? (
           <div className="py-12 text-center text-sm text-muted-foreground">
-            {config.emptyMessage}
+            {t(config.emptyKey)}
           </div>
         ) : (
           <ChartContainer
@@ -414,7 +419,7 @@ export function LeaderboardSegmentsPanel({
                       if (!row) return [String(value), ""];
                       return [
                         config.formatValue(Number(value), row),
-                        `${row.projectCount} proje`,
+                        `${row.projectCount} ${t("dash.leaderboard.projectsUnit")}`,
                       ];
                     }}
                   />

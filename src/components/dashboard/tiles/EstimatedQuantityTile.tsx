@@ -17,6 +17,7 @@ import {
   selectTotalTons,
 } from "@/lib/selectors/project";
 import { getFinancialYear } from "@/lib/dashboard/financialPeriod";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type { Project } from "@/lib/dataverse/entities";
 
 interface EstimatedQuantityTileProps {
@@ -103,6 +104,7 @@ export function EstimatedQuantityTile({
   rowSpan,
   onClick,
 }: EstimatedQuantityTileProps) {
+  const t = useT();
   const totalTons = React.useMemo(
     () => projects.reduce((sum, p) => sum + selectTotalTons(p), 0),
     [projects]
@@ -153,15 +155,15 @@ export function EstimatedQuantityTile({
   // colours come from the per-row `level` via the custom shape callback.
   const chartConfig: ChartConfig = {
     tons: {
-      label: "Tonaj",
+      label: t("dash.tile.qty.tonnage"),
       colors: { light: ["#f59e0b"], dark: ["#fbbf24"] },
     },
   };
 
   return (
     <BentoTile
-      title="Tahmini Miktar"
-      subtitle="Toplam tonaj · ay bazlı dağılım"
+      title={t("dash.tile.qty.title")}
+      subtitle={t("dash.tile.qty.subtitle")}
       icon={BalanceScaleIcon}
       iconTone={TONE_CARGO}
       span={span}
@@ -175,10 +177,10 @@ export function EstimatedQuantityTile({
         <div className="flex items-stretch gap-3 mb-2">
           <div
             className="flex flex-col gap-1 min-w-0"
-            title={`Toplam tahmini tonaj — Σ (line.quantityKg / 1000) tüm projelerde`}
+            title={t("dash.tile.qty.totalTip")}
           >
             <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-foreground/70">
-              Toplam
+              {t("dash.tile.qty.total")}
             </span>
             <span className="text-amber-700 text-[22px] font-bold leading-none tabular-nums">
               {totalFmt.value}
@@ -192,12 +194,15 @@ export function EstimatedQuantityTile({
             className="flex flex-col gap-1 min-w-0"
             title={
               peak.tons > 0
-                ? `Zirve ay — ${peak.month}: ${formatTonnage(peak.tons).value} ${formatTonnage(peak.tons).unit}`
-                : "Henüz tonaj verisi yok"
+                ? t("dash.tile.qty.peakTip")
+                    .replace("{month}", peak.month)
+                    .replace("{value}", formatTonnage(peak.tons).value)
+                    .replace("{unit}", formatTonnage(peak.tons).unit)
+                : t("dash.tile.qty.peakEmpty")
             }
           >
             <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-foreground/70">
-              Zirve
+              {t("dash.tile.qty.peak")}
             </span>
             <span className="text-amber-700 text-[22px] font-bold leading-none tracking-tight truncate">
               {peak.tons > 0 ? peak.month : "—"}
@@ -254,11 +259,13 @@ export function EstimatedQuantityTile({
                   marginBottom: 2,
                 }}
                 formatter={(v) => {
-                  const t = Number(v ?? 0);
-                  const fmt = formatTonnage(t);
-                  return [`${fmt.value} ${fmt.unit}`, "Tonaj"];
+                  const tonsVal = Number(v ?? 0);
+                  const fmt = formatTonnage(tonsVal);
+                  return [`${fmt.value} ${fmt.unit}`, t("dash.tile.qty.tonnage")];
                 }}
-                labelFormatter={(l) => `${l} ayı`}
+                labelFormatter={(l) =>
+                  t("dash.tile.qty.month").replace("{month}", String(l))
+                }
               />
               <Bar
                 dataKey="tons"
@@ -270,7 +277,7 @@ export function EstimatedQuantityTile({
           </ChartContainer>
         ) : (
           <div className="flex-1 grid place-items-center text-[10.5px] text-muted-foreground/70">
-            Veri yok
+            {t("dash.tile.qty.noData")}
           </div>
         )}
       </div>

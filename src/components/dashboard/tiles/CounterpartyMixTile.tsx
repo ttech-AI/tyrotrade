@@ -3,6 +3,7 @@ import { UserGroupIcon } from "@hugeicons/core-free-icons";
 import { BentoTile } from "../BentoTile";
 import { TONE_COUNTERPARTY } from "@/components/details/AccentIconBadge";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { aggregateCounterpartyMix } from "@/lib/selectors/aggregate";
 import type { Project } from "@/lib/dataverse/entities";
 
@@ -25,6 +26,7 @@ export function CounterpartyMixTile({
   onClick,
 }: CounterpartyMixTileProps) {
   const accent = useThemeAccent();
+  const t = useT();
   const mix = React.useMemo(
     () => aggregateCounterpartyMix(projects),
     [projects]
@@ -39,8 +41,8 @@ export function CounterpartyMixTile({
 
   return (
     <BentoTile
-      title="Karşı Taraf Dağılımı"
-      subtitle="Tedarikçi + alıcı konsantrasyonu"
+      title={t("dash.tile.counterparty.title")}
+      subtitle={t("dash.tile.counterparty.subtitle")}
       icon={UserGroupIcon}
       iconTone={TONE_COUNTERPARTY}
       span={span}
@@ -53,15 +55,19 @@ export function CounterpartyMixTile({
           className="flex flex-col gap-0.5 min-w-0"
           title={
             topSupplier
-              ? `En büyük tedarikçi — ${topSupplier.name}: ${topSupplier.count} proje (%${(supShare * 100).toFixed(1)}). HHI ${(mix.supplierHHI * 100).toFixed(0)} — < 15: çeşitli, 15-25: orta, > 25: yoğun.`
-              : "Tedarikçi verisi yok"
+              ? t("dash.tile.counterparty.supplierTip")
+                  .replace("{name}", topSupplier.name)
+                  .replace("{count}", String(topSupplier.count))
+                  .replace("{pct}", (supShare * 100).toFixed(1))
+                  .replace("{hhi}", (mix.supplierHHI * 100).toFixed(0))
+              : t("dash.tile.counterparty.supplierEmpty")
           }
         >
           <div
             className="text-[9.5px] uppercase tracking-wider font-semibold"
             style={{ color: accent.stops[2], opacity: 0.75 }}
           >
-            Tedarikçi
+            {t("dash.tile.counterparty.supplier")}
           </div>
           <div className="flex items-baseline justify-between gap-2 min-w-0">
             <span className="truncate font-semibold text-foreground/95">
@@ -75,8 +81,9 @@ export function CounterpartyMixTile({
             </span>
           </div>
           <div className="tabular-nums text-foreground/65 font-medium">
-            HHI {(mix.supplierHHI * 100).toFixed(0)} ·{" "}
-            {mix.suppliers.length} taraf
+            {t("dash.tile.counterparty.hhiParties")
+              .replace("{hhi}", (mix.supplierHHI * 100).toFixed(0))
+              .replace("{count}", String(mix.suppliers.length))}
           </div>
         </div>
 
@@ -87,15 +94,19 @@ export function CounterpartyMixTile({
           className="flex flex-col gap-0.5 min-w-0"
           title={
             topBuyer
-              ? `En büyük alıcı — ${topBuyer.name}: ${topBuyer.count} proje (%${(buyShare * 100).toFixed(1)}). HHI ${(mix.buyerHHI * 100).toFixed(0)} — < 15: çeşitli, 15-25: orta, > 25: yoğun.`
-              : "Alıcı verisi yok"
+              ? t("dash.tile.counterparty.buyerTip")
+                  .replace("{name}", topBuyer.name)
+                  .replace("{count}", String(topBuyer.count))
+                  .replace("{pct}", (buyShare * 100).toFixed(1))
+                  .replace("{hhi}", (mix.buyerHHI * 100).toFixed(0))
+              : t("dash.tile.counterparty.buyerEmpty")
           }
         >
           <div
             className="text-[9.5px] uppercase tracking-wider font-semibold"
             style={{ color: accent.stops[2], opacity: 0.75 }}
           >
-            Alıcı
+            {t("dash.tile.counterparty.buyer")}
           </div>
           <div className="flex items-baseline justify-between gap-2 min-w-0">
             <span className="truncate font-semibold text-foreground/95">
@@ -109,7 +120,9 @@ export function CounterpartyMixTile({
             </span>
           </div>
           <div className="tabular-nums text-foreground/65 font-medium">
-            HHI {(mix.buyerHHI * 100).toFixed(0)} · {mix.buyers.length} taraf
+            {t("dash.tile.counterparty.hhiParties")
+              .replace("{hhi}", (mix.buyerHHI * 100).toFixed(0))
+              .replace("{count}", String(mix.buyers.length))}
           </div>
         </div>
       </div>

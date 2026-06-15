@@ -36,6 +36,7 @@ import {
   topByExpense,
   topByMargin,
 } from "@/lib/selectors/aggregate";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type { Project } from "@/lib/dataverse/entities";
 
 // Dashboard 2-kolon layout'ta panel daha dar — 10 satır taşıyordu,
@@ -55,10 +56,12 @@ type BoardKey =
 
 interface BoardConfig {
   key: BoardKey;
-  label: string;
+  /** i18n key for the tab label — resolved via `t()` at render. */
+  labelKey: string;
   icon: typeof LaurelWreathFirst01Icon;
   iconColor: string;
-  emptyMessage: string;
+  /** i18n key for the empty-state message. */
+  emptyKey: string;
   /** Returns the top-N rows for this board, given a period-filtered set. */
   build: (filtered: Project[]) => ChartRow[];
   /** Tooltip & axis formatter for the bar value. */
@@ -86,10 +89,10 @@ interface ChartRow {
 const BOARDS: BoardConfig[] = [
   {
     key: "top-sales",
-    label: "Satış Liderleri | Gerçekleşen",
+    labelKey: "dash.leaderboard.board.topSales",
     icon: LaurelWreathFirst01Icon,
     iconColor: "#e0ad3e",
-    emptyMessage: "Bu dönemde faturalı satış yok.",
+    emptyKey: "dash.leaderboard.projects.emptySales",
     build: (filtered) =>
       topBySalesActual(filtered, TOP_N).map((p) => ({
         projectNo: p.projectNo,
@@ -105,10 +108,10 @@ const BOARDS: BoardConfig[] = [
   },
   {
     key: "top-expense",
-    label: "El Yakanlar | Tahmini",
+    labelKey: "dash.leaderboard.board.topExpense",
     icon: Wallet01Icon,
     iconColor: "#f43f5e",
-    emptyMessage: "Bu dönemde gider tahmini olan proje yok.",
+    emptyKey: "dash.leaderboard.projects.emptyExpense",
     build: (filtered) =>
       topByExpense(filtered, TOP_N).map((p) => ({
         projectNo: p.projectNo,
@@ -124,10 +127,10 @@ const BOARDS: BoardConfig[] = [
   },
   {
     key: "lowest-margin",
-    label: "En Düşük Marj | Tahmini",
+    labelKey: "dash.leaderboard.board.lowestMargin",
     icon: ChartDownIcon,
     iconColor: "#f43f5e",
-    emptyMessage: "Bu dönemde marj hesaplanabilir proje yok.",
+    emptyKey: "dash.leaderboard.projects.emptyMargin",
     build: (filtered) =>
       topByMargin(filtered, TOP_N, "asc").map((p) => ({
         projectNo: p.projectNo,
@@ -146,10 +149,10 @@ const BOARDS: BoardConfig[] = [
   },
   {
     key: "highest-margin",
-    label: "En Yüksek Marj | Tahmini",
+    labelKey: "dash.leaderboard.board.highestMargin",
     icon: ChartUpIcon,
     iconColor: "#10b981",
-    emptyMessage: "Bu dönemde marj hesaplanabilir proje yok.",
+    emptyKey: "dash.leaderboard.projects.emptyMargin",
     build: (filtered) =>
       topByMargin(filtered, TOP_N, "desc").map((p) => ({
         projectNo: p.projectNo,
@@ -168,9 +171,6 @@ const BOARDS: BoardConfig[] = [
   },
 ];
 
-const chartConfig: ChartConfig = {
-  value: { label: "Değer", color: "#3b82f6" },
-};
 
 /* ─────────── Bar ranks ─────────── */
 
@@ -373,9 +373,14 @@ function LeftAlignedTick(props: {
  */
 export function LeaderboardPanel({ projects }: LeaderboardPanelProps) {
   const navigate = useNavigate();
+  const t = useT();
   const [board, setBoard] = React.useState<BoardKey>("top-sales");
 
   const config = BOARDS.find((b) => b.key === board) ?? BOARDS[0];
+
+  const chartConfig: ChartConfig = {
+    value: { label: t("dash.leaderboard.valueLabel"), color: "#3b82f6" },
+  };
 
   const data: ChartRow[] = React.useMemo(
     () => config.build(projects),
@@ -398,7 +403,7 @@ export function LeaderboardPanel({ projects }: LeaderboardPanelProps) {
             className="shrink-0"
             style={{ color: "#e0ad3e" }}
           />
-          Kral Projeler
+          {t("dash.leaderboard.projects.title")}
         </CardTitle>
         {/* Board selector */}
         <Tabs
@@ -420,7 +425,7 @@ export function LeaderboardPanel({ projects }: LeaderboardPanelProps) {
                   style={{ color: b.iconColor }}
                   className="shrink-0"
                 />
-                <span className="truncate">{b.label}</span>
+                <span className="truncate">{t(b.labelKey)}</span>
               </TabsTrigger>
             ))}
           </TabsList>
@@ -429,7 +434,7 @@ export function LeaderboardPanel({ projects }: LeaderboardPanelProps) {
       <CardContent>
         {data.length === 0 ? (
           <div className="py-12 text-center text-sm text-muted-foreground">
-            {config.emptyMessage}
+            {t(config.emptyKey)}
           </div>
         ) : (
           <ChartContainer

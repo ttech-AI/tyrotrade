@@ -31,6 +31,7 @@ import {
 } from "@/lib/selectors/aggregate";
 import { toUsdAtDate } from "@/lib/finance/fxRates";
 import { formatCompactCurrency, formatTons } from "@/lib/format";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type { Project } from "@/lib/dataverse/entities";
 
 /**
@@ -95,6 +96,7 @@ export function ExpenseBreakdown({
   query,
   sortReversed,
 }: BreakdownProps) {
+  const t = useT();
   const rows = React.useMemo(() => {
     const out: Array<{
       project: Project;
@@ -128,7 +130,7 @@ export function ExpenseBreakdown({
   }, [projects, query, sortReversed]);
 
   if (rows.length === 0) {
-    return <KpiEmptyState message="Gider tahmini olan proje yok" />;
+    return <KpiEmptyState message={t("dash.bk.expense.empty")} />;
   }
 
   return (
@@ -136,8 +138,8 @@ export function ExpenseBreakdown({
       <KpiGroupHeader
         label={
           sortReversed
-            ? "Projeler · giderden küçüğe"
-            : "Projeler · giderden büyüğe"
+            ? t("dash.bk.expense.headerLow")
+            : t("dash.bk.expense.headerHigh")
         }
         count={rows.length}
         icon={Wallet01Icon}
@@ -224,6 +226,7 @@ export function PipelineBreakdown({
   onClose,
   query,
 }: BreakdownProps) {
+  const t = useT();
   const grouped = React.useMemo(() => {
     const m = new Map<string, Project[]>();
     for (const p of projects) {
@@ -245,7 +248,7 @@ export function PipelineBreakdown({
   }, [projects, query]);
 
   if (grouped.length === 0) {
-    return <KpiEmptyState message="Voyage durumu olan proje yok" />;
+    return <KpiEmptyState message={t("dash.bk.pipeline.empty")} />;
   }
 
   return (
@@ -291,6 +294,7 @@ export function CurrencyBreakdown({
   onClose,
   query,
 }: BreakdownProps) {
+  const t = useT();
   const grouped = React.useMemo(() => {
     const m = new Map<string, Project[]>();
     for (const p of projects) {
@@ -307,7 +311,7 @@ export function CurrencyBreakdown({
   }, [projects, query]);
 
   if (grouped.length === 0) {
-    return <KpiEmptyState message="Para birimi verisi yok" />;
+    return <KpiEmptyState message={t("dash.bk.currency.empty")} />;
   }
 
   return (
@@ -347,6 +351,7 @@ export function CorridorBreakdown({
   query,
   sortReversed,
 }: BreakdownProps) {
+  const t = useT();
   const filteredProjects = React.useMemo(
     () => projects.filter((p) => filterProject(p, query)),
     [projects, query]
@@ -370,7 +375,7 @@ export function CorridorBreakdown({
   }, [filteredProjects]);
 
   if (corridors.length === 0) {
-    return <KpiEmptyState message="Rota verisi olan proje yok" />;
+    return <KpiEmptyState message={t("dash.bk.corridor.empty")} />;
   }
 
   const ordered = maybeReverse(corridors.slice(0, 12), sortReversed);
@@ -422,6 +427,7 @@ export function VelocityBreakdown({
   sortReversed,
 }: BreakdownProps) {
   void now; // not needed — selectTransitDays is now-independent
+  const t = useT();
   const filteredProjects = React.useMemo(
     () => projects.filter((p) => filterProject(p, query)),
     [projects, query]
@@ -447,24 +453,23 @@ export function VelocityBreakdown({
   const avg = aggregateStats.avgDays;
 
   if (rows.length === 0) {
-    return (
-      <KpiEmptyState message="LP-ED + DP-ETA tarihleri olan proje yok" />
-    );
+    return <KpiEmptyState message={t("dash.bk.velocity.empty")} />;
   }
 
   return (
     <div className="flex flex-col">
       <KpiGroupHeader
-        label={
-          sortReversed
-            ? `En hızlıdan · ortalama ${avg} gün`
-            : `En yavaştan · ortalama ${avg} gün`
-        }
+        label={(sortReversed
+          ? t("dash.bk.velocity.headerFast")
+          : t("dash.bk.velocity.headerSlow")
+        ).replace("{avg}", String(avg))}
         count={rows.length}
         icon={Clock01Icon}
         valueChip={
           <span className="text-[10.5px] tabular-nums font-semibold text-foreground/85">
-            min {aggregateStats.minDays} · max {aggregateStats.maxDays}
+            {t("dash.bk.velocity.minMax")
+              .replace("{min}", String(aggregateStats.minDays))
+              .replace("{max}", String(aggregateStats.maxDays))}
           </span>
         }
       />
@@ -476,7 +481,7 @@ export function VelocityBreakdown({
             projectName={p.projectName}
             segment={p.segment ?? undefined}
             vesselName={p.vesselPlan?.vesselName}
-            metric={`${days} gün`}
+            metric={`${days} ${t("dash.bk.daysUnit")}`}
             metricColor={
               avg > 0 && days > avg * 1.3
                 ? "rgb(190 24 93)"
@@ -500,6 +505,7 @@ export function CounterpartyBreakdown({
   query,
   sortReversed,
 }: BreakdownProps) {
+  const t = useT();
   const [tab, setTab] = React.useState<"supplier" | "buyer">("supplier");
 
   const grouped = React.useMemo(() => {
@@ -523,14 +529,14 @@ export function CounterpartyBreakdown({
   return (
     <div className="flex flex-col gap-2">
       <div className="px-3 flex gap-1.5">
-        {(["supplier", "buyer"] as const).map((t) => (
+        {(["supplier", "buyer"] as const).map((tk) => (
           <button
-            key={t}
+            key={tk}
             type="button"
-            onClick={() => setTab(t)}
+            onClick={() => setTab(tk)}
             className="text-[11.5px] font-semibold px-3 py-1 rounded-full border transition-colors"
             style={
-              tab === t
+              tab === tk
                 ? {
                     backgroundColor: "var(--filter-active-bg)",
                     color: "var(--filter-active-fg)",
@@ -539,13 +545,19 @@ export function CounterpartyBreakdown({
                 : { borderColor: "rgba(15,23,42,0.15)", color: "rgb(71 85 105)" }
             }
           >
-            {t === "supplier" ? "Tedarikçi" : "Alıcı"}
+            {tk === "supplier"
+              ? t("dash.bk.counterparty.supplier")
+              : t("dash.bk.counterparty.buyer")}
           </button>
         ))}
       </div>
       {grouped.length === 0 ? (
         <KpiEmptyState
-          message={`${tab === "supplier" ? "Tedarikçi" : "Alıcı"} verisi yok`}
+          message={
+            tab === "supplier"
+              ? t("dash.bk.counterparty.supplierEmpty")
+              : t("dash.bk.counterparty.buyerEmpty")
+          }
         />
       ) : (
         grouped.map((g) => (
@@ -583,6 +595,7 @@ export function PeriodPerformanceBreakdown({
   query,
   sortReversed,
 }: BreakdownProps) {
+  const t = useT();
   const rows = React.useMemo(() => {
     const list = projects
       .filter((p) => filterProject(p, query))
@@ -591,15 +604,15 @@ export function PeriodPerformanceBreakdown({
     return maybeReverse(list, sortReversed);
   }, [projects, query, sortReversed]);
 
-  if (rows.length === 0) return <KpiEmptyState message="Proje yok" />;
+  if (rows.length === 0) return <KpiEmptyState message={t("dash.bk.period.empty")} />;
 
   return (
     <div className="flex flex-col">
       <KpiGroupHeader
         label={
           sortReversed
-            ? "Tüm projeler · düşük değerden"
-            : "Tüm projeler · yüksek değerden"
+            ? t("dash.bk.period.headerLow")
+            : t("dash.bk.period.headerHigh")
         }
         count={rows.length}
         icon={ChartLineData01Icon}
@@ -629,6 +642,7 @@ export function EstimatedPLBreakdown({
   query,
   sortReversed,
 }: BreakdownProps) {
+  const t = useT();
   const rows = React.useMemo(() => {
     const list = projects
       .filter((p) => filterProject(p, query))
@@ -652,15 +666,15 @@ export function EstimatedPLBreakdown({
   }, [projects, query, sortReversed]);
 
   if (rows.length === 0)
-    return <KpiEmptyState message="K&Z hesaplanabilir proje yok" />;
+    return <KpiEmptyState message={t("dash.bk.pl.empty")} />;
 
   return (
     <div className="flex flex-col">
       <KpiGroupHeader
         label={
           sortReversed
-            ? "Projeler · zarardan kâra"
-            : "Projeler · kârdan zarara"
+            ? t("dash.bk.pl.headerLow")
+            : t("dash.bk.pl.headerHigh")
         }
         count={rows.length}
         icon={Coins02Icon}
@@ -702,6 +716,7 @@ export function QuantityBreakdown({
   query,
   sortReversed,
 }: BreakdownProps) {
+  const t = useT();
   const rows = React.useMemo(() => {
     const list = projects
       .filter((p) => filterProject(p, query))
@@ -716,15 +731,15 @@ export function QuantityBreakdown({
     return maybeReverse(list, sortReversed);
   }, [projects, query, sortReversed]);
 
-  if (rows.length === 0) return <KpiEmptyState message="Tonaj verisi yok" />;
+  if (rows.length === 0) return <KpiEmptyState message={t("dash.bk.quantity.empty")} />;
 
   return (
     <div className="flex flex-col">
       <KpiGroupHeader
         label={
           sortReversed
-            ? "Projeler · az tonajdan çoka"
-            : "Projeler · çok tonajdan aza"
+            ? t("dash.bk.quantity.headerLow")
+            : t("dash.bk.quantity.headerHigh")
         }
         count={rows.length}
         icon={BalanceScaleIcon}

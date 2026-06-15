@@ -3,6 +3,7 @@ import { MoneyExchange01Icon } from "@hugeicons/core-free-icons";
 import { BentoTile } from "../BentoTile";
 import { TONE_CURRENCY } from "@/components/details/AccentIconBadge";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import {
   aggregateCurrencyExposure,
   type CurrencyCode,
@@ -44,6 +45,7 @@ export function CurrencyExposureTile({
   onClick,
 }: CurrencyExposureTileProps) {
   const accent = useThemeAccent();
+  const t = useT();
   const exposure = React.useMemo(
     () => aggregateCurrencyExposure(projects),
     [projects]
@@ -60,8 +62,8 @@ export function CurrencyExposureTile({
 
   return (
     <BentoTile
-      title="Para Birimi Maruziyeti"
-      subtitle="FX riski yoğunluğu"
+      title={t("dash.tile.currency.title")}
+      subtitle={t("dash.tile.currency.subtitle")}
       icon={MoneyExchange01Icon}
       iconTone={TONE_CURRENCY}
       span={span}
@@ -72,7 +74,13 @@ export function CurrencyExposureTile({
         {/* Dominant currency callout */}
         <div
           className="flex items-baseline gap-2"
-          title={`Baskın para birimi — ${exposure.dominant}: ${exposure.byCurrency[exposure.dominant].count} proje (%${(dominantShare * 100).toFixed(1)}). Tek para birimine bağımlılık ne kadar yüksekse FX riski o kadar artar.`}
+          title={t("dash.tile.currency.dominantTip")
+            .replace("{currency}", exposure.dominant)
+            .replace(
+              "{count}",
+              String(exposure.byCurrency[exposure.dominant].count)
+            )
+            .replace("{pct}", (dominantShare * 100).toFixed(1))}
         >
           {/* Dominant code reads in the live sidebar accent so the
               tile's primary number tracks light/navy/black themes.
@@ -89,7 +97,7 @@ export function CurrencyExposureTile({
             className="text-[11px] font-medium"
             style={{ color: accent.stops[2], opacity: 0.75 }}
           >
-            {(dominantShare * 100).toFixed(0)}% dominant
+            {(dominantShare * 100).toFixed(0)}% {t("dash.tile.currency.dominant")}
           </span>
         </div>
 
@@ -106,7 +114,10 @@ export function CurrencyExposureTile({
               <div
                 key={c}
                 className="min-w-0"
-                title={`${c} — ${cnt} proje · %${pct.toFixed(1)} pay`}
+                title={t("dash.tile.currency.barTip")
+                  .replace("{currency}", c)
+                  .replace("{count}", String(cnt))
+                  .replace("{pct}", pct.toFixed(1))}
               >
                 <div className="flex items-baseline justify-between gap-2 text-[10.5px] mb-0.5">
                   <span
@@ -116,7 +127,9 @@ export function CurrencyExposureTile({
                     {c}
                   </span>
                   <span className="tabular-nums font-medium text-foreground/70">
-                    {cnt} proje · {pct.toFixed(0)}%
+                    {t("dash.tile.currency.projectsPct")
+                      .replace("{count}", String(cnt))
+                      .replace("{pct}", pct.toFixed(0))}
                   </span>
                 </div>
                 <div
@@ -146,8 +159,10 @@ export function CurrencyExposureTile({
         {/* Concentration warning when HHI is high */}
         {dominantShare > 0.7 && (
           <div className="text-[9.5px] text-amber-700 italic mt-1">
-            Yoğunlaşma yüksek — {(dominantShare * 100).toFixed(0)}% tek para
-            birimi
+            {t("dash.tile.currency.concentrationWarn").replace(
+              "{pct}",
+              (dominantShare * 100).toFixed(0)
+            )}
           </div>
         )}
       </div>

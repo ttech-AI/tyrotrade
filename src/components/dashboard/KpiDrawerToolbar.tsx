@@ -7,6 +7,7 @@ import {
   Sorting02Icon,
 } from "@hugeicons/core-free-icons";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
 
 /* ─────────── Sort spec ─────────── */
@@ -54,11 +55,13 @@ export function KpiDrawerToolbar({
   totalCount,
   sort,
   segmentSlot,
-  placeholder = "Proje, gemi, segment...",
+  placeholder,
   className,
 }: KpiDrawerToolbarProps) {
   const accent = useThemeAccent();
+  const t = useT();
   const isReversed = sort?.value === "reverse";
+  const resolvedPlaceholder = placeholder ?? t("dash.toolbar.searchPlaceholder");
   return (
     <div
       className={cn(
@@ -84,8 +87,8 @@ export function KpiDrawerToolbar({
             type="text"
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
-            placeholder={placeholder}
-            aria-label="Drawer içinde ara"
+            placeholder={resolvedPlaceholder}
+            aria-label={t("dash.toolbar.searchAria")}
             className={cn(
               "w-full h-8 pl-8 pr-7 rounded-full text-[12.5px] outline-none",
               "bg-white/70",
@@ -101,7 +104,7 @@ export function KpiDrawerToolbar({
             <button
               type="button"
               onClick={() => onQueryChange("")}
-              aria-label="Aramayı temizle"
+              aria-label={t("dash.toolbar.clearSearch")}
               className="absolute right-2 top-1/2 -translate-y-1/2 size-5 grid place-items-center rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/[0.06] z-[1]"
             >
               <HugeiconsIcon icon={Cancel01Icon} size={11} strokeWidth={2.5} />
@@ -150,7 +153,7 @@ export function KpiDrawerToolbar({
             ? isReversed
               ? sort.reverseLabel
               : sort.defaultLabel
-            : "Doğal sırada"}
+            : t("dash.toolbar.naturalOrder")}
         </span>
         <span className="text-[10.5px] tabular-nums font-semibold text-foreground/75 shrink-0">
           <span className="text-foreground">{resultCount}</span>
