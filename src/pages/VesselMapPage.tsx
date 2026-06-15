@@ -136,14 +136,15 @@ export function VesselMapPage() {
         )}
       </div>
 
-      {/* Stale list — vessels whose last AIS report is older than a month.
-          Excluded from the map (position can't be trusted) but listed here
-          with their age so the operator knows they exist. */}
+      {/* Stale list — vessels whose last AIS report is older than the
+          MAX_POSITION_AGE_DAYS threshold (3 days). Excluded from the map
+          (position can't be trusted) but listed here with their age so the
+          operator knows they exist. */}
       {staleCount > 0 && status === "done" && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
           <div className="mb-1 flex items-center gap-2 text-sm font-medium text-amber-700">
             <Clock className="size-4" />
-            Konumu 1 aydan eski gemiler (haritada gösterilmiyor)
+            Konumu 3 günden eski gemiler (haritada gösterilmiyor)
           </div>
           <ul className="space-y-0.5 text-xs text-muted-foreground">
             {staleList.map((p) => {
