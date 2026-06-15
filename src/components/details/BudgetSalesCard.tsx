@@ -26,6 +26,7 @@ import { useProjectInvoices } from "@/hooks/useProjectInvoices";
 import { useProjectExpenseLines } from "@/hooks/useProjectExpenseLines";
 import { useProjectPurchases } from "@/hooks/useProjectPurchases";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type { Project } from "@/lib/dataverse/entities";
 
 interface Props {
@@ -66,6 +67,7 @@ interface Props {
  * Hides itself entirely when every figure is zero.
  */
 export function BudgetSalesCard({ project }: Props) {
+  const t = useT();
   const lines = project.lines ?? [];
   const lineCurrency = lines[0]?.currency ?? project.currency ?? "USD";
   const [open, setOpen] = React.useState(false);
@@ -372,10 +374,10 @@ export function BudgetSalesCard({ project }: Props) {
           </AccentIconBadge>
           <div className="min-w-0 flex-1">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Gerçekleşen Kâr &amp; Zarar
+              {t("proj.budget.eyebrow")}
             </div>
             <div className="text-[13px] font-semibold leading-snug text-foreground/85">
-              Realized P&amp;L
+              {t("proj.budget.title")}
             </div>
           </div>
           <ChevronDown
@@ -390,11 +392,11 @@ export function BudgetSalesCard({ project }: Props) {
           {open && (
             <>
               {/* ─── Satış ─── */}
-              <SectionHeader>Satış</SectionHeader>
+              <SectionHeader>{t("proj.budget.sectionSales")}</SectionHeader>
               <ExpandableRow
-                label="Tahmini Satış"
+                label={t("proj.budget.estimatedSales")}
                 count={tahminiSalesLines.length}
-                countLabel="satış kalemi"
+                countLabel={t("proj.budget.salesItemUnit")}
                 value={`+${formatCurrency(tahminiSatisUsd, "USD")}`}
                 sign="positive"
                 disabled={tahminiSalesLines.length === 0}
@@ -411,9 +413,9 @@ export function BudgetSalesCard({ project }: Props) {
                 ))}
               </ExpandableRow>
               <ExpandableRow
-                label="Gerçekleşen Satış"
+                label={t("proj.budget.realizedSales")}
                 count={gerceklesenSalesLines.length}
-                countLabel="fatura kalemi"
+                countLabel={t("proj.budget.invoiceItemUnit")}
                 value={`+${formatCurrency(gerceklesenSatisUsd, "USD")}`}
                 sign="positive"
                 disabled={gerceklesenSalesLines.length === 0}
@@ -432,11 +434,11 @@ export function BudgetSalesCard({ project }: Props) {
               </ExpandableRow>
 
               {/* ─── Alım ─── */}
-              <SectionHeader>Alım</SectionHeader>
+              <SectionHeader>{t("proj.budget.sectionPurchase")}</SectionHeader>
               <ExpandableRow
-                label="Tahmini Alım"
+                label={t("proj.budget.estimatedPurchase")}
                 count={tahminiPurchaseLines.length}
-                countLabel="alım kalemi"
+                countLabel={t("proj.budget.purchaseItemUnit")}
                 value={`-${formatCurrency(tahminiAlimUsd, "USD")}`}
                 sign="negative"
                 disabled={tahminiPurchaseLines.length === 0}
@@ -453,9 +455,9 @@ export function BudgetSalesCard({ project }: Props) {
                 ))}
               </ExpandableRow>
               <ExpandableRow
-                label="Gerçekleşen Alım"
+                label={t("proj.budget.realizedPurchase")}
                 count={gerceklesenPurchaseLines.length}
-                countLabel="tedarikçi faturası"
+                countLabel={t("proj.budget.supplierInvoiceUnit")}
                 value={`-${formatCurrency(gerceklesenAlimUsd, "USD")}`}
                 sign="negative"
                 disabled={gerceklesenPurchaseLines.length === 0}
@@ -474,11 +476,11 @@ export function BudgetSalesCard({ project }: Props) {
               </ExpandableRow>
 
               {/* ─── Gider ─── */}
-              <SectionHeader>Gider</SectionHeader>
+              <SectionHeader>{t("proj.budget.sectionExpense")}</SectionHeader>
               <ExpandableRow
-                label="Tahmini Gider"
+                label={t("proj.budget.estimatedExpense")}
                 count={tahminiExpenseLines.length}
-                countLabel="gider kalemi"
+                countLabel={t("proj.budget.expenseItemUnit")}
                 value={`-${formatCurrency(tahminiGiderUsd, "USD")}`}
                 sign="negative"
                 disabled={tahminiExpenseLines.length === 0}
@@ -495,9 +497,9 @@ export function BudgetSalesCard({ project }: Props) {
                 ))}
               </ExpandableRow>
               <ExpandableRow
-                label="Gerçekleşen Gider"
+                label={t("proj.budget.realizedExpense")}
                 count={gerceklesenExpenseLines.length}
-                countLabel="masraf kaydı"
+                countLabel={t("proj.budget.expenseRecordUnit")}
                 // Net-credit (reflections > costs) flips the sign
                 // colour so the header reads "+$X" green instead
                 // of "−$-X" garbled.
@@ -513,9 +515,9 @@ export function BudgetSalesCard({ project }: Props) {
                     code={l.label}
                     sub={
                       l.expenseId
-                        ? `Masraf Kalemi: ${l.expenseId}${l.isReflection ? " · Yansıtma" : ""}`
+                        ? `${t("proj.budget.expenseItemLabel")}: ${l.expenseId}${l.isReflection ? ` · ${t("proj.budget.reflection")}` : ""}`
                         : l.expensenum
-                          ? `Masraf No: ${l.expensenum}${l.isReflection ? " · Yansıtma" : ""}`
+                          ? `${t("proj.budget.expenseNoLabel")}: ${l.expensenum}${l.isReflection ? ` · ${t("proj.budget.reflection")}` : ""}`
                           : ""
                     }
                     // Reflection rows (Customer-side, negative
@@ -535,15 +537,15 @@ export function BudgetSalesCard({ project }: Props) {
               Tahmini's margin pill is muted (always grey) so the
               realised K&Z row below it carries the headline colour. */}
           <KZFooterRow
-            label="Tahmini Kâr / Zarar"
-            marginLabel="Tahmini marj"
+            label={t("proj.budget.estimatedPL")}
+            marginLabel={t("proj.budget.estimatedMargin")}
             value={tahminiKZ}
             marginPct={tahminiMargin}
             muted
           />
           <KZFooterRow
-            label="Gerçekleşen Kâr / Zarar"
-            marginLabel="Gerçekleşen marj"
+            label={t("proj.budget.realizedPL")}
+            marginLabel={t("proj.budget.realizedMargin")}
             value={gerceklesenKZ}
             marginPct={gerceklesenMargin}
             loading={realizedFetching}
@@ -590,6 +592,7 @@ function VarianceFooter({
   tahmini: number;
   gerceklesen: number;
 }) {
+  const t = useT();
   const delta = gerceklesen - tahmini;
   // Percent deviation against the magnitude of the forecast — gives
   // a stable "X% above/below plan" reading even when forecast is
@@ -621,11 +624,13 @@ function VarianceFooter({
       <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 px-3 py-2.5 bg-foreground/[0.06] items-baseline border-t border-border/40">
         <div className="min-w-0">
           <div className="text-[10.5px] uppercase tracking-wider font-semibold text-muted-foreground">
-            Δ Sapma
+            {t("proj.budget.deltaVariance")}
           </div>
           {deltaPct != null && (
             <div className="text-[10.5px] text-muted-foreground/80 mt-0.5">
-              Tahminin {deltaPct >= 0 ? "üstünde" : "altında"}
+              {deltaPct >= 0
+                ? t("proj.budget.aboveEstimate")
+                : t("proj.budget.belowEstimate")}
             </div>
           )}
         </div>

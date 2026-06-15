@@ -14,6 +14,7 @@ import { AccentIconBadge, TONE_SEA, TONE_ROAD } from "./AccentIconBadge";
 import { formatDate } from "@/lib/format";
 import { isSea, type Project } from "@/lib/dataverse/entities";
 import { selectHeroImage } from "@/lib/routing/heroImages";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
 interface Props {
   project: Project;
@@ -47,6 +48,7 @@ function heroStatusClass(status: string): string {
 }
 
 export function ProjectOverviewCard({ project }: Props) {
+  const t = useT();
   const sea = isSea(project);
   const Icon = sea ? Ship : Truck;
   const vp = project.vesselPlan;
@@ -80,10 +82,10 @@ export function ProjectOverviewCard({ project }: Props) {
         {vp && (
           <span
             className="absolute top-2.5 right-2.5 shrink-0 inline-flex items-center gap-1 h-6 px-2 rounded-full bg-black/35 backdrop-blur-md text-[10.5px] font-medium tracking-tight border border-white/25 text-white shadow-sm"
-            title={`${vp.voyageType ? `${vp.voyageType} ` : ""}Sefer ${vp.voyage}`}
+            title={`${vp.voyageType ? `${vp.voyageType} ` : ""}${t("proj.overview.voyage")} ${vp.voyage}`}
           >
             <span className="uppercase tracking-wider text-white/80">
-              {vp.voyageType ? `${vp.voyageType} Sefer` : "Sefer"}
+              {vp.voyageType ? `${vp.voyageType} ${t("proj.overview.voyage")}` : t("proj.overview.voyage")}
             </span>
             <span aria-hidden className="text-white/55">
               •
@@ -103,7 +105,7 @@ export function ProjectOverviewCard({ project }: Props) {
           </AccentIconBadge>
           <div className="min-w-0 flex-1">
             <div className="text-[10px] uppercase tracking-wider text-white/75">
-              {sea ? "Vessel" : "Vehicle"}
+              {sea ? t("proj.overview.vessel") : t("proj.overview.vehicle")}
             </div>
             <div className="text-base font-semibold leading-tight truncate">
               {vesselName}
@@ -134,7 +136,7 @@ export function ProjectOverviewCard({ project }: Props) {
               {project.organic && (
                 <span className="inline-flex items-center gap-0.5 text-[9px] uppercase tracking-wide text-emerald-700 bg-emerald-500/10 px-1.5 py-0.5 rounded">
                   <Leaf className="size-2.5" />
-                  Organic
+                  {t("proj.overview.organic")}
                 </span>
               )}
             </div>
@@ -150,26 +152,26 @@ export function ProjectOverviewCard({ project }: Props) {
             divider between groups keeps the card scannable without
             adding vertical bulk. */}
         <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11px]">
-          <Row icon={<User />} label="Trader" value={project.traderNo} />
+          <Row icon={<User />} label={t("proj.overview.trader")} value={project.traderNo} />
           <Row
             icon={<Calendar />}
-            label="Proje / Operasyon Tarihi"
+            label={t("proj.overview.projectOperationDate")}
             value={formatProjectDates(project)}
           />
           <Row
             icon={<Building2 />}
-            label="Tedarikçi"
+            label={t("proj.overview.supplier")}
             value={vp?.supplier ?? "—"}
           />
           <Row
             icon={<Building2 />}
-            label="Müşteri"
+            label={t("proj.overview.buyer")}
             value={vp?.buyer ?? "—"}
           />
-          <Row icon={<FileText />} label="Grup" value={project.projectGroup} />
+          <Row icon={<FileText />} label={t("proj.overview.group")} value={project.projectGroup} />
           <Row
             icon={<Globe2 />}
-            label="Segment"
+            label={t("proj.overview.segment")}
             value={project.segment ?? "—"}
           />
         </div>
@@ -184,7 +186,7 @@ export function ProjectOverviewCard({ project }: Props) {
         {vp?.operationStatus && (
           <div className="mt-3 px-3 py-2 rounded-xl bg-emerald-500/8 border border-emerald-500/20">
             <div className="text-[9px] uppercase tracking-wider text-emerald-700 mb-0.5">
-              Operasyon Durumu
+              {t("proj.overview.operationStatus")}
             </div>
             <div className="text-[12px] text-foreground font-medium leading-snug">
               {vp.operationStatus}
@@ -195,7 +197,7 @@ export function ProjectOverviewCard({ project }: Props) {
         {vp?.description && (
           <div className="mt-2 px-3 py-2 rounded-xl bg-sky-500/8 border border-sky-500/20">
             <div className="text-[9px] uppercase tracking-wider text-sky-700 mb-0.5">
-              Önemli Not
+              {t("proj.overview.importantNote")}
             </div>
             <div className="text-[12px] text-foreground leading-snug whitespace-pre-wrap">
               {vp.description}
@@ -208,7 +210,7 @@ export function ProjectOverviewCard({ project }: Props) {
         {vp?.paymentStatus && (
           <div className="mt-2 px-3 py-2 rounded-xl bg-violet-500/8 border border-violet-500/20">
             <div className="text-[9px] uppercase tracking-wider text-violet-700 mb-0.5">
-              Ödeme Durumu
+              {t("proj.overview.paymentStatus")}
             </div>
             <div className="text-[12px] text-foreground font-medium leading-snug">
               {vp.paymentStatus}
@@ -237,16 +239,17 @@ function ContractStrip({
   paymentTerm?: string | null;
   paymentSchedule?: string | null;
 }) {
+  const t = useT();
   const items: { label: string; value: string }[] = [];
-  if (companyId) items.push({ label: "Şirket", value: companyId });
-  if (deliveryTerm) items.push({ label: "Teslimat", value: deliveryTerm });
+  if (companyId) items.push({ label: t("proj.overview.company"), value: companyId });
+  if (deliveryTerm) items.push({ label: t("proj.overview.delivery"), value: deliveryTerm });
   // Payment combines term + schedule under one "Ödeme" label so the strip
   // doesn't repeat the word: "ÖDEME CAD – 30/60/90".
   const paymentParts = [paymentTerm, paymentSchedule].filter(
     (p): p is string => !!p && p.trim().length > 0
   );
   if (paymentParts.length > 0)
-    items.push({ label: "Ödeme", value: paymentParts.join(" – ") });
+    items.push({ label: t("proj.overview.payment"), value: paymentParts.join(" – ") });
   if (items.length === 0) return null;
   return (
     <div className="mt-2 pt-2 border-t border-border/40 flex items-baseline gap-x-2 flex-nowrap whitespace-nowrap overflow-hidden text-[10px]">
@@ -278,16 +281,17 @@ function DemurrageNotes({
 }: {
   notes: NonNullable<Project["vesselPlan"]>["demurrage"];
 }) {
+  const t = useT();
   if (!notes) return null;
   const items: { label: string; value: string }[] = [];
   if (notes.loadingDescription)
     items.push({
-      label: "Yükleme limanı",
+      label: t("proj.overview.demurrageLoadingPort"),
       value: notes.loadingDescription,
     });
   if (notes.dischargeDescription)
     items.push({
-      label: "Tahliye limanı",
+      label: t("proj.overview.demurrageDischargePort"),
       value: notes.dischargeDescription,
     });
   if (items.length === 0) return null;
@@ -295,7 +299,7 @@ function DemurrageNotes({
   return (
     <div className="mt-2 px-3 py-2 rounded-xl bg-amber-500/8 border border-amber-500/20">
       <div className="text-[9px] uppercase tracking-wider text-amber-700 mb-1">
-        Demuraj Notları
+        {t("proj.overview.demurrageNotes")}
       </div>
       <ul className="space-y-1 text-[12px] leading-snug">
         {items.map((item) => (

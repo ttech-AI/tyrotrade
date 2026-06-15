@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 import { formatCompactCurrency, formatCurrency, formatNumber } from "@/lib/format";
 import { useProjectInvoices } from "@/hooks/useProjectInvoices";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type { Project } from "@/lib/dataverse/entities";
 
 interface Props {
@@ -39,6 +40,7 @@ const FREIGHT_EXPENSE_CODES = ["730026", "721024"] as const;
  * by invoice-period rollups.
  */
 export function CommoditySalesCard({ project }: Props) {
+  const t = useT();
   // Estimated stats sourced directly from the F&O Gemi Planı:
   //   Tahmini Miktar  ← mserp_cargoquantity      (vesselPlan.voyageTotalTonnage)
   //   Tahmini Bedel   ← mserp_netfreightamount   (vesselPlan.netFreightAmount)
@@ -126,7 +128,7 @@ export function CommoditySalesCard({ project }: Props) {
           </AccentIconBadge>
           <div className="min-w-0 flex-1">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Taşınan Ürün
+              {t("proj.commodity.product")}
             </div>
             <TooltipProvider delayDuration={200}>
               <Tooltip>
@@ -144,7 +146,7 @@ export function CommoditySalesCard({ project }: Props) {
                   {invoiceItems && invoiceItems.length > 0 ? (
                     <div className="px-3 py-2.5">
                       <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
-                        Faturalı kalemler · {invoiceItems.length}
+                        {t("proj.commodity.invoicedItems")} · {invoiceItems.length}
                       </div>
                       <div className="space-y-1">
                         {invoiceItems.slice(0, 8).map((item) => (
@@ -165,7 +167,7 @@ export function CommoditySalesCard({ project }: Props) {
                         ))}
                         {invoiceItems.length > 8 && (
                           <div className="text-[10px] text-muted-foreground italic pt-1">
-                            +{invoiceItems.length - 8} kalem daha
+                            +{invoiceItems.length - 8} {t("proj.commodity.moreItems")}
                           </div>
                         )}
                       </div>
@@ -187,18 +189,18 @@ export function CommoditySalesCard({ project }: Props) {
             Navlun/Miktar. Dört kutu dar panele 2×2 yerleşir. */}
         <div className="flex items-center gap-2 mb-2">
           <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground shrink-0">
-            Tahmini
+            {t("proj.commodity.estimated")}
           </span>
           <span className="flex-1 h-px bg-border/50" aria-hidden />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <CompactStat
-            label="Miktar"
+            label={t("proj.commodity.quantity")}
             value={`${formatNumber(estimatedTons, 0)} t`}
-            title={`${formatNumber(estimatedTons, 2)} ton`}
+            title={`${formatNumber(estimatedTons, 2)} ${t("proj.commodity.tonSuffix")}`}
           />
           <CompactStat
-            label="Ürün Bedeli"
+            label={t("proj.commodity.productValue")}
             // formatCompactCurrency already returns a string with the
             // currency symbol baked in (e.g. "$13,9 Mn"). With the icon
             // prefix this would duplicate the mark, so strip non-digit
@@ -210,7 +212,7 @@ export function CommoditySalesCard({ project }: Props) {
             icon={<CurrencyIcon currency={valueCurrency} />}
           />
           <CompactStat
-            label="Bedel/Miktar"
+            label={t("proj.commodity.valuePerQty")}
             value={
               estimatedPricePerTon > 0
                 ? `${formatNumber(estimatedPricePerTon, 0)} / t`
@@ -218,7 +220,7 @@ export function CommoditySalesCard({ project }: Props) {
             }
             title={
               estimatedPricePerTon > 0
-                ? `${formatCurrency(estimatedPricePerTon, valueCurrency)} / ton`
+                ? `${formatCurrency(estimatedPricePerTon, valueCurrency)} / ${t("proj.commodity.tonSuffix")}`
                 : undefined
             }
             icon={
@@ -228,7 +230,7 @@ export function CommoditySalesCard({ project }: Props) {
             }
           />
           <CompactStat
-            label="Navlun/Miktar"
+            label={t("proj.commodity.freightPerQty")}
             // Tahmini giderdeki 730026 (Navlun) satırının birim fiyatı —
             // expamountusdd USD cinsinden olduğu için para birimi sabit USD.
             value={
@@ -238,8 +240,8 @@ export function CommoditySalesCard({ project }: Props) {
             }
             title={
               freightUnitPriceUsd > 0
-                ? `${formatCurrency(freightUnitPriceUsd, "USD")} / ton · Navlun (${freightLine?.code ?? ""})`
-                : "Tahmini giderde Navlun satırı (730026 / 721024) yok"
+                ? `${formatCurrency(freightUnitPriceUsd, "USD")} / ${t("proj.commodity.tonSuffix")} · ${t("proj.commodity.freightTitleSuffix")} (${freightLine?.code ?? ""})`
+                : t("proj.commodity.noFreightLine")
             }
             icon={
               freightUnitPriceUsd > 0 ? (
@@ -308,6 +310,7 @@ function stripCurrencyMark(formatted: string): string {
  *  glyphs for $/€ and the Unicode TL symbol for TRY (no native icon).
  *  Sized to match the value text so the stat reads as a single unit. */
 function CurrencyIcon({ currency }: { currency: string }) {
+  const t = useT();
   const cls = "size-3";
   switch (currency.toUpperCase()) {
     case "USD":
@@ -319,7 +322,7 @@ function CurrencyIcon({ currency }: { currency: string }) {
       return (
         <span
           className="text-[13px] font-bold leading-none"
-          aria-label="Türk Lirası"
+          aria-label={t("proj.commodity.turkishLira")}
         >
           ₺
         </span>

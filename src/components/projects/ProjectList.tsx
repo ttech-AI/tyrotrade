@@ -8,6 +8,7 @@ import { ProjectCard } from "./ProjectCard";
 import { ProjectQuickAsk } from "./ProjectQuickAsk";
 import type { Project } from "@/lib/dataverse/entities";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
 
 /** Width-toggle easing for the search ↔ segment expand/collapse. Short
@@ -56,6 +57,7 @@ export function ProjectList({
   segmentSelectedCount,
 }: ProjectListProps) {
   const accent = useThemeAccent();
+  const t = useT();
   const [query, setQuery] = React.useState("");
   // Which of the two quick-fields is expanded. Default "segment" — it's
   // the primary slice for the weekly per-team triage; search starts as
@@ -121,7 +123,7 @@ export function ProjectList({
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Proje, gemi, liman, tedarikçi..."
+        placeholder={t("proj.list.searchPlaceholder")}
         className={cn(
           // İkon 16px + yazı 14px (best-practice), pl-10 ile ikon↔metin
           // arası ferah boşluk. Segment quick-pick ile aynı dil.
@@ -139,7 +141,7 @@ export function ProjectList({
         <button
           type="button"
           onClick={() => setQuery("")}
-          aria-label="Aramayı temizle"
+          aria-label={t("proj.list.clearSearch")}
           className="absolute right-2 top-1/2 -translate-y-1/2 size-5 grid place-items-center rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/[0.06] z-[1]"
         >
           <HugeiconsIcon icon={Cancel01Icon} size={11} strokeWidth={2.5} />
@@ -156,7 +158,7 @@ export function ProjectList({
       <div className="px-3 pt-3 pb-2 shrink-0">
         <div className="flex items-center justify-between mb-2.5">
           <h2 className="text-sm font-semibold flex items-center gap-2">
-            Projeler
+            {t("proj.list.title")}
             <span
               className="inline-flex items-center gap-0.5 h-5 px-2 rounded-full text-[11px] font-bold tabular-nums"
               style={{
@@ -188,7 +190,7 @@ export function ProjectList({
                 searchInput
               ) : (
                 <CollapsedFieldButton
-                  label="Ara"
+                  label={t("proj.list.search")}
                   hasValue={query.trim().length > 0}
                   accent={accent}
                   onClick={() => setActiveField("search")}
@@ -213,7 +215,7 @@ export function ProjectList({
                 <div className="w-full min-w-0">{segmentTrigger}</div>
               ) : (
                 <CollapsedFieldButton
-                  label="Segment"
+                  label={t("proj.list.segment")}
                   hasValue={(segmentSelectedCount ?? 0) > 0}
                   accent={accent}
                   onClick={() => setActiveField("segment")}
@@ -246,7 +248,7 @@ export function ProjectList({
         ))}
         {visible.length === 0 && (
           <div className="text-center text-xs text-muted-foreground py-8">
-            Sonuç bulunamadı
+            {t("proj.list.noResults")}
           </div>
         )}
       </div>

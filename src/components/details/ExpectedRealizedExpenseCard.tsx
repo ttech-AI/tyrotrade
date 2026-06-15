@@ -20,6 +20,7 @@ import {
 import { selectEstimateTotal } from "@/lib/selectors/project";
 import { useProjectExpenseLines } from "@/hooks/useProjectExpenseLines";
 import { ExpenseComparisonSheet } from "./ExpenseComparisonSheet";
+import { useT, useLanguage } from "@/lib/i18n/LanguageProvider";
 import type { Project } from "@/lib/dataverse/entities";
 
 interface Props {
@@ -59,6 +60,8 @@ function fmtMoney(usd: number): string {
  *   on target / unknown                → slate
  */
 export function ExpectedRealizedExpenseCard({ project }: Props) {
+  const t = useT();
+  const { lang } = useLanguage();
   const reduceMotion = useReducedMotion();
   const expenseLineQuery = useProjectExpenseLines(project.projectNo);
   const isFetching = expenseLineQuery.isFetching;
@@ -106,7 +109,7 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
   const realizedW = hasRealized ? (realized.usdTotal / scaleMax) * 100 : 0;
   const expectedW = hasExpected ? (expectedUsd / scaleMax) * 100 : 0;
 
-  const tone = pickTone(hasExpected, hasRealized, variance);
+  const tone = pickTone(hasExpected, hasRealized, variance, t);
   const VarIcon = tone.Icon;
 
   return (
@@ -115,7 +118,7 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
       tone="default"
       role="button"
       tabIndex={0}
-      title="Kalem detaylarını aç — tahmini × gerçekleşen kırılımı"
+      title={t("proj.expense.cardTrigger")}
       onClick={() => setDetailOpen(true)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -133,10 +136,10 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
           </AccentIconBadge>
           <div className="min-w-0 flex-1">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Gider Karşılaştırması
+              {t("proj.expense.eyebrow")}
             </div>
             <div className="text-[13px] font-semibold leading-snug">
-              Planned × Realized Cost
+              {t("proj.expense.title")}
             </div>
           </div>
           {/* Click affordance — kalem detayı paneli */}
@@ -167,7 +170,8 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
             <div className="flex items-center gap-4">
           <div className="flex-1 min-w-0 space-y-3">
             <BarRow
-              label="Realized"
+              label={t("proj.expense.realized")}
+              lang={lang}
               widthPct={realizedW}
               fill={tone.solid}
               value={
@@ -184,7 +188,8 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
               }
             />
             <BarRow
-              label="Planned"
+              label={t("proj.expense.planned")}
+              lang={lang}
               widthPct={expectedW}
               fill="rgba(100,116,139,0.55)"
               value={hasExpected ? fmtMoney(expectedUsd) : "—"}
@@ -196,7 +201,19 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
             />
           </div>
 
-          <RatioDonut pct={ratioPct} color={tone.solid} textColor={tone.text} />
+          <RatioDonut
+            pct={ratioPct}
+            color={tone.solid}
+            textColor={tone.text}
+            title={
+              ratioPct != null
+                ? t("proj.expense.ratioTitle").replace(
+                    "{pct}",
+                    formatNumber(ratioPct, 1)
+                  )
+                : undefined
+            }
+          />
         </div>
 
         {/* Variance pill — tone reflects expense direction */}
@@ -209,7 +226,13 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
           }}
           title={
             hasExpected && hasRealized
-              ? `Tahmini ${formatCurrency(expectedUsd, "USD")}, Gerçekleşen ${formatCurrency(realized.usdTotal, "USD")} → fark ${variance >= 0 ? "+" : ""}${formatCurrency(variance, "USD")}`
+              ? t("proj.expense.varianceTitle")
+                  .replace("{est}", formatCurrency(expectedUsd, "USD"))
+                  .replace("{real}", formatCurrency(realized.usdTotal, "USD"))
+                  .replace(
+                    "{delta}",
+                    `${variance >= 0 ? "+" : ""}${formatCurrency(variance, "USD")}`
+                  )
               : undefined
           }
         >
@@ -233,7 +256,7 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
 
         {realized.rowCount > 0 && (
           <div className="text-[10px] text-muted-foreground mt-2 italic">
-            {realized.rowCount} gerçekleşen masraf kaydı
+            {realized.rowCount} {t("proj.expense.recordsSuffix")}
           </div>
         )}
           </div>
@@ -252,7 +275,7 @@ export function ExpectedRealizedExpenseCard({ project }: Props) {
                 className="size-3.5 animate-spin"
                 style={{ color: tone.solid }}
               />
-              Güncelleniyor
+              {t("proj.expense.updating")}
             </span>
           </div>
         </div>
@@ -290,7 +313,8 @@ interface ExpTone {
 function pickTone(
   hasExpected: boolean,
   hasRealized: boolean,
-  variance: number
+  variance: number,
+  t: (key: string) => string
 ): ExpTone {
   const slate: ExpTone = {
     solid: "rgb(100 116 139)",
@@ -300,9 +324,9 @@ function pickTone(
     Icon: Minus,
     label: !hasRealized
       ? hasExpected
-        ? "Henüz gerçekleşen yok"
-        : "Veri yok"
-      : "Tahmini gider girilmemiş",
+        ? t("proj.expense.noRealizedYet")
+        : t("proj.expense.noData")
+      : t("proj.expense.noEstimate"),
   };
   if (!hasExpected || !hasRealized) return slate;
   if (variance < 0)
@@ -312,7 +336,7 @@ function pickTone(
       bg: "rgba(16,185,129,0.12)",
       ring: "rgba(16,185,129,0.30)",
       Icon: TrendingDown,
-      label: "Bütçenin altında",
+      label: t("proj.expense.underBudget"),
     };
   if (variance > 0)
     return {
@@ -321,15 +345,16 @@ function pickTone(
       bg: "rgba(244,63,94,0.12)",
       ring: "rgba(244,63,94,0.30)",
       Icon: TrendingUp,
-      label: "Bütçenin üstünde",
+      label: t("proj.expense.overBudget"),
     };
-  return { ...slate, Icon: Minus, label: "Hedefinde" };
+  return { ...slate, Icon: Minus, label: t("proj.expense.onTarget") };
 }
 
 /* ─────────── Bar row ─────────── */
 
 function BarRow({
   label,
+  lang,
   widthPct,
   fill,
   value,
@@ -338,6 +363,9 @@ function BarRow({
   reduceMotion,
 }: {
   label: string;
+  /** Active UI language — drives the `lang` attribute so CSS `uppercase`
+   *  casing follows the right locale (tr keeps İ, en keeps I). */
+  lang: string;
   widthPct: number;
   fill: string;
   value: string;
@@ -348,10 +376,9 @@ function BarRow({
   return (
     <div className="flex items-center gap-2.5 min-w-0" title={tooltip}>
       <span
-        // lang="en": bar labels are English ("Realized"/"Planned"). CSS
-        // `uppercase` in the page's tr locale turned "Realized" into
-        // "REALİZED" (i→İ); lang="en" forces "REALIZED".
-        lang="en"
+        // `lang` follows the active UI locale so CSS `uppercase` casts
+        // the localized label correctly (tr → İ, en → I).
+        lang={lang}
         className="w-[74px] shrink-0 text-[9.5px] uppercase tracking-wider text-muted-foreground"
       >
         {label}
@@ -406,10 +433,13 @@ function RatioDonut({
   pct,
   color,
   textColor,
+  title,
 }: {
   pct: number | null;
   color: string;
   textColor: string;
+  /** Pre-resolved (localized) hover title from the parent. */
+  title?: string;
 }) {
   const SIZE = 78;
   const R = 30;
@@ -423,7 +453,7 @@ function RatioDonut({
     <div
       className="relative shrink-0 grid place-items-center"
       style={{ width: SIZE, height: SIZE }}
-      title={pct != null ? `Gerçekleşen / Tahmini = %${formatNumber(pct, 1)}` : undefined}
+      title={title}
     >
       <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
         {/* Track */}

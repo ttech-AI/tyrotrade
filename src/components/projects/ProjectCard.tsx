@@ -5,6 +5,7 @@ import { BubbleChatIcon } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
 import { type Project } from "@/lib/dataverse/entities";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { TYRO_CHAT_TONE } from "@/components/layout/TyroChatButton";
 import { prefetchProjectExpenseLines } from "@/hooks/useProjectExpenseLines";
 
@@ -75,6 +76,7 @@ const FALLBACK_TONE = {
 
 export function ProjectCard({ project, selected, onClick, onQuickAsk }: ProjectCardProps) {
   const accent = useThemeAccent();
+  const t = useT();
   // Use vessel voyage status when present; fall back to project Open/Closed.
   const status = project.vesselPlan?.vesselStatus ?? project.status;
   const tone = STATUS_TONE[status] ?? FALLBACK_TONE;
@@ -245,7 +247,7 @@ export function ProjectCard({ project, selected, onClick, onQuickAsk }: ProjectC
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onQuickAsk(e, project); }}
-        aria-label="TYRO Chat'te sor"
+        aria-label={t("proj.card.askInChat")}
         // Positioned at the route row's trailing edge — replaces the
         // tonnage display the user retired. Hover-only so the card
         // stays calm by default but the chat affordance is one

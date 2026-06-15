@@ -2,6 +2,7 @@ import { TrendingUp, TrendingDown, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { GlassPanel } from "@/components/glass/GlassPanel";
 import { formatCompactCurrency } from "@/lib/format";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type { Project } from "@/lib/dataverse/entities";
 
 interface Props {
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function BudgetPLCard({ project }: Props) {
+  const t = useT();
   const budget = project.costEstimate;
   const actual = project.actualCost;
   if (!budget || !actual) return null;
@@ -20,10 +22,10 @@ export function BudgetPLCard({ project }: Props) {
   const positive = variance >= 0;
 
   const items: Array<{ label: string; value: number }> = [
-    { label: "Navlun", value: budget.freightUsd },
-    { label: "Sigorta", value: budget.insuranceUsd },
-    { label: "Gümrük", value: budget.dutiesUsd },
-    { label: "Diğer", value: budget.otherUsd },
+    { label: t("proj.budgetPL.freight"), value: budget.freightUsd },
+    { label: t("proj.budgetPL.insurance"), value: budget.insuranceUsd },
+    { label: t("proj.budgetPL.duties"), value: budget.dutiesUsd },
+    { label: t("proj.budgetPL.other"), value: budget.otherUsd },
   ];
 
   return (
@@ -33,13 +35,13 @@ export function BudgetPLCard({ project }: Props) {
           <div className="size-8 rounded-xl bg-primary/12 text-primary grid place-items-center">
             <Wallet className="size-4" />
           </div>
-          <h3 className="text-sm font-semibold">Bütçe & Gerçekleşen (PL)</h3>
+          <h3 className="text-sm font-semibold">{t("proj.budgetPL.title")}</h3>
         </div>
 
         <div className="grid grid-cols-2 gap-2.5 mb-3">
           <div className="px-3 py-2.5 rounded-xl bg-card/50 border border-border/40">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Bütçe
+              {t("proj.budgetPL.budget")}
             </div>
             <div className="text-base font-semibold mt-0.5">
               {formatCompactCurrency(totalBudget, "USD")}
@@ -47,7 +49,7 @@ export function BudgetPLCard({ project }: Props) {
           </div>
           <div className="px-3 py-2.5 rounded-xl bg-card/50 border border-border/40">
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Gerçekleşen
+              {t("proj.budgetPL.realized")}
             </div>
             <div className="text-base font-semibold mt-0.5">
               {formatCompactCurrency(totalActual, "USD")}
@@ -70,7 +72,7 @@ export function BudgetPLCard({ project }: Props) {
           )}
           <div className="text-xs">
             <span className="font-medium">
-              {positive ? "Bütçe altında" : "Bütçe aşımı"}
+              {positive ? t("proj.budgetPL.underBudget") : t("proj.budgetPL.overBudget")}
             </span>
             <span className="text-muted-foreground ml-2">
               {formatCompactCurrency(Math.abs(variance), "USD")} (%
@@ -102,9 +104,9 @@ export function BudgetPLCard({ project }: Props) {
         </div>
 
         <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
-          <Mini label="Bookd" value={actual.bookedUsd} />
-          <Mini label="Faturalı" value={actual.invoicedUsd} />
-          <Mini label="Ödenen" value={actual.paidUsd} />
+          <Mini label={t("proj.budgetPL.booked")} value={actual.bookedUsd} />
+          <Mini label={t("proj.budgetPL.invoiced")} value={actual.invoicedUsd} />
+          <Mini label={t("proj.budgetPL.paid")} value={actual.paidUsd} />
         </div>
       </div>
     </GlassPanel>

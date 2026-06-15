@@ -53,6 +53,7 @@ import { formatDate } from "@/lib/format";
 import type { Project, Port } from "@/lib/dataverse/entities";
 import { lookupCountry } from "@/lib/routing/countryCoordinates";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { isPositionStale, positionAgeDays } from "@/lib/routing/positionAge";
 import { shouldUseMock } from "@/lib/dataverse";
 import { mockPositionReceivedAt } from "@/mocks/vesselPositions";
@@ -61,14 +62,23 @@ interface RouteMapProps {
   project: Project | null;
 }
 
-const STAGE_LABEL: Record<string, string> = {
-  "pre-loading": "Yüklemeye hazır",
-  "at-loading-port": "Yükleme limanında",
-  loading: "Yükleme yapılıyor",
-  "in-transit": "Yolda",
-  "at-discharge-port": "Varış limanında",
-  discharged: "Tahliye tamamlandı",
+/** Stage → i18n key for the human-readable voyage-stage label. Resolved
+ *  through `t()` by the consumer; falls back to the raw stage string when
+ *  the stage is unknown (so the chip/marker still reads something). */
+const STAGE_LABEL_KEY: Record<string, string> = {
+  "pre-loading": "proj.map.stage.preLoading",
+  "at-loading-port": "proj.map.stage.atLoadingPort",
+  loading: "proj.map.stage.loading",
+  "in-transit": "proj.map.stage.inTransit",
+  "at-discharge-port": "proj.map.stage.atDischargePort",
+  discharged: "proj.map.stage.discharged",
 };
+
+/** Localised voyage-stage label. `t` comes from the calling component. */
+function stageLabel(stage: string, t: (key: string) => string): string {
+  const key = STAGE_LABEL_KEY[stage];
+  return key ? t(key) : stage;
+}
 
 /** Stage chip palette — semantic but minimal. Soft tinted bg + colored
  *  text + thin border so it reads as a status hint, not a CTA. Fixed,
@@ -198,6 +208,7 @@ interface AisPosition {
 }
 
 export function RouteMap({ project }: RouteMapProps) {
+  const t = useT();
   const mapRef = React.useRef<MapRef>(null);
   const [mapReady, setMapReady] = React.useState(false);
   // Timeline open by default — every project landing has the strip
@@ -255,7 +266,7 @@ export function RouteMap({ project }: RouteMapProps) {
         });
         setAisStale(null);
       } else {
-        setAisError("Rota geometrisi henüz hazır değil");
+        setAisError(t("proj.map.geometryNotReady"));
       }
       setAisFetching(false);
       return;
@@ -291,11 +302,11 @@ export function RouteMap({ project }: RouteMapProps) {
         setAisStale(null);
       }
     } catch {
-      setAisError("Bağlantı hatası");
+      setAisError(t("proj.map.connectionError"));
     } finally {
       setAisFetching(false);
     }
-  }, [project, geom]);
+  }, [project, geom, t]);
 
   // Reset AIS state when project changes — don't auto-fetch
   React.useEffect(() => {
@@ -619,7 +630,7 @@ export function RouteMap({ project }: RouteMapProps) {
                 >
                   <div
                     title={`${project.vesselPlan!.vesselName} · ${
-                      STAGE_LABEL[stage] ?? stage
+                      stageLabel(stage, t)
                     } · %${(effectiveProgress * 100).toFixed(0)}`}
                   >
                     <VesselMarker heading={headingDeg} accent={accent} />
@@ -701,7 +712,7 @@ export function RouteMap({ project }: RouteMapProps) {
                 strokeWidth={2.5}
               />
               <span className="text-[13px] font-semibold tracking-tight">
-                Rota Haritası
+                {t("proj.map.title")}
               </span>
               {project &&
                 (() => {
@@ -724,7 +735,7 @@ export function RouteMap({ project }: RouteMapProps) {
                         className="size-2.5 mr-1"
                         strokeWidth={2.5}
                       />
-                      {STAGE_LABEL[stage] ?? stage} · %
+                      {stageLabel(stage, t)} · %
                       {(effectiveProgress * 100).toFixed(0)}{aisPos ? " ·  AIS" : ""}
                     </span>
                   );
@@ -741,7 +752,7 @@ export function RouteMap({ project }: RouteMapProps) {
               <div className="flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium text-amber-700">
                 <MapPinOff className="size-3.5 shrink-0" strokeWidth={2.25} />
                 <span className="whitespace-nowrap">
-                  Rota çizilemedi · liman koordinatı yok — yaklaşık konum
+                  {t("proj.map.placeModeNote")}
                 </span>
               </div>
             </GlassPanel>
@@ -758,12 +769,12 @@ export function RouteMap({ project }: RouteMapProps) {
                       variant="ghost"
                       size="icon-sm"
                       onClick={() => mapRef.current?.zoomIn({ duration: 250 })}
-                      aria-label="Yakınlaştır"
+                      aria-label={t("proj.map.zoomIn")}
                     >
                       <Plus className="size-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side="left">Yakınlaştır</TooltipContent>
+                  <TooltipContent side="left">{t("proj.map.zoomIn")}</TooltipContent>
                 </Tooltip>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -771,12 +782,12 @@ export function RouteMap({ project }: RouteMapProps) {
                       variant="ghost"
                       size="icon-sm"
                       onClick={() => mapRef.current?.zoomOut({ duration: 250 })}
-                      aria-label="Uzaklaştır"
+                      aria-label={t("proj.map.zoomOut")}
                     >
                       <Minus className="size-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side="left">Uzaklaştır</TooltipContent>
+                  <TooltipContent side="left">{t("proj.map.zoomOut")}</TooltipContent>
                 </Tooltip>
                 <div className="h-px bg-border my-0.5" />
                 <Tooltip>
@@ -785,12 +796,12 @@ export function RouteMap({ project }: RouteMapProps) {
                       variant="ghost"
                       size="icon-sm"
                       onClick={() => fitToRoute(true)}
-                      aria-label="Rotaya odakla"
+                      aria-label={t("proj.map.fitRoute")}
                     >
                       <Crosshair className="size-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side="left">Rotaya odakla</TooltipContent>
+                  <TooltipContent side="left">{t("proj.map.fitRoute")}</TooltipContent>
                 </Tooltip>
                 <div className="h-px bg-border my-0.5" />
                 <Tooltip>
@@ -805,23 +816,26 @@ export function RouteMap({ project }: RouteMapProps) {
                         stage === "discharged" ||
                         aisStale !== null
                       }
-                      aria-label="Anlık konum al"
+                      aria-label={t("proj.map.livePosition")}
                     >
                       <RefreshCw className={cn("size-4", aisFetching && "animate-spin")} />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="left">
                     {!shouldUseMock() && !project?.vesselPlan?.imoNumber
-                      ? "IMO numarası yok"
+                      ? t("proj.map.noImo")
                       : stage === "discharged"
-                      ? "Sefer tamamlandı — gemi artık bu proje için takip edilmiyor"
+                      ? t("proj.map.voyageDone")
                       : aisStale
-                      ? `Son konum ${aisStale.ageDays} gün önce — çok eski, kullanılmadı`
+                      ? t("proj.map.staleTooltip").replace(
+                          "{days}",
+                          String(aisStale.ageDays)
+                        )
                       : aisError
                       ? aisError
                       : aisPos
-                      ? "Konumu güncelle"
-                      : "Anlık konum al"}
+                      ? t("proj.map.updatePosition")
+                      : t("proj.map.livePosition")}
                   </TooltipContent>
                 </Tooltip>
               </div>
@@ -839,7 +853,10 @@ export function RouteMap({ project }: RouteMapProps) {
                 <div className="flex items-center gap-1.5 px-2 py-1 text-[10.5px] font-medium text-amber-700">
                   <Clock className="size-3 shrink-0" strokeWidth={2.5} />
                   <span className="whitespace-nowrap">
-                    Son konum {aisStale.ageDays} gün önce
+                    {t("proj.map.staleNote").replace(
+                      "{days}",
+                      String(aisStale.ageDays)
+                    )}
                   </span>
                 </div>
               </GlassPanel>
@@ -869,7 +886,9 @@ export function RouteMap({ project }: RouteMapProps) {
                 type="button"
                 onClick={() => setTimelineOpen((v) => !v)}
                 aria-label={
-                  timelineOpen ? "Milestone zaman çizgisini kapat" : "Milestone zaman çizgisini aç"
+                  timelineOpen
+                    ? t("proj.map.timeline.toggleClose")
+                    : t("proj.map.timeline.toggleOpen")
                 }
                 className={cn(
                   "pointer-events-auto shrink-0 self-center size-11 rounded-full grid place-items-center transition-all",
@@ -1016,12 +1035,15 @@ const PILL_TONES = {
 function DurationPill({
   value,
   label,
+  daySuffix,
   tone,
   title,
   Icon,
 }: {
   value: number | null;
   label: string;
+  /** Localised single-letter day suffix shown after the count (g / d). */
+  daySuffix: string;
   tone: (typeof PILL_TONES)[keyof typeof PILL_TONES];
   title: string;
   Icon: LucideIcon;
@@ -1054,7 +1076,7 @@ function DurationPill({
         className="font-semibold tabular-nums"
         style={{ color: tone.value }}
       >
-        {value}g
+        {value}{daySuffix}
       </span>
     </span>
   );
@@ -1074,6 +1096,7 @@ function DurationPill({
  *  Each pill self-hides when its source value is missing/zero, so
  *  voyages with partial data still render whatever's available. */
 function DurationPills({ project }: { project: Project }) {
+  const t = useT();
   const vp = project.vesselPlan;
   const loading = vp?.loadingDays ?? null;
   const transit = vp?.transferDays ?? null;
@@ -1096,33 +1119,40 @@ function DurationPills({ project }: { project: Project }) {
                      one that's a duration metric vs. a verb). */}
       <DurationPill
         value={loading}
-        label="Yükleme"
+        label={t("proj.map.pill.loading")}
+        daySuffix={t("proj.map.pill.daySuffix")}
         tone={PILL_TONES.loading}
         Icon={ArrowDownToLine}
-        title={`Yükleme Süresi: ${loading} gün (mserp_loadingtime)`}
+        title={t("proj.map.pill.loadingTitle").replace("{days}", String(loading))}
       />
       <DurationPill
         value={transit}
-        label="Transit"
+        label={t("proj.map.pill.transit")}
+        daySuffix={t("proj.map.pill.daySuffix")}
         tone={PILL_TONES.transit}
         Icon={ShipIcon}
-        title={`Transit Süresi: ${transit} gün (mserp_transfertime)`}
+        title={t("proj.map.pill.transitTitle").replace("{days}", String(transit))}
       />
       <DurationPill
         value={discharge}
-        label="Tahliye"
+        label={t("proj.map.pill.discharge")}
+        daySuffix={t("proj.map.pill.daySuffix")}
         tone={PILL_TONES.discharge}
         Icon={ArrowUpFromLine}
-        title={`Tahliye Süresi: ${discharge} gün (mserp_evacuationtime)`}
+        title={t("proj.map.pill.dischargeTitle").replace("{days}", String(discharge))}
       />
       <DurationPill
         value={operation}
-        label="Operasyon"
+        label={t("proj.map.pill.operation")}
+        daySuffix={t("proj.map.pill.daySuffix")}
         tone={PILL_TONES.operation}
         Icon={Hourglass}
         title={
           operation != null
-            ? `Operasyon Süresi: ${operation} gün (LP-ETA → DP-ED, başlangıç/bitiş günleri hariç)`
+            ? t("proj.map.pill.operationTitle").replace(
+                "{days}",
+                String(operation)
+              )
             : ""
         }
       />
@@ -1145,6 +1175,7 @@ function EmptyState({
   loadingPortName?: string;
   dischargePortName?: string;
 }) {
+  const t = useT();
   // Dedicated rich layout for the missing-port case — operators see
   // exactly which side of the journey is missing, with a clear "veri
   // girilmeli" cue instead of a misleading map.
@@ -1160,15 +1191,15 @@ function EmptyState({
   }
   const message =
     kind === "no-selection"
-      ? "Bir proje seçin"
+      ? t("proj.map.empty.selectProject")
       : kind === "no-vessel-plan"
-        ? "Bu projede gemi planı yok"
-        : "Rota verisi eksik";
+        ? t("proj.map.empty.noVesselPlan")
+        : t("proj.map.empty.noRoute");
   const sublabel =
     kind === "no-vessel-plan"
-      ? "Dataverse'de bu proje için bir Gemi Planı kaydı bulunamadı"
+      ? t("proj.map.empty.noVesselPlanSub")
       : kind === "no-route"
-        ? "Liman koordinatları eksik — port dictionary'e eklenmesi gerekebilir"
+        ? t("proj.map.empty.noRouteSub")
         : null;
   return (
     <div className="h-full grid place-items-center text-muted-foreground">
@@ -1208,14 +1239,15 @@ function MissingPortEmptyState({
   dischargePortName?: string;
   projectNo?: string;
 }) {
+  const t = useT();
   const loadingMissing = kind === "both" || kind === "loading";
   const dischargeMissing = kind === "both" || kind === "discharge";
   const headline =
     kind === "both"
-      ? "Yükleme ve varış limanları girilmemiş"
+      ? t("proj.map.missing.both")
       : kind === "loading"
-        ? "Yükleme limanı girilmemiş"
-        : "Varış limanı girilmemiş";
+        ? t("proj.map.missing.loading")
+        : t("proj.map.missing.discharge");
   return (
     <div className="h-full grid place-items-center px-6">
       <div className="w-full max-w-md text-center">
@@ -1227,8 +1259,7 @@ function MissingPortEmptyState({
         </div>
         <p className="text-sm font-semibold text-foreground">{headline}</p>
         <p className="text-[11.5px] text-muted-foreground mt-1.5 leading-relaxed">
-          Rota çizilemiyor — Dataverse'de gemi planındaki liman alanları
-          boş. Bilgi tamamlanınca harita otomatik güncellenir.
+          {t("proj.map.missing.body")}
         </p>
 
         {/* Port slots — loading on the left, discharge on the right.
@@ -1236,7 +1267,7 @@ function MissingPortEmptyState({
             an "—" placeholder + MapPinOff when missing. */}
         <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-stretch gap-2">
           <PortSlot
-            label="Yükleme"
+            label={t("proj.map.slot.loading")}
             name={loadingPortName}
             missing={loadingMissing}
           />
@@ -1244,7 +1275,7 @@ function MissingPortEmptyState({
             <span className="-mx-1">→</span>
           </div>
           <PortSlot
-            label="Varış"
+            label={t("proj.map.slot.discharge")}
             name={dischargePortName}
             missing={dischargeMissing}
           />
@@ -1272,6 +1303,7 @@ function PortSlot({
   name?: string;
   missing: boolean;
 }) {
+  const t = useT();
   return (
     <div
       className={cn(
@@ -1297,7 +1329,7 @@ function PortSlot({
               strokeWidth={2}
             />
             <span className="text-[12px] text-amber-700/85 font-medium italic">
-              Girilmemiş
+              {t("proj.map.slot.missing")}
             </span>
           </>
         ) : (
@@ -1444,9 +1476,10 @@ function PlacePin({
   marker: PlaceMarker;
   kind: "loading" | "discharge";
 }) {
+  const t = useT();
   const title = marker.precise
     ? `${marker.label}${marker.country ? ` · ${marker.country}` : ""}`
-    : `${marker.label}\n(yaklaşık — ülke merkezi, liman koordinatı yok)`;
+    : `${marker.label}\n${t("proj.map.marker.countryApprox")}`;
   return (
     <Marker
       longitude={marker.lon}
@@ -1590,7 +1623,10 @@ function AisMarker({
   vesselName: string;
   vesselUrl: string;
 }) {
-  const title = [vesselName, status, `${sog} kn`].filter(Boolean).join(" · ");
+  const t = useT();
+  const title = [vesselName, status, `${sog} ${t("proj.map.marker.knots")}`]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <div
       className="relative cursor-pointer"
@@ -1641,6 +1677,7 @@ function PortChip({
   date: string | null;
   dateLabel: string;
 }) {
+  const t = useT();
   const Icon = kind === "loading" ? Anchor : MapPin;
   const tone = kind === "loading" ? "text-amber-700" : "text-emerald-700";
   const bg = kind === "loading" ? "bg-amber-500/15" : "bg-emerald-500/15";
@@ -1652,7 +1689,7 @@ function PortChip({
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            {kind === "loading" ? "Kalkış" : "Varış"}
+            {kind === "loading" ? t("proj.map.chip.departure") : t("proj.map.chip.arrival")}
           </div>
           <div className="text-[12px] font-semibold break-words line-clamp-2 leading-tight">{name}</div>
           <div className="text-[10px] text-muted-foreground truncate">{country}</div>
@@ -1684,6 +1721,7 @@ interface MilestoneStripProps {
 }
 
 function MilestoneStrip({ ms, progress, stage, onClose }: MilestoneStripProps) {
+  const t = useT();
   // Production-aligned 9-step voyage timeline. Order matches the D365
   // F&O screen (LP loading → BL → DP discharge) so the chip strip
   // reads the same as the source system.
@@ -1691,7 +1729,7 @@ function MilestoneStrip({ ms, progress, stage, onClose }: MilestoneStripProps) {
   // `tooltipTitle` + `tooltipBody` feed the Radix Tooltip that shows
   // when the user hovers on a step — abbreviations like "LP-ETA"
   // are operationally familiar but not self-explanatory, so each
-  // chip explains itself in plain Turkish.
+  // chip explains itself in plain language (TR/EN via i18n).
   const steps: Array<{
     key: string;
     label: string;
@@ -1703,73 +1741,64 @@ function MilestoneStrip({ ms, progress, stage, onClose }: MilestoneStripProps) {
       key: "lpEta",
       label: "LP-ETA",
       date: ms.lpEta,
-      tooltipTitle: "Yükleme Limanı — Tahmini Varış",
-      tooltipBody:
-        "Geminin yükleme limanına tahmini varış tarihi (Loading Port — Estimated Time of Arrival).",
+      tooltipTitle: t("proj.map.ms.lpEta.title"),
+      tooltipBody: t("proj.map.ms.lpEta.body"),
     },
     {
       key: "lpNor",
       label: "LP-NOR",
       date: ms.lpNorAccepted,
-      tooltipTitle: "Yükleme Limanı — NOR Kabul",
-      tooltipBody:
-        "Geminin yüklemeye hazır olduğunu bildiren Notice of Readiness'in liman tarafından kabul edildiği tarih.",
+      tooltipTitle: t("proj.map.ms.lpNor.title"),
+      tooltipBody: t("proj.map.ms.lpNor.body"),
     },
     {
       key: "lpSd",
       label: "LP-SD",
       date: ms.lpSd,
-      tooltipTitle: "Yükleme — Başlangıç",
-      tooltipBody:
-        "Yükleme operasyonunun fiilen başladığı tarih (Loading Start Date).",
+      tooltipTitle: t("proj.map.ms.lpSd.title"),
+      tooltipBody: t("proj.map.ms.lpSd.body"),
     },
     {
       key: "lpEd",
       label: "LP-ED",
       date: ms.lpEd,
-      tooltipTitle: "Yükleme — Bitiş",
-      tooltipBody:
-        "Yükleme operasyonunun tamamlandığı tarih (Loading End Date).",
+      tooltipTitle: t("proj.map.ms.lpEd.title"),
+      tooltipBody: t("proj.map.ms.lpEd.body"),
     },
     {
       key: "bl",
       label: "BL",
       date: ms.blDate,
-      tooltipTitle: "Bill of Lading",
-      tooltipBody:
-        "Konşimentonun (taşıma senedi) düzenlendiği tarih. Yükün gemiye teslim edildiğinin resmî kanıtı.",
+      tooltipTitle: t("proj.map.ms.bl.title"),
+      tooltipBody: t("proj.map.ms.bl.body"),
     },
     {
       key: "dpEta",
       label: "DP-ETA",
       date: ms.dpEta,
-      tooltipTitle: "Varış Limanı — Tahmini Varış",
-      tooltipBody:
-        "Geminin tahliye limanına tahmini varış tarihi (Discharge Port — Estimated Time of Arrival).",
+      tooltipTitle: t("proj.map.ms.dpEta.title"),
+      tooltipBody: t("proj.map.ms.dpEta.body"),
     },
     {
       key: "dpNor",
       label: "DP-NOR",
       date: ms.dpNorAccepted,
-      tooltipTitle: "Varış Limanı — NOR Kabul",
-      tooltipBody:
-        "Geminin tahliyeye hazır olduğunu bildiren Notice of Readiness'in liman tarafından kabul edildiği tarih.",
+      tooltipTitle: t("proj.map.ms.dpNor.title"),
+      tooltipBody: t("proj.map.ms.dpNor.body"),
     },
     {
       key: "dpSd",
       label: "DP-SD",
       date: ms.dpSd,
-      tooltipTitle: "Tahliye — Başlangıç",
-      tooltipBody:
-        "Tahliye operasyonunun fiilen başladığı tarih (Discharge Start Date).",
+      tooltipTitle: t("proj.map.ms.dpSd.title"),
+      tooltipBody: t("proj.map.ms.dpSd.body"),
     },
     {
       key: "dpEd",
       label: "DP-ED",
       date: ms.dpEd,
-      tooltipTitle: "Tahliye — Bitiş",
-      tooltipBody:
-        "Tahliye operasyonunun tamamlandığı tarih (Discharge End Date). Operasyon süresinin bitiş kotalı milestone'u.",
+      tooltipTitle: t("proj.map.ms.dpEd.title"),
+      tooltipBody: t("proj.map.ms.dpEd.body"),
     },
   ];
   const completedCount = steps.filter((s) => s.date).length;
@@ -1784,20 +1813,20 @@ function MilestoneStrip({ ms, progress, stage, onClose }: MilestoneStripProps) {
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              Zaman Çizelgesi
+              {t("proj.map.timeline.title")}
             </span>
             <span className="text-[10px] font-semibold text-foreground/80 tabular-nums">
               {completedCount} / {steps.length}
             </span>
             <span className="text-[10px] text-muted-foreground">·</span>
             <span className="text-[10px] font-semibold text-emerald-700 tabular-nums">
-              %{pct} · {STAGE_LABEL[stage] ?? stage}
+              %{pct} · {stageLabel(stage, t)}
             </span>
           </div>
           <button
             type="button"
             onClick={onClose}
-            aria-label="Kapat"
+            aria-label={t("proj.map.timeline.close")}
             className="text-muted-foreground hover:text-foreground transition-colors"
           >
             <X className="size-3.5" />
@@ -1895,8 +1924,8 @@ function MilestoneStrip({ ms, progress, stage, onClose }: MilestoneStripProps) {
                     </div>
                     <div className="text-[10.5px] tabular-nums text-foreground/80 mt-1.5 pt-1.5 border-t border-border/40">
                       {s.date
-                        ? `Tarih: ${formatDate(s.date)}`
-                        : "Tarih henüz girilmemiş"}
+                        ? `${t("proj.map.timeline.dateLabel")}: ${formatDate(s.date)}`
+                        : t("proj.map.timeline.dateMissing")}
                     </div>
                   </TooltipContent>
                 </Tooltip>

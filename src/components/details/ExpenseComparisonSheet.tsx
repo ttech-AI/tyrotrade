@@ -13,6 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { AccentIconBadge, TONE_EXPENSE } from "./AccentIconBadge";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatNumber } from "@/lib/format";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type { Project } from "@/lib/dataverse/entities";
 
 /**
@@ -73,6 +74,7 @@ export function ExpenseComparisonSheet({
   expectedUsd: number;
   realizedUsd: number;
 }) {
+  const t = useT();
   // Realized: group per expenseId — kalem = masraf kategorisi.
   const realizedItems = React.useMemo<RealizedItem[]>(() => {
     const byCode = new Map<string, RealizedItem>();
@@ -156,31 +158,31 @@ export function ExpenseComparisonSheet({
             </AccentIconBadge>
             <div className="min-w-0 flex-1">
               <SheetTitle className="text-[15px] font-semibold leading-snug tracking-tight">
-                Gider Karşılaştırması Detayı
+                {t("proj.expenseSheet.title")}
               </SheetTitle>
               <SheetDescription className="text-[11.5px] leading-snug mt-0.5">
-                {project.projectNo} · kartı oluşturan kalemler
+                {project.projectNo} · {t("proj.expenseSheet.subtitle")}
               </SheetDescription>
             </div>
           </div>
           {/* Özet şerit — renk-kodlu sol çizgili istatistikler */}
           <div className="grid grid-cols-3 gap-2 pt-4">
             <SummaryStat
-              label="Tahmini"
+              label={t("proj.expenseSheet.estimated")}
               value={formatCurrency(expectedUsd, "USD", {
                 maximumFractionDigits: 0,
               })}
               color={EST.solid}
             />
             <SummaryStat
-              label="Gerçekleşen"
+              label={t("proj.expenseSheet.realized")}
               value={formatCurrency(realizedUsd, "USD", {
                 maximumFractionDigits: 0,
               })}
               color={REAL.solid}
             />
             <SummaryStat
-              label="Fark"
+              label={t("proj.expenseSheet.difference")}
               value={`${variance >= 0 ? "+" : "−"}${formatCurrency(Math.abs(variance), "USD", { maximumFractionDigits: 0 })}`}
               color={overBudget ? "#e11d48" : "#059669"}
             />
@@ -192,12 +194,13 @@ export function ExpenseComparisonSheet({
             {/* ─── Tahmini kalemler ─── */}
             <Section
               tone={EST}
-              title="Tahmini Gider Kalemleri"
+              title={t("proj.expenseSheet.estimatedItems")}
               count={estimateItems.length}
+              countLabel={t("proj.expenseSheet.itemsSuffix")}
               totalUsd={expectedUsd}
               empty={
                 estimateItems.length === 0
-                  ? "Bu projede tahmini gider kalemi yok."
+                  ? t("proj.expenseSheet.noEstimate")
                   : null
               }
             >
@@ -207,7 +210,7 @@ export function ExpenseComparisonSheet({
                   name={item.name}
                   code={item.code}
                   matched={realizedCodes.has(item.code)}
-                  matchNote="Gerçekleşen tarafta da var"
+                  matchNote={t("proj.expenseSheet.matchedInRealized")}
                   sub={`${formatNumber(item.unitPriceUsd, 2)} $/t × ${formatNumber(item.tons, 0)} t`}
                   value={formatCurrency(item.totalUsd, "USD", {
                     maximumFractionDigits: 0,
@@ -219,12 +222,13 @@ export function ExpenseComparisonSheet({
             {/* ─── Gerçekleşen kalemler ─── */}
             <Section
               tone={REAL}
-              title="Gerçekleşen Gider Kalemleri"
+              title={t("proj.expenseSheet.realizedItems")}
               count={realizedItems.length}
+              countLabel={t("proj.expenseSheet.itemsSuffix")}
               totalUsd={realizedUsd}
               empty={
                 realizedItems.length === 0
-                  ? "Henüz gerçekleşen gider kaydı yok."
+                  ? t("proj.expenseSheet.noRealized")
                   : null
               }
             >
@@ -234,8 +238,8 @@ export function ExpenseComparisonSheet({
                   name={item.name}
                   code={item.code}
                   matched={estimateCodes.has(item.code)}
-                  matchNote="Tahmini tarafta da var"
-                  sub={`${item.rowCount} kayıt`}
+                  matchNote={t("proj.expenseSheet.matchedInEstimate")}
+                  sub={`${item.rowCount} ${t("proj.expenseSheet.recordsSuffix")}`}
                   value={`${item.totalUsd < 0 ? "−" : ""}${formatCurrency(Math.abs(item.totalUsd), "USD", { maximumFractionDigits: 0 })}`}
                   valueClassName={
                     item.totalUsd < 0 ? "text-emerald-700" : undefined
@@ -286,6 +290,7 @@ function Section({
   tone,
   title,
   count,
+  countLabel,
   totalUsd,
   empty,
   children,
@@ -293,6 +298,8 @@ function Section({
   tone: { solid: string; band: string; border: string };
   title: string;
   count: number;
+  /** Localized unit word shown after the count (e.g. "lines" / "kalem"). */
+  countLabel: string;
   totalUsd: number;
   empty: string | null;
   children?: React.ReactNode;
@@ -322,7 +329,7 @@ function Section({
           className="text-[11px] font-semibold tabular-nums shrink-0"
           style={{ color: tone.solid }}
         >
-          {count} kalem ·{" "}
+          {count} {countLabel} ·{" "}
           {formatCurrency(totalUsd, "USD", { maximumFractionDigits: 0 })}
         </span>
       </div>

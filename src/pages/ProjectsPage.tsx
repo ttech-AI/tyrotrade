@@ -16,6 +16,7 @@ import { useIsMobile } from "@/hooks/useMediaQuery";
 import { AdvancedFilter } from "@/components/filters/AdvancedFilter";
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import {
   applyProjectFilter,
   extractAvailableOptions,
@@ -48,6 +49,7 @@ const PROJECTS_DEFAULT_VOYAGE_STATUSES = [
 ] as const;
 
 export function ProjectsPage() {
+  const t = useT();
   const { projectId } = useParams<{ projectId?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -249,8 +251,8 @@ export function ProjectsPage() {
       options={segmentOptions}
       selected={filters.segments}
       onChange={(next) => setFilters({ ...filters, segments: next })}
-      placeholder="Segment seç"
-      searchPlaceholder="Segment ara..."
+      placeholder={t("proj.list.segmentSelect")}
+      searchPlaceholder={t("proj.list.segmentSearch")}
       accent={accent}
       compact
       raised
@@ -294,7 +296,7 @@ export function ProjectsPage() {
                   className="self-start"
                 >
                   <ChevronLeft className="size-3.5" />
-                  Projelere dön
+                  {t("proj.mobile.backToProjects")}
                 </Button>
               )}
               <div className="flex-1">
@@ -349,7 +351,7 @@ export function ProjectsPage() {
           </ScrollArea>
         ) : (
           <div className="h-full grid place-items-center text-muted-foreground text-sm">
-            Detay için bir proje seçin
+            {t("proj.detailPlaceholder")}
           </div>
         )}
       </div>
@@ -366,10 +368,11 @@ function MobileTabs({
   setView: (v: MobileView) => void;
   hasSelection: boolean;
 }) {
+  const t = useT();
   const items: Array<{ key: MobileView; label: string }> = [
-    { key: "list", label: "Liste" },
-    { key: "map", label: "Harita" },
-    { key: "details", label: "Detay" },
+    { key: "list", label: t("proj.tabs.list") },
+    { key: "map", label: t("proj.tabs.map") },
+    { key: "details", label: t("proj.tabs.details") },
   ];
   return (
     <div className="glass rounded-2xl p-1 flex items-center gap-1">

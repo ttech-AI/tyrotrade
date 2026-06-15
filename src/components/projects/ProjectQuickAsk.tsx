@@ -5,6 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { BubbleChatIcon } from "@hugeicons/core-free-icons";
 import { TYRO_CHAT_TONE } from "@/components/layout/TyroChatButton";
 import type { Project } from "@/lib/dataverse/entities";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
 
 interface ProjectQuickAskProps {
@@ -17,6 +18,7 @@ interface ProjectQuickAskProps {
 
 /** Floating quick-ask popup rendered via portal at the right-click position. */
 export function ProjectQuickAsk({ project, anchor, onClose, onSelectProject }: ProjectQuickAskProps) {
+  const t = useT();
   const [question, setQuestion] = React.useState("");
   const inputRef = React.useRef<HTMLInputElement>(null);
   const popoverRef = React.useRef<HTMLDivElement>(null);
@@ -124,7 +126,7 @@ export function ProjectQuickAsk({ project, anchor, onClose, onSelectProject }: P
             onKeyDown={(e) => {
               if (e.key === "Enter") { e.preventDefault(); handleSubmit(); }
             }}
-            placeholder="Bu proje hakkında sorun…"
+            placeholder={t("proj.quickAsk.placeholder")}
             className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/50 min-w-0"
           />
           <button
@@ -141,7 +143,7 @@ export function ProjectQuickAsk({ project, anchor, onClose, onSelectProject }: P
           </button>
         </div>
         <p className="text-[11px] text-muted-foreground/60 mt-1.5 px-0.5">
-          Enter → TYRO Chat'te yanıtla
+          {t("proj.quickAsk.hint")}
         </p>
       </div>
     </div>,
