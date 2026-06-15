@@ -8,6 +8,7 @@ import {
 } from "@/lib/dataverse/formatted";
 import { reorderColumns } from "@/lib/dataverse/columnOrder";
 import { getFieldLabel } from "@/lib/dataverse/fieldLabels";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
 export interface SortState {
   field: string;
@@ -54,13 +55,17 @@ export function EntityRowsTable<T extends Record<string, unknown>>({
   priorityColumns,
   onRowClick,
   selectedIndex,
-  emptyText = "Veri yok",
+  emptyText,
   maxHeight = "60vh",
   sort,
   onSortChange,
   className,
 }: EntityRowsTableProps<T>) {
+  const t = useT();
   const accent = useThemeAccent();
+  // Fall back to the localized "No data" when the caller doesn't pass
+  // an explicit empty-state string.
+  const resolvedEmptyText = emptyText ?? t("dm.empty.default");
 
   const cols = React.useMemo(() => {
     if (columns && columns.length > 0) return columns;
@@ -93,7 +98,7 @@ export function EntityRowsTable<T extends Record<string, unknown>>({
           className
         )}
       >
-        {emptyText}
+        {resolvedEmptyText}
       </div>
     );
   }

@@ -8,6 +8,7 @@ import {
   exportSheetsToExcel,
   type ExcelSheetSpec,
 } from "@/lib/export/excelExport";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
 /** Excel'in marka yeşili — tema accent'inden bilinçli olarak bağımsız:
  *  buton "bu bir Excel indirmesi" diye okunmalı (TONE_* sabitleri gibi
@@ -35,6 +36,7 @@ export function ExcelExportButton({
   fileNameBase?: string;
   className?: string;
 }) {
+  const t = useT();
   const [busy, setBusy] = React.useState(false);
   const [hovered, setHovered] = React.useState(false);
 
@@ -45,27 +47,27 @@ export function ExcelExportButton({
       const specs = sheets();
       const written = await exportSheetsToExcel(specs, fileNameBase);
       if (written === 0) {
-        toast.error(
-          "İndirilecek veri yok — önce üstten Verileri Güncelle çalıştırın."
-        );
+        toast.error(t("dm.excel.empty.toast"));
       } else {
-        toast.success(`Excel indirildi — ${written} sayfa.`);
+        toast.success(
+          t("dm.excel.success.toast").replace("{count}", String(written))
+        );
       }
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn("[ExcelExportButton] export failed:", err);
-      toast.error("Excel oluşturulamadı — konsolda ayrıntı var.");
+      toast.error(t("dm.excel.fail.toast"));
     } finally {
       setBusy(false);
     }
-  }, [busy, sheets, fileNameBase]);
+  }, [busy, sheets, fileNameBase, t]);
 
   return (
     <button
       type="button"
       onClick={handleClick}
       disabled={busy}
-      title="Güncelle ile dolan sekmeleri çok sayfalı Excel olarak indir"
+      title={t("dm.excel.title")}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className={cn(
@@ -98,7 +100,7 @@ export function ExcelExportButton({
       ) : (
         <HugeiconsIcon icon={Download01Icon} size={16} strokeWidth={2} />
       )}
-      {busy ? "Hazırlanıyor…" : "Excel"}
+      {busy ? t("dm.excel.preparing") : t("dm.excel.label")}
     </button>
   );
 }

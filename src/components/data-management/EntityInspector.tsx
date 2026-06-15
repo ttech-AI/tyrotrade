@@ -16,6 +16,7 @@ import {
   isFormattedValueKey,
 } from "@/lib/dataverse/formatted";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
 interface EntityInspectorProps {
   config: InspectorEntityConfig;
@@ -31,6 +32,7 @@ interface EntityInspectorProps {
  *     raw-JSON viewer for the selected row.
  */
 export function EntityInspector({ config }: EntityInspectorProps) {
+  const t = useT();
   const filter = config.defaultFilter?.();
 
   const {
@@ -100,9 +102,11 @@ export function EntityInspector({ config }: EntityInspectorProps) {
         <div className="px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
           <div className="min-w-0">
             <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
-              {shouldUseMock() ? "Mock veri" : "Dataverse · canlı"}
+              {shouldUseMock() ? t("dm.inspector.mock") : t("dm.inspector.live")}
             </div>
-            <div className="text-sm font-semibold truncate">{config.label}</div>
+            <div className="text-sm font-semibold truncate">
+              {config.labelKey ? t(config.labelKey) : config.label}
+            </div>
             <div className="text-[10.5px] text-muted-foreground truncate">
               <code className="font-mono">{config.entitySet}</code>
               {filter && (
@@ -112,9 +116,9 @@ export function EntityInspector({ config }: EntityInspectorProps) {
                 </>
               )}
             </div>
-            {config.hint && (
+            {(config.hintKey || config.hint) && (
               <div className="text-[10.5px] text-muted-foreground/80 mt-1 italic">
-                {config.hint}
+                {config.hintKey ? t(config.hintKey) : config.hint}
               </div>
             )}
             <CacheStatus
@@ -155,9 +159,9 @@ export function EntityInspector({ config }: EntityInspectorProps) {
               />
               {isFetching
                 ? loaded !== null
-                  ? `Yükleniyor… ${loaded.toLocaleString("tr-TR")}`
-                  : "Yükleniyor…"
-                : "Verileri Güncelle"}
+                  ? `${t("dm.inspector.loading")} ${loaded.toLocaleString("tr-TR")}`
+                  : t("dm.inspector.loading")
+                : t("dm.inspector.refresh")}
             </Button>
           </div>
         </div>
@@ -174,9 +178,9 @@ export function EntityInspector({ config }: EntityInspectorProps) {
               className="shrink-0 mt-0.5"
             />
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-semibold">Hata</div>
+              <div className="text-sm font-semibold">{t("dm.inspector.error")}</div>
               <div className="text-[11.5px] text-rose-700/80 break-words">
-                {error?.message ?? "Bilinmeyen hata"}
+                {error?.message ?? t("dm.inspector.errorUnknown")}
               </div>
             </div>
           </div>
@@ -197,14 +201,15 @@ export function EntityInspector({ config }: EntityInspectorProps) {
               className="mx-auto mb-3 text-muted-foreground/60"
             />
             <div className="text-[13px] font-semibold text-foreground mb-1">
-              Henüz veri çekilmedi
+              {t("dm.inspector.emptyTitle")}
             </div>
             <p className="text-[11.5px]">
-              <span className="font-semibold">Verileri Güncelle</span>'ye
-              tıklayarak bu tablonun tüm satırlarını çek.
+              <span className="font-semibold">
+                {t("dm.inspector.emptyBodyLead")}
+              </span>
+              {t("dm.inspector.emptyBodyTail")}
               <br />
-              Sonuçlar tarayıcı belleğine (localStorage) kaydedilir, yeniden
-              ziyaret ettiğinde aynı veri instant görünür.
+              {t("dm.inspector.emptyBodyCache")}
             </p>
           </div>
         </GlassPanel>
@@ -220,7 +225,7 @@ export function EntityInspector({ config }: EntityInspectorProps) {
           >
             <div className="px-4 py-2.5 border-b border-foreground/[0.06] flex items-center justify-between">
               <div className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
-                Satırlar
+                {t("dm.inspector.rows")}
               </div>
               <div className="text-[10.5px] tabular-nums text-muted-foreground">
                 <span className="font-bold text-foreground">{rows.length}</span>
@@ -268,9 +273,10 @@ function CacheStatus({
   loaded: number | null;
   count: number;
 }) {
+  const t = useT();
   if (!fetchedAt && !isFetching) return null;
 
-  const ago = fetchedAt ? humanAgo(new Date(fetchedAt)) : null;
+  const ago = fetchedAt ? humanAgo(new Date(fetchedAt), t) : null;
 
   return (
     <div className="text-[10.5px] text-muted-foreground/80 mt-1 flex items-center gap-1.5">
@@ -283,34 +289,34 @@ function CacheStatus({
       {isFetching ? (
         <>
           {loaded !== null ? (
-            <>Pagination… <span className="tabular-nums font-medium">{loaded.toLocaleString("tr-TR")}</span> kayıt çekildi</>
+            <>{t("dm.inspector.paginationLead")} <span className="tabular-nums font-medium">{loaded.toLocaleString("tr-TR")}</span> {t("dm.inspector.recordsFetched")}</>
           ) : (
-            "Bağlanıyor…"
+            t("dm.inspector.connecting")
           )}
         </>
       ) : (
         <>
-          Son güncelleme: <span className="font-medium">{ago}</span> ·{" "}
+          {t("dm.inspector.lastUpdate")} <span className="font-medium">{ago}</span> ·{" "}
           <span className="tabular-nums font-medium">
             {count.toLocaleString("tr-TR")}
           </span>{" "}
-          kayıt önbellekte
+          {t("dm.inspector.recordsCached")}
         </>
       )}
     </div>
   );
 }
 
-function humanAgo(d: Date): string {
+function humanAgo(d: Date, t: (key: string) => string): string {
   const diffMs = Date.now() - d.getTime();
   const sec = Math.floor(diffMs / 1000);
-  if (sec < 60) return "şimdi";
+  if (sec < 60) return t("dm.ago.now");
   const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} dk önce`;
+  if (min < 60) return `${min} ${t("dm.ago.minutes")}`;
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr} saat önce`;
+  if (hr < 24) return `${hr} ${t("dm.ago.hours")}`;
   const day = Math.floor(hr / 24);
-  if (day < 7) return `${day} gün önce`;
+  if (day < 7) return `${day} ${t("dm.ago.days")}`;
   return d.toLocaleDateString("tr-TR");
 }
 
@@ -433,12 +439,13 @@ function DetailPanel({
   row: Record<string, unknown> | null;
   fields: string[];
 }) {
+  const t = useT();
   const [tab, setTab] = React.useState<"fields" | "json">("fields");
 
   if (!row) {
     return (
       <div className="grid place-items-center h-full text-sm text-muted-foreground p-10">
-        Sol panelden bir satır seç
+        {t("dm.inspector.selectRow")}
       </div>
     );
   }
@@ -447,7 +454,7 @@ function DetailPanel({
     <div className="flex flex-col h-full min-h-0">
       <div className="px-4 py-2.5 border-b border-foreground/[0.06] flex items-center justify-between">
         <div className="text-[10.5px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Kayıt detayı · {fields.length} alan
+          {t("dm.inspector.recordDetail")} · {fields.length} {t("dm.inspector.fields")}
         </div>
         <div className="flex gap-1">
           <button
@@ -460,7 +467,7 @@ function DetailPanel({
                 : "text-muted-foreground hover:bg-foreground/[0.06]"
             )}
           >
-            Alanlar
+            {t("dm.inspector.tabFields")}
           </button>
           <button
             type="button"
@@ -472,7 +479,7 @@ function DetailPanel({
                 : "text-muted-foreground hover:bg-foreground/[0.06]"
             )}
           >
-            Ham JSON
+            {t("dm.inspector.tabJson")}
           </button>
         </div>
       </div>

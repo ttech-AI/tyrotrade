@@ -938,6 +938,122 @@ const tr: StringMap = {
   "dash.leaderboard.projectsUnit": "proje",
   /* Ask AI button */
   "dash.askAi.aria": "TYRO AI sohbetini aç",
+
+  /* ── Veri Yönetimi / Data Management ── */
+  /* Top tabs */
+  "dm.tab.projects": "Projeler",
+  "dm.tab.subProjects": "Alt Projeler",
+  "dm.tab.budget": "Tahmini Bütçe (Segment)",
+  /* Child tabs (per-project / per-sub-project panes) */
+  "dm.tab.lines": "Proje Satırları",
+  "dm.tab.ship": "Proje-Gemi Planı",
+  "dm.tab.expense": "Tahmini Gider Satırları",
+  "dm.tab.actualExpense": "Gerçekleşen Gider Satırları",
+  "dm.tab.sales": "Proje Satış Satırları",
+  "dm.tab.purchase": "Proje Satınalma Satırları",
+  "dm.tab.subProjectDetails": "Alt Proje Satırları",
+  /* Toolbar: search + actions */
+  "dm.search.placeholder": "Proje veya gemi planı içinde ara…",
+  "dm.search.aria": "Veri yönetimi içinde ara",
+  "dm.search.clear": "Aramayı temizle",
+  /* Cache banner / status */
+  "dm.banner.error": "Hata:",
+  "dm.banner.loadingWithCount": "Yükleniyor…",
+  "dm.banner.records": "kayıt",
+  "dm.banner.connecting": "Bağlanıyor…",
+  "dm.banner.lastUpdate": "Son güncelleme:",
+  /* humanAgo relative timestamps */
+  "dm.ago.now": "şimdi",
+  "dm.ago.minutes": "dk önce",
+  "dm.ago.hours": "saat önce",
+  "dm.ago.days": "gün önce",
+  /* Empty states — generic */
+  "dm.empty.default": "Veri yok",
+  "dm.empty.notFetched": "Henüz çekilmedi — üstten Verileri Güncelle",
+  "dm.empty.notFetchedShort": "Henüz çekilmedi — üstten Güncelle",
+  "dm.empty.noProjectMatch": "Filtreyle eşleşen proje yok",
+  "dm.empty.noSubProjectMatch": "Filtreyle eşleşen alt proje yok",
+  "dm.empty.selectProject": "Üstten bir proje seç",
+  "dm.empty.selectSubProject": "Üstten bir alt-proje seç",
+  "dm.loading": "Yükleniyor…",
+  /* Empty states — per-project child panes */
+  "dm.empty.proj.lines": "Bu projeye ait satır yok",
+  "dm.empty.proj.ship": "Bu projeye ait gemi planı yok",
+  "dm.empty.proj.expense": "Bu projeye ait gider satırı yok",
+  "dm.empty.proj.actualExpense": "Bu projeye ait gerçekleşen gider kaydı yok",
+  "dm.empty.proj.sales": "Bu projeye ait fatura kesilmiş satış satırı yok",
+  "dm.empty.proj.purchase": "Bu projeye ait satınalma satırı yok",
+  /* Empty states — per-sub-project child panes */
+  "dm.empty.sub.details": "Bu alt-projeye ait detay satırı yok",
+  "dm.empty.sub.ship": "Bu alt-projeye ait gemi planı yok",
+  "dm.empty.sub.expense": "Bu alt-projeye ait gider satırı yok",
+  "dm.empty.sub.actualExpense": "Bu alt-projeye ait gerçekleşen gider kaydı yok",
+  "dm.empty.sub.sales": "Bu alt-projeye ait fatura kesilmiş satış satırı yok",
+  "dm.empty.sub.purchase": "Bu alt-projeye ait satınalma satırı yok",
+  /* Selected-project info strip */
+  "dm.selected.filter": "Filtre:",
+  /* Budget master */
+  "dm.budget.segmentFilter": "Segment filtresi:",
+  "dm.budget.segmentEmpty":
+    "⚠ Seçili projenin segmenti boş — filtre uygulanmadı, tüm bütçeler gösteriliyor",
+  "dm.budget.clearSelection": "Seçimi kaldır",
+  "dm.budget.emptyForSegment": "'{segment}' segmentine ait bütçe satırı yok",
+  /* Inspector entity hints (entityConfig) */
+  "dm.entity.projects.hint":
+    "Teslimat şekli 'Gemi' + segment dolu projeler ile istisna projid'ler çekilir.",
+  "dm.entity.subProjects.hint":
+    "Yalnızca cache'te zaten olan projelerin alt satırları çekilir (mserp_projid IN [...]).",
+  "dm.entity.subProjectDetails.hint":
+    "Yalnızca cache'teki alt-proje ID'lerine bağlı satırlar çekilir (mserp_subprojectid IN [...]).",
+  "dm.entity.ship.hint":
+    "Tüm satırlar çekilir; üst projelerle eşleştirme client tarafında yapılır (alan adlarını gördükten sonra).",
+  /* Excel export button */
+  "dm.excel.label": "Excel",
+  "dm.excel.preparing": "Hazırlanıyor…",
+  "dm.excel.title":
+    "Güncelle ile dolan sekmeleri çok sayfalı Excel olarak indir",
+  "dm.excel.empty.toast":
+    "İndirilecek veri yok — önce üstten Verileri Güncelle çalıştırın.",
+  "dm.excel.success.toast": "Excel indirildi — {count} sayfa.",
+  "dm.excel.fail.toast": "Excel oluşturulamadı — konsolda ayrıntı var.",
+  /* Excel sheet names */
+  "dm.excel.sheet.projects": "Projeler",
+  "dm.excel.sheet.subProjects": "Alt Projeler",
+  "dm.excel.sheet.lines": "Proje Satırları",
+  "dm.excel.sheet.ship": "Gemi Planı",
+  "dm.excel.sheet.subProjectDetails": "Alt Proje Satırları",
+  /* Refresh-all button + tooltip */
+  "dm.refresh.label": "Güncelle",
+  "dm.refresh.tooltip.title": "Aktif Sorgu Filtresi",
+  "dm.refresh.tooltip.lead":
+    "Dataverse'ten aşağıdaki kriterlere uyan tüm projeler + bağlı satır/gemi/gider/satış kayıtları çekilir:",
+  "dm.refresh.tooltip.leadBold": "aşağıdaki kriterlere uyan tüm projeler",
+  "dm.refresh.tooltip.chain":
+    "7 adımlık zincir: Projeler → Satırlar → Gemi → Gider → Bütçe → Satış Toplamları → Proje × Ay Satış. Bağlı satırlar çekilen proje listesine göre filtrelenir.",
+  /* EntityInspector (single-entity inspector shell) */
+  "dm.inspector.mock": "Mock veri",
+  "dm.inspector.live": "Dataverse · canlı",
+  "dm.inspector.refresh": "Verileri Güncelle",
+  "dm.inspector.loading": "Yükleniyor…",
+  "dm.inspector.error": "Hata",
+  "dm.inspector.errorUnknown": "Bilinmeyen hata",
+  "dm.inspector.emptyTitle": "Henüz veri çekilmedi",
+  "dm.inspector.emptyBodyLead": "Verileri Güncelle",
+  "dm.inspector.emptyBodyTail":
+    "'ye tıklayarak bu tablonun tüm satırlarını çek.",
+  "dm.inspector.emptyBodyCache":
+    "Sonuçlar tarayıcı belleğine (localStorage) kaydedilir, yeniden ziyaret ettiğinde aynı veri instant görünür.",
+  "dm.inspector.rows": "Satırlar",
+  "dm.inspector.connecting": "Bağlanıyor…",
+  "dm.inspector.paginationLead": "Pagination…",
+  "dm.inspector.recordsFetched": "kayıt çekildi",
+  "dm.inspector.lastUpdate": "Son güncelleme:",
+  "dm.inspector.recordsCached": "kayıt önbellekte",
+  "dm.inspector.recordDetail": "Kayıt detayı",
+  "dm.inspector.fields": "alan",
+  "dm.inspector.tabFields": "Alanlar",
+  "dm.inspector.tabJson": "Ham JSON",
+  "dm.inspector.selectRow": "Sol panelden bir satır seç",
 };
 
 const en: StringMap = {
@@ -1852,6 +1968,119 @@ const en: StringMap = {
   "dash.leaderboard.projectsUnit": "projects",
   /* Ask AI button */
   "dash.askAi.aria": "Open TYRO AI chat",
+
+  /* ── Veri Yönetimi / Data Management ── */
+  /* Top tabs */
+  "dm.tab.projects": "Projects",
+  "dm.tab.subProjects": "Sub-projects",
+  "dm.tab.budget": "Budget (Segment)",
+  /* Child tabs (per-project / per-sub-project panes) */
+  "dm.tab.lines": "Project Lines",
+  "dm.tab.ship": "Project-Vessel Plan",
+  "dm.tab.expense": "Estimated Expense Lines",
+  "dm.tab.actualExpense": "Realized Expense Lines",
+  "dm.tab.sales": "Project Sales Lines",
+  "dm.tab.purchase": "Project Purchase Lines",
+  "dm.tab.subProjectDetails": "Sub-project Lines",
+  /* Toolbar: search + actions */
+  "dm.search.placeholder": "Search projects or vessel plan…",
+  "dm.search.aria": "Search data management",
+  "dm.search.clear": "Clear search",
+  /* Cache banner / status */
+  "dm.banner.error": "Error:",
+  "dm.banner.loadingWithCount": "Loading…",
+  "dm.banner.records": "records",
+  "dm.banner.connecting": "Connecting…",
+  "dm.banner.lastUpdate": "Last updated:",
+  /* humanAgo relative timestamps */
+  "dm.ago.now": "just now",
+  "dm.ago.minutes": "min ago",
+  "dm.ago.hours": "h ago",
+  "dm.ago.days": "d ago",
+  /* Empty states — generic */
+  "dm.empty.default": "No data",
+  "dm.empty.notFetched": "Not fetched yet — Refresh data above",
+  "dm.empty.notFetchedShort": "Not fetched yet — Refresh above",
+  "dm.empty.noProjectMatch": "No project matches the filter",
+  "dm.empty.noSubProjectMatch": "No sub-project matches the filter",
+  "dm.empty.selectProject": "Select a project above",
+  "dm.empty.selectSubProject": "Select a sub-project above",
+  "dm.loading": "Loading…",
+  /* Empty states — per-project child panes */
+  "dm.empty.proj.lines": "No lines for this project",
+  "dm.empty.proj.ship": "No vessel plan for this project",
+  "dm.empty.proj.expense": "No expense lines for this project",
+  "dm.empty.proj.actualExpense": "No realized expense records for this project",
+  "dm.empty.proj.sales": "No invoiced sales lines for this project",
+  "dm.empty.proj.purchase": "No purchase lines for this project",
+  /* Empty states — per-sub-project child panes */
+  "dm.empty.sub.details": "No detail lines for this sub-project",
+  "dm.empty.sub.ship": "No vessel plan for this sub-project",
+  "dm.empty.sub.expense": "No expense lines for this sub-project",
+  "dm.empty.sub.actualExpense": "No realized expense records for this sub-project",
+  "dm.empty.sub.sales": "No invoiced sales lines for this sub-project",
+  "dm.empty.sub.purchase": "No purchase lines for this sub-project",
+  /* Selected-project info strip */
+  "dm.selected.filter": "Filter:",
+  /* Budget master */
+  "dm.budget.segmentFilter": "Segment filter:",
+  "dm.budget.segmentEmpty":
+    "⚠ Selected project has no segment — filter not applied, showing all budgets",
+  "dm.budget.clearSelection": "Clear selection",
+  "dm.budget.emptyForSegment": "No budget lines for segment '{segment}'",
+  /* Inspector entity hints (entityConfig) */
+  "dm.entity.projects.hint":
+    "Projects with delivery mode 'Vessel' + a segment, plus exception project IDs, are fetched.",
+  "dm.entity.subProjects.hint":
+    "Only sub-rows of projects already in the cache are fetched (mserp_projid IN [...]).",
+  "dm.entity.subProjectDetails.hint":
+    "Only rows linked to cached sub-project IDs are fetched (mserp_subprojectid IN [...]).",
+  "dm.entity.ship.hint":
+    "All rows are fetched; matching to parent projects happens client-side (after the field names are known).",
+  /* Excel export button */
+  "dm.excel.label": "Excel",
+  "dm.excel.preparing": "Preparing…",
+  "dm.excel.title": "Download tabs filled by Refresh as a multi-sheet Excel",
+  "dm.excel.empty.toast": "Nothing to download — run Refresh data above first.",
+  "dm.excel.success.toast": "Excel downloaded — {count} sheets.",
+  "dm.excel.fail.toast": "Could not create Excel — details in the console.",
+  /* Excel sheet names */
+  "dm.excel.sheet.projects": "Projects",
+  "dm.excel.sheet.subProjects": "Sub-projects",
+  "dm.excel.sheet.lines": "Project Lines",
+  "dm.excel.sheet.ship": "Vessel Plan",
+  "dm.excel.sheet.subProjectDetails": "Sub-project Lines",
+  /* Refresh-all button + tooltip */
+  "dm.refresh.label": "Refresh",
+  "dm.refresh.tooltip.title": "Active Query Filter",
+  "dm.refresh.tooltip.lead":
+    "All projects matching the criteria below + their linked line/vessel/expense/sales records are fetched from Dataverse:",
+  "dm.refresh.tooltip.leadBold": "all projects matching the criteria below",
+  "dm.refresh.tooltip.chain":
+    "7-step chain: Projects → Lines → Vessel → Expense → Budget → Sales Totals → Project × Month Sales. Linked rows are filtered by the fetched project list.",
+  /* EntityInspector (single-entity inspector shell) */
+  "dm.inspector.mock": "Mock data",
+  "dm.inspector.live": "Dataverse · live",
+  "dm.inspector.refresh": "Refresh data",
+  "dm.inspector.loading": "Loading…",
+  "dm.inspector.error": "Error",
+  "dm.inspector.errorUnknown": "Unknown error",
+  "dm.inspector.emptyTitle": "No data fetched yet",
+  "dm.inspector.emptyBodyLead": "Refresh data",
+  "dm.inspector.emptyBodyTail": " to fetch all rows of this table.",
+  "dm.inspector.emptyBodyCache":
+    "Results are saved to browser memory (localStorage), so the same data appears instantly on your next visit.",
+  "dm.inspector.rows": "Rows",
+  "dm.inspector.connecting": "Connecting…",
+  "dm.inspector.paginationLead": "Pagination…",
+  "dm.inspector.recordsFetched": "records fetched",
+  "dm.inspector.lastUpdate": "Last updated:",
+  "dm.inspector.recordsCached": "records cached",
+  "dm.inspector.recordDetail": "Record detail",
+  "dm.inspector.fields": "fields",
+  "dm.inspector.tabFields": "Fields",
+  "dm.inspector.tabJson": "Raw JSON",
+  "dm.inspector.selectRow": "Select a row from the left panel",
 };
 
 export const translations: Record<Lang, StringMap> = { tr, en };

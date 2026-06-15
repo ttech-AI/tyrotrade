@@ -53,6 +53,7 @@ import { useProjectExpenseLines } from "@/hooks/useProjectExpenseLines";
 import { useProjectEstimatedExpense } from "@/hooks/useProjectEstimatedExpense";
 import { useProjectPurchases } from "@/hooks/useProjectPurchases";
 import { useSegmentBudget } from "@/hooks/useSegmentBudget";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
 /* ─────────── Entity sets + filters ─────────── */
 
@@ -124,6 +125,7 @@ type SubChildTabKey =
 
 
 export function DataManagementPage() {
+  const t = useT();
   const [topTab, setTopTab] = React.useState<TopTabKey>("projects");
   const [childTab, setChildTab] = React.useState<ChildTabKey>("lines");
   // Sub-project child tab — independent state from the project child
@@ -337,28 +339,37 @@ export function DataManagementPage() {
    * uygulanmaz — Güncelle'nin çektiği TAM veri seti dışa aktarılır. */
   const buildExcelSheets = React.useCallback(
     (): ExcelSheetSpec[] => [
-      { name: "Projeler", rows: projects.rows, columns: PROJECT_COLUMNS },
       {
-        name: "Alt Projeler",
+        name: t("dm.excel.sheet.projects"),
+        rows: projects.rows,
+        columns: PROJECT_COLUMNS,
+      },
+      {
+        name: t("dm.excel.sheet.subProjects"),
         rows: subProjects.rows,
         columns: SUB_PROJECT_COLUMNS,
       },
       {
-        name: "Proje Satırları",
+        name: t("dm.excel.sheet.lines"),
         rows: lines.rows,
         columns: PROJECT_LINE_COLUMNS,
       },
       // Display sırası — gemi-master'dan zenginleştirilen alanlar
       // (örn. mserp_vesselname) başa yakın gelsin diye $select listesi
       // yerine inspector'ın görüntü dizilimi kullanılıyor.
-      { name: "Gemi Planı", rows: ship.rows, columns: SHIP_DISPLAY_COLUMNS },
       {
-        name: "Alt Proje Satırları",
+        name: t("dm.excel.sheet.ship"),
+        rows: ship.rows,
+        columns: SHIP_DISPLAY_COLUMNS,
+      },
+      {
+        name: t("dm.excel.sheet.subProjectDetails"),
         rows: subProjectDetails.rows,
         columns: SUB_PROJECT_DETAIL_COLUMNS,
       },
     ],
     [
+      t,
       projects.rows,
       subProjects.rows,
       lines.rows,
@@ -918,43 +929,43 @@ export function DataManagementPage() {
   const topTabs: TabItem[] = [
     {
       key: "projects",
-      label: "Projeler",
+      label: t("dm.tab.projects"),
       count: visibleProjects.length || projects.rows.length || undefined,
     },
     {
       key: "sub-projects",
-      label: "Alt Projeler",
+      label: t("dm.tab.subProjects"),
       count: scopedSubProjects.length || subProjects.rows.length || undefined,
     },
     {
       key: "budget",
-      label: "Tahmini Bütçe (Segment)",
+      label: t("dm.tab.budget"),
       count: filteredBudgetRows.length || undefined,
     },
   ];
 
   // Bottom panel tabs (only shown when "projects" top tab + project selected)
   const childTabs: TabItem[] = [
-    { key: "lines", label: "Proje Satırları", count: childLines.length },
-    { key: "ship", label: "Proje-Gemi Planı", count: childShip.length },
+    { key: "lines", label: t("dm.tab.lines"), count: childLines.length },
+    { key: "ship", label: t("dm.tab.ship"), count: childShip.length },
     {
       key: "expense",
-      label: "Tahmini Gider Satırları",
+      label: t("dm.tab.expense"),
       count: childExpense.length,
     },
     {
       key: "actualExpense",
-      label: "Gerçekleşen Gider Satırları",
+      label: t("dm.tab.actualExpense"),
       count: childActualExpense.length,
     },
     {
       key: "sales",
-      label: "Proje Satış Satırları",
+      label: t("dm.tab.sales"),
       count: childSales.length,
     },
     {
       key: "purchase",
-      label: "Proje Satınalma Satırları",
+      label: t("dm.tab.purchase"),
       count: childPurchase.length,
     },
   ];
@@ -965,28 +976,28 @@ export function DataManagementPage() {
   const subChildTabs: TabItem[] = [
     {
       key: "details",
-      label: "Alt Proje Satırları",
+      label: t("dm.tab.subProjectDetails"),
       count: childSubProjectDetails.length,
     },
-    { key: "ship", label: "Proje-Gemi Planı", count: childShip.length },
+    { key: "ship", label: t("dm.tab.ship"), count: childShip.length },
     {
       key: "expense",
-      label: "Tahmini Gider Satırları",
+      label: t("dm.tab.expense"),
       count: childExpense.length,
     },
     {
       key: "actualExpense",
-      label: "Gerçekleşen Gider Satırları",
+      label: t("dm.tab.actualExpense"),
       count: childActualExpense.length,
     },
     {
       key: "sales",
-      label: "Proje Satış Satırları",
+      label: t("dm.tab.sales"),
       count: childSales.length,
     },
     {
       key: "purchase",
-      label: "Proje Satınalma Satırları",
+      label: t("dm.tab.purchase"),
       count: childPurchase.length,
     },
   ];
@@ -1079,8 +1090,8 @@ export function DataManagementPage() {
               onSortChange={setProjectSort}
               emptyText={
                 projects.rows.length === 0
-                  ? "Henüz çekilmedi — üstten Verileri Güncelle"
-                  : "Filtreyle eşleşen proje yok"
+                  ? t("dm.empty.notFetched")
+                  : t("dm.empty.noProjectMatch")
               }
               maxHeight="34vh"
             />
@@ -1127,8 +1138,8 @@ export function DataManagementPage() {
                 selectedIndex={selectedSubProjectIndex}
                 emptyText={
                   subProjects.rows.length === 0
-                    ? "Henüz çekilmedi — üstten Verileri Güncelle"
-                    : "Filtreyle eşleşen alt proje yok"
+                    ? t("dm.empty.notFetched")
+                    : t("dm.empty.noSubProjectMatch")
                 }
                 maxHeight="34vh"
               />
@@ -1165,10 +1176,10 @@ export function DataManagementPage() {
                     columns={[...SUB_PROJECT_DETAIL_COLUMNS]}
                     emptyText={
                       !selectedSubProjectId
-                        ? "Üstten bir alt-proje seç"
+                        ? t("dm.empty.selectSubProject")
                         : subProjectDetails.rows.length === 0
-                          ? "Henüz çekilmedi — üstten Verileri Güncelle"
-                          : "Bu alt-projeye ait detay satırı yok"
+                          ? t("dm.empty.notFetched")
+                          : t("dm.empty.sub.details")
                     }
                     maxHeight="40vh"
                   />
@@ -1180,8 +1191,8 @@ export function DataManagementPage() {
                   priorityColumns={SHIP_DISPLAY_COLUMNS}
                   emptyText={
                     selectedSubProjectId
-                      ? "Bu alt-projeye ait gemi planı yok"
-                      : "Üstten bir alt-proje seç"
+                      ? t("dm.empty.sub.ship")
+                      : t("dm.empty.selectSubProject")
                   }
                   maxHeight="40vh"
                 />
@@ -1192,8 +1203,8 @@ export function DataManagementPage() {
                   columns={[...EXPENSE_COLUMNS]}
                   emptyText={
                     selectedSubProjectId
-                      ? "Bu alt-projeye ait gider satırı yok"
-                      : "Üstten bir alt-proje seç"
+                      ? t("dm.empty.sub.expense")
+                      : t("dm.empty.selectSubProject")
                   }
                   maxHeight="40vh"
                 />
@@ -1205,11 +1216,11 @@ export function DataManagementPage() {
                   emptyText={
                     selectedSubProjectId
                       ? actualExpense.error
-                        ? `Hata: ${actualExpense.error}`
+                        ? `${t("dm.banner.error")} ${actualExpense.error}`
                         : actualExpense.isFetching
-                          ? "Yükleniyor…"
-                          : "Bu alt-projeye ait gerçekleşen gider kaydı yok"
-                      : "Üstten bir alt-proje seç"
+                          ? t("dm.loading")
+                          : t("dm.empty.sub.actualExpense")
+                      : t("dm.empty.selectSubProject")
                   }
                   maxHeight="40vh"
                 />
@@ -1221,9 +1232,9 @@ export function DataManagementPage() {
                   emptyText={
                     selectedSubProjectId
                       ? sales.rows.length === 0
-                        ? "Henüz çekilmedi — üstten Güncelle"
-                        : "Bu alt-projeye ait fatura kesilmiş satış satırı yok"
-                      : "Üstten bir alt-proje seç"
+                        ? t("dm.empty.notFetchedShort")
+                        : t("dm.empty.sub.sales")
+                      : t("dm.empty.selectSubProject")
                   }
                   maxHeight="40vh"
                 />
@@ -1235,9 +1246,9 @@ export function DataManagementPage() {
                   emptyText={
                     selectedSubProjectId
                       ? purchase.rows.length === 0
-                        ? "Henüz çekilmedi — üstten Verileri Güncelle"
-                        : "Bu alt-projeye ait satınalma satırı yok"
-                      : "Üstten bir alt-proje seç"
+                        ? t("dm.empty.notFetched")
+                        : t("dm.empty.sub.purchase")
+                      : t("dm.empty.selectSubProject")
                   }
                   maxHeight="40vh"
                 />
@@ -1278,8 +1289,8 @@ export function DataManagementPage() {
                 columns={[...PROJECT_LINE_COLUMNS]}
                 emptyText={
                   selectedProjId
-                    ? "Bu projeye ait satır yok"
-                    : "Üstten bir proje seç"
+                    ? t("dm.empty.proj.lines")
+                    : t("dm.empty.selectProject")
                 }
                 maxHeight="55vh"
               />
@@ -1290,8 +1301,8 @@ export function DataManagementPage() {
                 priorityColumns={SHIP_DISPLAY_COLUMNS}
                 emptyText={
                   selectedProjId
-                    ? "Bu projeye ait gemi planı yok"
-                    : "Üstten bir proje seç"
+                    ? t("dm.empty.proj.ship")
+                    : t("dm.empty.selectProject")
                 }
                 maxHeight="55vh"
               />
@@ -1304,8 +1315,8 @@ export function DataManagementPage() {
                 columns={[...EXPENSE_COLUMNS]}
                 emptyText={
                   selectedProjId
-                    ? "Bu projeye ait gider satırı yok"
-                    : "Üstten bir proje seç"
+                    ? t("dm.empty.proj.expense")
+                    : t("dm.empty.selectProject")
                 }
                 maxHeight="55vh"
               />
@@ -1324,11 +1335,11 @@ export function DataManagementPage() {
                 emptyText={
                   selectedProjId
                     ? actualExpense.error
-                      ? `Hata: ${actualExpense.error}`
+                      ? `${t("dm.banner.error")} ${actualExpense.error}`
                       : actualExpense.isFetching
-                        ? "Yükleniyor…"
-                        : "Bu projeye ait gerçekleşen gider kaydı yok"
-                    : "Üstten bir proje seç"
+                        ? t("dm.loading")
+                        : t("dm.empty.proj.actualExpense")
+                    : t("dm.empty.selectProject")
                 }
                 maxHeight="55vh"
               />
@@ -1340,9 +1351,9 @@ export function DataManagementPage() {
                 emptyText={
                   selectedProjId
                     ? sales.rows.length === 0
-                      ? "Henüz çekilmedi — üstten Güncelle"
-                      : "Bu projeye ait fatura kesilmiş satış satırı yok"
-                    : "Üstten bir proje seç"
+                      ? t("dm.empty.notFetchedShort")
+                      : t("dm.empty.proj.sales")
+                    : t("dm.empty.selectProject")
                 }
                 maxHeight="55vh"
               />
@@ -1355,9 +1366,9 @@ export function DataManagementPage() {
                 emptyText={
                   selectedProjId
                     ? purchase.rows.length === 0
-                      ? "Henüz çekilmedi — üstten Verileri Güncelle"
-                      : "Bu projeye ait satınalma satırı yok"
-                    : "Üstten bir proje seç"
+                      ? t("dm.empty.notFetched")
+                      : t("dm.empty.proj.purchase")
+                    : t("dm.empty.selectProject")
                 }
                 maxHeight="55vh"
               />
@@ -1397,6 +1408,7 @@ function BudgetsMaster({
   selectedProjId: string | null;
   onClearFilter: () => void;
 }) {
+  const t = useT();
   // Distinguish: filter active (segment non-empty) vs. project picked but segment blank
   const projectSelected = !!selectedProjId;
   const filterActive = projectSelected && !!filterSegment && filterSegment.length > 0;
@@ -1433,7 +1445,9 @@ function BudgetsMaster({
         <div className="px-4 py-2 bg-foreground/[0.025] border-b border-foreground/[0.04] flex items-center gap-2 text-[11px] flex-wrap">
           {filterActive ? (
             <>
-              <span className="text-muted-foreground">Segment filtresi:</span>
+              <span className="text-muted-foreground">
+                {t("dm.budget.segmentFilter")}
+              </span>
               <code className="font-mono font-semibold text-foreground">
                 {filterSegment}
               </code>
@@ -1441,8 +1455,7 @@ function BudgetsMaster({
           ) : (
             <>
               <span className="text-amber-700 font-medium">
-                ⚠ Seçili projenin segmenti boş — filtre uygulanmadı, tüm
-                bütçeler gösteriliyor
+                {t("dm.budget.segmentEmpty")}
               </span>
             </>
           )}
@@ -1456,7 +1469,7 @@ function BudgetsMaster({
             onClick={onClearFilter}
             className="ml-auto h-6 px-2 rounded-md text-[10.5px] font-medium text-muted-foreground hover:text-foreground hover:bg-foreground/[0.06] transition-colors shrink-0"
           >
-            Seçimi kaldır
+            {t("dm.budget.clearSelection")}
           </button>
         </div>
       )}
@@ -1469,10 +1482,13 @@ function BudgetsMaster({
         onSortChange={setBudgetSort}
         emptyText={
           query.rows.length === 0
-            ? "Henüz çekilmedi — üstten Verileri Güncelle"
+            ? t("dm.empty.notFetched")
             : filterActive
-            ? `'${filterSegment}' segmentine ait bütçe satırı yok`
-            : "Veri yok"
+            ? t("dm.budget.emptyForSegment").replace(
+                "{segment}",
+                String(filterSegment)
+              )
+            : t("dm.empty.default")
         }
         maxHeight="60vh"
       />
@@ -1495,15 +1511,16 @@ function CacheBanner({
   totalCount?: number;
   error: Error | null;
 }) {
+  const t = useT();
   if (error) {
     return (
       <div className="px-4 py-2.5 border-b border-rose-200 bg-rose-50 text-rose-700 text-[11.5px]">
-        Hata: {error.message}
+        {t("dm.banner.error")} {error.message}
       </div>
     );
   }
   if (!fetchedAt && !isFetching) return null;
-  const ago = fetchedAt ? humanAgo(new Date(fetchedAt)) : null;
+  const ago = fetchedAt ? humanAgo(new Date(fetchedAt), t) : null;
   return (
     <div className="px-4 py-2 border-b border-foreground/[0.04] flex items-center gap-2 text-[10.5px] text-muted-foreground">
       <span
@@ -1514,13 +1531,13 @@ function CacheBanner({
       />
       {isFetching ? (
         loaded !== null ? (
-          <>Yükleniyor… <span className="tabular-nums font-semibold text-foreground">{loaded.toLocaleString("tr-TR")}</span> kayıt</>
+          <>{t("dm.banner.loadingWithCount")} <span className="tabular-nums font-semibold text-foreground">{loaded.toLocaleString("tr-TR")}</span> {t("dm.banner.records")}</>
         ) : (
-          "Bağlanıyor…"
+          t("dm.banner.connecting")
         )
       ) : (
         <>
-          <span>Son güncelleme: <span className="font-semibold text-foreground">{ago}</span></span>
+          <span>{t("dm.banner.lastUpdate")} <span className="font-semibold text-foreground">{ago}</span></span>
           <span>·</span>
           <span>
             <span className="font-semibold text-foreground tabular-nums">
@@ -1529,7 +1546,7 @@ function CacheBanner({
             {totalCount !== undefined && totalCount > count && (
               <> / {totalCount.toLocaleString("tr-TR")}</>
             )}
-            {" "}kayıt
+            {" "}{t("dm.banner.records")}
           </span>
         </>
       )}
@@ -1542,10 +1559,11 @@ function SelectedProjectInfo({
 }: {
   selectedProject: Record<string, unknown> | null;
 }) {
+  const t = useT();
   if (!selectedProject) return null;
   return (
     <div className="px-4 py-1.5 bg-foreground/[0.025] border-b border-foreground/[0.04] text-[10.5px] flex items-center gap-2 flex-wrap">
-      <span className="text-muted-foreground">Filtre:</span>
+      <span className="text-muted-foreground">{t("dm.selected.filter")}</span>
       <code className="font-mono font-semibold text-foreground">
         {String(selectedProject["mserp_projid"] ?? "—")}
       </code>
@@ -1556,16 +1574,16 @@ function SelectedProjectInfo({
   );
 }
 
-function humanAgo(d: Date): string {
+function humanAgo(d: Date, t: (key: string) => string): string {
   const diffMs = Date.now() - d.getTime();
   const sec = Math.floor(diffMs / 1000);
-  if (sec < 60) return "şimdi";
+  if (sec < 60) return t("dm.ago.now");
   const min = Math.floor(sec / 60);
-  if (min < 60) return `${min} dk önce`;
+  if (min < 60) return `${min} ${t("dm.ago.minutes")}`;
   const hr = Math.floor(min / 60);
-  if (hr < 24) return `${hr} saat önce`;
+  if (hr < 24) return `${hr} ${t("dm.ago.hours")}`;
   const day = Math.floor(hr / 24);
-  if (day < 7) return `${day} gün önce`;
+  if (day < 7) return `${day} ${t("dm.ago.days")}`;
   return d.toLocaleDateString("tr-TR");
 }
 
@@ -1590,6 +1608,7 @@ function DataInspectorSearch({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const t = useT();
   const accent = useThemeAccent();
   return (
     <div className="relative w-full max-w-[280px] shrink-0 min-w-[180px]">
@@ -1604,8 +1623,8 @@ function DataInspectorSearch({
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Proje veya gemi planı içinde ara…"
-        aria-label="Veri yönetimi içinde ara"
+        placeholder={t("dm.search.placeholder")}
+        aria-label={t("dm.search.aria")}
         className={cn(
           "w-full h-9 pl-9 pr-7 rounded-full text-[13px] outline-none",
           "bg-white/85 backdrop-blur-xl backdrop-saturate-150",
@@ -1621,7 +1640,7 @@ function DataInspectorSearch({
         <button
           type="button"
           onClick={() => onChange("")}
-          aria-label="Aramayı temizle"
+          aria-label={t("dm.search.clear")}
           className="absolute right-2 top-1/2 -translate-y-1/2 size-5 grid place-items-center rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/[0.06] z-[1]"
         >
           <HugeiconsIcon icon={Cancel01Icon} size={11} strokeWidth={2.5} />

@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { useThemeAccent } from "@/components/layout/theme-accent";
 import { readCache } from "@/lib/storage/entityCache";
 import { describeProjectFilter } from "@/lib/dataverse/refreshAll";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import {
   RefreshErrorToast,
   RefreshLoadingToast,
@@ -37,6 +38,7 @@ export function RefreshAllButton({
   steps,
   className,
 }: RefreshAllButtonProps) {
+  const t = useT();
   const accent = useThemeAccent();
   const [hovered, setHovered] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -129,7 +131,7 @@ export function RefreshAllButton({
 
   const label = busy
     ? `${currentLabel}… ${progress.done}/${progress.total}`
-    : "Güncelle";
+    : t("dm.refresh.label");
   const filterDescription = describeProjectFilter();
 
   const button = (
@@ -212,13 +214,27 @@ export function RefreshAllButton({
               style={{ color: accent.solid }}
             />
             <span className="text-[12px] font-bold uppercase tracking-wider text-slate-900">
-              Aktif Sorgu Filtresi
+              {t("dm.refresh.tooltip.title")}
             </span>
           </div>
           <div className="px-3.5 py-2.5 space-y-1.5">
             <div className="text-[11px] text-slate-700 leading-relaxed">
-              Dataverse'ten <span className="font-semibold text-slate-900">aşağıdaki kriterlere uyan tüm projeler</span>
-              {" "}+ bağlı satır/gemi/gider/satış kayıtları çekilir:
+              {(() => {
+                // Render the lead with its emphasis phrase bolded — split
+                // the localized lead on the localized bold substring so the
+                // <span> emphasis survives in both TR and EN.
+                const lead = t("dm.refresh.tooltip.lead");
+                const bold = t("dm.refresh.tooltip.leadBold");
+                const idx = lead.indexOf(bold);
+                if (idx === -1) return lead;
+                return (
+                  <>
+                    {lead.slice(0, idx)}
+                    <span className="font-semibold text-slate-900">{bold}</span>
+                    {lead.slice(idx + bold.length)}
+                  </>
+                );
+              })()}
             </div>
             <ul className="space-y-0.5 pt-1">
               {filterDescription.split("\n").map((line, i) => (
@@ -232,9 +248,7 @@ export function RefreshAllButton({
               ))}
             </ul>
             <div className="text-[10.5px] text-foreground/65 leading-snug pt-1.5 border-t border-border/30 mt-2">
-              7 adımlık zincir: Projeler → Satırlar → Gemi → Gider → Bütçe →
-              Satış Toplamları → Proje × Ay Satış. Bağlı satırlar çekilen
-              proje listesine göre filtrelenir.
+              {t("dm.refresh.tooltip.chain")}
             </div>
           </div>
         </TooltipContent>
