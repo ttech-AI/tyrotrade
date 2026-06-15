@@ -7,6 +7,9 @@ interface TyroChatButtonProps {
   onClick: () => void;
   className?: string;
   active?: boolean;
+  /** Icon-only circular variant for tight toolbars (mobile topbar) —
+   *  drops the "TYRO Chat" label + min-width so it fits a phone header. */
+  compact?: boolean;
 }
 
 /**
@@ -28,7 +31,12 @@ const TYRO_CHAT_RING = "rgba(67, 56, 202, 0.55)";
  * text-[13px]) so the two AI CTAs sit as identical-shaped siblings on
  * the topbar.
  */
-export function TyroChatButton({ onClick, className, active }: TyroChatButtonProps) {
+export function TyroChatButton({
+  onClick,
+  className,
+  active,
+  compact,
+}: TyroChatButtonProps) {
   const [hovered, setHovered] = React.useState(false);
   return (
     <button
@@ -40,7 +48,10 @@ export function TyroChatButton({ onClick, className, active }: TyroChatButtonPro
       aria-pressed={active}
       className={cn(
         "group relative inline-flex items-center justify-center gap-2 shrink-0",
-        "rounded-full px-3.5 min-w-[110px] h-9 text-[13px] font-semibold text-white",
+        compact
+          ? "rounded-full size-9"
+          : "rounded-full px-3.5 min-w-[110px] h-9",
+        "text-[13px] font-semibold text-white",
         "ring-1 ring-white/15 hover:ring-white/30",
         "transition-all duration-200",
         "hover:scale-[1.04]",
@@ -79,13 +90,16 @@ export function TyroChatButton({ onClick, className, active }: TyroChatButtonPro
       {/* 1px nudge down so the wordmark sits on the Robot icon's
           visual baseline — the glyph has more weight at the bottom
           (head + body) than the top (antenna), which makes the
-          geometrically-centered text read as floating high. */}
-      <span
-        className="relative z-[1] tracking-tight"
-        style={{ transform: "translateY(1px)" }}
-      >
-        TYRO Chat
-      </span>
+          geometrically-centered text read as floating high.
+          Hidden in compact (icon-only) mode for tight mobile topbars. */}
+      {!compact && (
+        <span
+          className="relative z-[1] tracking-tight"
+          style={{ transform: "translateY(1px)" }}
+        >
+          TYRO Chat
+        </span>
+      )}
     </button>
   );
 }

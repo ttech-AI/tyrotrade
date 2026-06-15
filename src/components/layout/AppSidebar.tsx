@@ -104,7 +104,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/overview", label: "Genel Bakış", icon: OverviewIcon },
       // Dashboard "/"'tan /dashboard'a taşındı ("/" artık /overview'a
       // yönlenen landing); e-posta allowlist kısıtı sürüyor.
-      { to: "/dashboard", label: "Anasayfa", icon: HomeLineIcon },
+      { to: "/dashboard", label: "Yönetici Paneli", icon: HomeLineIcon },
       { to: "/projects", label: "Sefer Takibi", icon: Ship },
     ],
   },

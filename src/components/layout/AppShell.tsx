@@ -26,7 +26,7 @@ import { shouldUseMock } from "@/lib/dataverse";
 import { cn } from "@/lib/utils";
 
 const PAGE_TITLES: Record<string, string> = {
-  "/dashboard": "Dashboard",
+  "/dashboard": "Yönetici Paneli",
   "/overview": "Genel Bakış",
   "/projects": "Vessel Projects",
   "/price-tracking": "Fiyat Takibi",
@@ -327,8 +327,11 @@ function TopBar({
               <Search />
             </Button>
             <NotificationButton />
+            {/* Mobile: icon-only (the labeled pill is too wide for a phone
+                topbar) but VISIBLE — was `hidden sm:inline-flex`, which left
+                phones with no way to open the chat drawer. */}
             <TyroChatButton
-              className="hidden sm:inline-flex"
+              compact={isMobile}
               active={chatOpen}
               onClick={onOpenChat}
             />
