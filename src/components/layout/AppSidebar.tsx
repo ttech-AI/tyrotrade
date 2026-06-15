@@ -27,7 +27,9 @@ import { Wordmark } from "@/components/brand/Wordmark";
 import { Logo } from "@/components/brand/Logo";
 import { useSidebar } from "./sidebar-context";
 import { ThemeSwitcher } from "./ThemeSwitcher";
+import { LanguageToggle } from "./LanguageToggle";
 import { ProfileMenu } from "./ProfileMenu";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import {
   RESTRICTED_NAV_ROUTES,
   useCanSeeRestricted,
@@ -76,12 +78,13 @@ function PriceTrackingIcon({ className }: { className?: string }) {
 
 interface NavItem {
   to: string;
-  label: string;
+  /** i18n key (translations.ts) — resolved via t() at render. */
+  labelKey: string;
   icon: React.ComponentType<{ className?: string }>;
 }
 
 interface NavGroup {
-  label: string;
+  labelKey: string;
   items: NavItem[];
 }
 
@@ -97,33 +100,33 @@ interface NavGroup {
  *  menu) that don't share the NavItemLink shape. */
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: "Operasyon",
+    labelKey: "navGroup.operations",
     items: [
       // Genel Bakış = uygulamanın açılış sayfası, kısıtlı DEĞİL —
       // Anasayfa'yı göremeyen kullanıcıların da gördüğü grup/segment özeti.
-      { to: "/overview", label: "Genel Bakış", icon: OverviewIcon },
+      { to: "/overview", labelKey: "nav.overview", icon: OverviewIcon },
       // Dashboard "/"'tan /dashboard'a taşındı ("/" artık /overview'a
       // yönlenen landing); e-posta allowlist kısıtı sürüyor.
-      { to: "/dashboard", label: "Yönetici Paneli", icon: HomeLineIcon },
-      { to: "/projects", label: "Sefer Takibi", icon: Ship },
+      { to: "/dashboard", labelKey: "nav.dashboard", icon: HomeLineIcon },
+      { to: "/projects", labelKey: "nav.projects", icon: Ship },
     ],
   },
   {
-    label: "Analiz",
+    labelKey: "navGroup.analysis",
     items: [
-      { to: "/pl-cost", label: "Trade Cost", icon: PLCostIcon },
-      { to: "/price-tracking", label: "Fiyat Takibi", icon: PriceTrackingIcon },
+      { to: "/pl-cost", labelKey: "nav.tradeCost", icon: PLCostIcon },
+      { to: "/price-tracking", labelKey: "nav.priceTracking", icon: PriceTrackingIcon },
     ],
   },
   {
-    label: "Yönetim",
-    items: [{ to: "/data", label: "Veri Yönetimi", icon: Database }],
+    labelKey: "navGroup.management",
+    items: [{ to: "/data", labelKey: "nav.dataManagement", icon: Database }],
   },
   {
-    label: "Sistem",
+    labelKey: "navGroup.system",
     items: [
-      { to: "/help", label: "Yardım", icon: HelpCircle },
-      { to: "/settings", label: "Ayarlar", icon: Settings },
+      { to: "/help", labelKey: "nav.help", icon: HelpCircle },
+      { to: "/settings", labelKey: "nav.settings", icon: Settings },
     ],
   },
 ];
@@ -138,6 +141,7 @@ export function AppSidebar({
   onItemClick,
 }: AppSidebarProps) {
   const { expanded, pinned, togglePin, theme } = useSidebar();
+  const t = useT();
   const showLabels = embedded || expanded;
 
   // Email-bazlı görünürlük: Anasayfa + Trade Cost yalnızca izinli
@@ -192,9 +196,7 @@ export function AppSidebar({
                       variant="ghost"
                       size="icon-sm"
                       onClick={togglePin}
-                      aria-label={
-                        pinned ? "Sabitlemeyi kaldır" : "Sidebar'ı sabitle"
-                      }
+                      aria-label={pinned ? t("sidebar.unpin") : t("sidebar.pin")}
                       className={cn(
                         "shrink-0 transition-colors text-[var(--sb-text-faint)] hover:text-[var(--sb-text)] hover:bg-[var(--sb-hover-bg)]",
                         pinned &&
@@ -209,7 +211,7 @@ export function AppSidebar({
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">
-                    {pinned ? "Sabitlemeyi kaldır" : "Sidebar'ı sabitle"}
+                    {pinned ? t("sidebar.unpin") : t("sidebar.pin")}
                   </TooltipContent>
                 </Tooltip>
               )}
@@ -235,7 +237,7 @@ export function AppSidebar({
         >
           {topGroups.map((g, idx) => (
             <NavSection
-              key={g.label}
+              key={g.labelKey}
               group={g}
               showLabels={showLabels}
               onItemClick={onItemClick}
@@ -259,7 +261,7 @@ export function AppSidebar({
           {showLabels && (
             // Same softer dialect as `NavSection`'s section header above.
             <div className="px-3 pt-2.5 pb-1.5 text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--sb-text-faint)]/85">
-              {systemGroup.label}
+              {t(systemGroup.labelKey)}
             </div>
           )}
           {/* Sibling-app shortcuts above the Yardım nav item. */}
@@ -279,6 +281,7 @@ export function AppSidebar({
             onClick={onItemClick}
           />
           <ThemeSwitcher showLabel={showLabels} />
+          <LanguageToggle showLabel={showLabels} />
           <NavItemLink
             item={systemGroup.items[1]}
             showLabel={showLabels}
@@ -311,6 +314,7 @@ function NavSection({
   topDivider?: boolean;
   extra?: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <>
       {topDivider && !showLabels && (
@@ -322,7 +326,7 @@ function NavSection({
         // padding above to breathe between groups. Size bumped to
         // 11px to match the heavier nav-item typography.
         <div className="px-3 pt-2.5 pb-1.5 text-[11px] font-medium uppercase tracking-[0.1em] text-[var(--sb-text-faint)]/85">
-          {group.label}
+          {t(group.labelKey)}
         </div>
       )}
       {group.items.map((item) => (
@@ -348,6 +352,8 @@ function NavItemLink({
   onClick?: () => void;
 }) {
   const Icon = item.icon;
+  const t = useT();
+  const label = t(item.labelKey);
   const match = useMatch({ path: item.to, end: item.to === "/" });
   const isActive = !!match;
 
@@ -385,7 +391,7 @@ function NavItemLink({
           isActive && "text-[var(--sb-pin-active)]"
         )}
       />
-      {showLabel && <span className="truncate">{item.label}</span>}
+      {showLabel && <span className="truncate">{label}</span>}
     </Link>
   );
 
@@ -393,7 +399,7 @@ function NavItemLink({
     return (
       <Tooltip>
         <TooltipTrigger asChild>{inner}</TooltipTrigger>
-        <TooltipContent side="right">{item.label}</TooltipContent>
+        <TooltipContent side="right">{label}</TooltipContent>
       </Tooltip>
     );
   }

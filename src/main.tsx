@@ -8,6 +8,7 @@ import App from "./App";
 import "./globals.css";
 import { getMsalInstance, isAuthConfigured } from "./lib/auth/msal";
 import { hydrateEntityCache } from "./lib/storage/entityCache";
+import { LanguageProvider } from "./lib/i18n/LanguageProvider";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,7 +26,9 @@ const queryClient = new QueryClient({
 const tree = (
   <QueryClientProvider client={queryClient}>
     <HashRouter>
-      <App />
+      <LanguageProvider>
+        <App />
+      </LanguageProvider>
     </HashRouter>
   </QueryClientProvider>
 );
