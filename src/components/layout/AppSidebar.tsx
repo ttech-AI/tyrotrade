@@ -13,6 +13,7 @@ import {
   Home01Icon,
   BadgeDollarSignIcon,
   PieChartIcon,
+  ChartLineData01Icon,
 } from "@hugeicons/core-free-icons";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,16 @@ function OverviewIcon({ className }: { className?: string }) {
   );
 }
 
+function PriceTrackingIcon({ className }: { className?: string }) {
+  return (
+    <HugeiconsIcon
+      icon={ChartLineData01Icon}
+      className={className}
+      strokeWidth={1.75}
+    />
+  );
+}
+
 interface NavItem {
   to: string;
   label: string;
@@ -99,7 +110,10 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     label: "Analiz",
-    items: [{ to: "/pl-cost", label: "Trade Cost", icon: PLCostIcon }],
+    items: [
+      { to: "/pl-cost", label: "Trade Cost", icon: PLCostIcon },
+      { to: "/price-tracking", label: "Fiyat Takibi", icon: PriceTrackingIcon },
+    ],
   },
   {
     label: "Yönetim",

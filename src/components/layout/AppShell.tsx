@@ -2,7 +2,7 @@ import * as React from "react";
 import { Outlet, useLocation, useMatch } from "react-router-dom";
 import { Menu, Ship, Database, Search, Settings, X, Trash2 } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Home01Icon, HotPriceIcon, Robot01Icon, PieChartIcon } from "@hugeicons/core-free-icons";
+import { Home01Icon, HotPriceIcon, Robot01Icon, PieChartIcon, ChartLineData01Icon } from "@hugeicons/core-free-icons";
 import { GlassPanel } from "@/components/glass/GlassPanel";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -29,6 +29,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
   "/overview": "Genel Bakış",
   "/projects": "Vessel Projects",
+  "/price-tracking": "Fiyat Takibi",
   "/data": "Veri Yönetimi",
   "/settings": "Ayarlar",
 };
@@ -391,6 +392,16 @@ const PAGE_TITLE_CONFIGS: Array<{
       ),
       label: "Trade Cost",
       title: "Tahmini × Gerçekleşen Maliyet",
+    },
+  },
+  {
+    match: (p) => p === "/price-tracking",
+    config: {
+      renderIcon: () => (
+        <HugeiconsIcon icon={ChartLineData01Icon} size={16} strokeWidth={2} />
+      ),
+      label: "Fiyat Takibi",
+      title: "İndikatif Navlun Fiyatları",
     },
   },
   {

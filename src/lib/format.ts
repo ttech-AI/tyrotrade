@@ -34,6 +34,24 @@ export const formatNumber = (n: number, fractionDigits = 0): string =>
   }).format(n);
 
 /**
+ * Per-ton indicative freight rate, e.g. `"61,06 USD/t"`. Used across the
+ * Fiyat Takibi page (KPIs, table, charts, detail panel) so every surface
+ * formats freight prices identically. Up to 2 decimals, trailing zeros
+ * dropped. Pass `withUnit=false` for the bare number (chart axes / tiles
+ * that render the unit separately).
+ */
+export const formatFreightRate = (
+  value: number,
+  currency: string = "USD",
+  withUnit: boolean = true
+): string => {
+  const n = new Intl.NumberFormat("tr-TR", {
+    maximumFractionDigits: 2,
+  }).format(value);
+  return withUnit ? `${n} ${currency}/t` : n;
+};
+
+/**
  * Standard Turkish date display — `dd.MM.yyyy` (e.g. `25.04.2026`).
  *
  * Used everywhere a date is shown to the user (project list, right-panel

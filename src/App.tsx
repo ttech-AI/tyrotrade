@@ -42,6 +42,11 @@ const VesselMapPage = React.lazy(() =>
 const OverviewPage = React.lazy(() =>
   import("@/pages/OverviewPage").then((m) => ({ default: m.OverviewPage }))
 );
+const PriceTrackingPage = React.lazy(() =>
+  import("@/pages/PriceTrackingPage").then((m) => ({
+    default: m.PriceTrackingPage,
+  }))
+);
 
 // Wraps a lazy page in a Suspense boundary. Each route gets its own boundary
 // so AppShell stays rendered while the page chunk is loading — only the
@@ -102,6 +107,12 @@ export default function App() {
               <S><PLCostPage /></S>
             </RestrictedRoute>
           }
+        />
+        {/* Fiyat Takibi — indikatif navlun fiyatları (RestrictedRoute YOK;
+            tüm kullanıcılar görür). */}
+        <Route
+          path="price-tracking"
+          element={<S><PriceTrackingPage /></S>}
         />
         <Route path="data" element={<S><DataManagementPage /></S>} />
         <Route path="vessel-map" element={<S><VesselMapPage /></S>} />
