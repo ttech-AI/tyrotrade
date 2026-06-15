@@ -50,6 +50,19 @@
 import type { PLCostNode } from "@/lib/selectors/plCost";
 import { formatCompactCurrency } from "@/lib/format";
 
+/** The translate function from `useT()` — passed in by the calling
+ *  component so this selector can build i18n strings without the
+ *  hook (selectors run outside React). */
+export type TranslateFn = (key: string) => string;
+
+/** Substitute `{name}` placeholders in a translated template with
+ *  the provided data values. Values are pre-formatted strings (labels,
+ *  currency, percentages) so language only affects the surrounding
+ *  words, never the data. */
+function fill(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? `{${k}}`);
+}
+
 export type InsightTone = "positive" | "warning" | "danger" | "info";
 
 export interface PLCostInsight {
@@ -77,7 +90,10 @@ const MIN_DELTA_FOR_SMALL_VARIANCE = 5_000;
  * to 5 callouts. Empty tree (or no comparable segments) → empty
  * array (caller hides the ribbon).
  */
-export function generateSmartInsights(tree: PLCostNode[]): PLCostInsight[] {
+export function generateSmartInsights(
+  tree: PLCostNode[],
+  t: TranslateFn
+): PLCostInsight[] {
   if (tree.length === 0) return [];
 
   // L1 segments are the only subject. Filter to ones with real
@@ -124,9 +140,13 @@ export function generateSmartInsights(tree: PLCostNode[]): PLCostInsight[] {
       (balanced.metrics.realizedExpectedPct ?? 100) - 100
     ).toFixed(1);
     pushInsight({
-      text: `${balanced.label} en dengeli segment (%${pct})`,
+      text: fill(t("tc.insights.balanced.text"), { label: balanced.label, pct }),
       tone: "positive",
-      tooltip: `${balanced.label} segmentinde gerçekleşen gider, tahminin %${pct}'ine geldi — tahminden sadece ${gap} puan sapma. Portföydeki en isabetli forecast. Hangi statü/projelerin bu dengeyi tutturduğunu görmek için tıklayın.`,
+      tooltip: fill(t("tc.insights.balanced.tip"), {
+        label: balanced.label,
+        pct,
+        gap,
+      }),
       targetNodeId: balanced.id,
     });
   }
@@ -143,9 +163,17 @@ export function generateSmartInsights(tree: PLCostNode[]): PLCostInsight[] {
         segments.reduce((s, x) => s + x.metrics.realizedUsd, 0)) *
       100;
     pushInsight({
-      text: `${heaviest.label} en masraflı segment (${realised})`,
+      text: fill(t("tc.insights.heaviest.text"), {
+        label: heaviest.label,
+        amount: realised,
+      }),
       tone: "info",
-      tooltip: `${heaviest.label} segmenti, gerçekleşen gider toplamının yaklaşık %${share.toFixed(0)}'ini tek başına oluşturuyor (${realised}, ${heaviest.rawProjectNos.length} proje). Portföyün en pahalı parçası. Hangi gider kalemlerinin bu paya katkı verdiğini görmek için tıklayın.`,
+      tooltip: fill(t("tc.insights.heaviest.tip"), {
+        label: heaviest.label,
+        share: share.toFixed(0),
+        amount: realised,
+        count: String(heaviest.rawProjectNos.length),
+      }),
       targetNodeId: heaviest.id,
     });
   }
@@ -158,9 +186,15 @@ export function generateSmartInsights(tree: PLCostNode[]): PLCostInsight[] {
   if (lightest) {
     const realised = formatCompactCurrency(lightest.metrics.realizedUsd, "USD");
     pushInsight({
-      text: `${lightest.label} en az masraflı segment (${realised})`,
+      text: fill(t("tc.insights.lightest.text"), {
+        label: lightest.label,
+        amount: realised,
+      }),
       tone: "positive",
-      tooltip: `${lightest.label} segmentinde toplam ${realised} gerçekleşen gider var — anlamlı eşiği aşan en düşük rakam. Küçük portföy ya da düşük lojistik yoğunluğu olabilir. Detay için tıklayın.`,
+      tooltip: fill(t("tc.insights.lightest.tip"), {
+        label: lightest.label,
+        amount: realised,
+      }),
       targetNodeId: lightest.id,
     });
   }
@@ -186,13 +220,19 @@ export function generateSmartInsights(tree: PLCostNode[]): PLCostInsight[] {
     );
     const pct = mostDeviated.metrics.realizedExpectedPct?.toFixed(0) ?? "—";
     pushInsight({
-      text: overshoot
-        ? `${mostDeviated.label} tahmini ${deltaTxt} aştı`
-        : `${mostDeviated.label} tahminin ${deltaTxt} altında`,
+      text: fill(
+        t(overshoot ? "tc.insights.mostDeviated.over" : "tc.insights.mostDeviated.under"),
+        { label: mostDeviated.label, amount: deltaTxt }
+      ),
       tone: overshoot ? "warning" : "positive",
-      tooltip: overshoot
-        ? `${mostDeviated.label} segmentinde gerçekleşen gider, tahminin ${deltaTxt} (%${pct}) üzerine çıktı — portföyde tahminden en çok sapan segment. Tıklayarak hangi statü ve projelerin bu sapmaya neden olduğunu görebilirsiniz.`
-        : `${mostDeviated.label} segmentinde gerçekleşen gider, tahminin ${deltaTxt} (%${pct}) altında kaldı — portföyde tahminden en çok sapan segment ama pozitif yönde. Tıklayarak nereden tasarruf çıktığını görebilirsiniz.`,
+      tooltip: fill(
+        t(
+          overshoot
+            ? "tc.insights.mostDeviated.overTip"
+            : "tc.insights.mostDeviated.underTip"
+        ),
+        { label: mostDeviated.label, amount: deltaTxt, pct }
+      ),
       targetNodeId: mostDeviated.id,
     });
   }
@@ -216,9 +256,17 @@ export function generateSmartInsights(tree: PLCostNode[]): PLCostInsight[] {
     );
     const pct = leastDeviated.metrics.realizedExpectedPct?.toFixed(0) ?? "—";
     pushInsight({
-      text: `${leastDeviated.label} tahminden en az saptı (Δ ${deltaTxt})`,
+      text: fill(t("tc.insights.leastDeviated.text"), {
+        label: leastDeviated.label,
+        amount: deltaTxt,
+      }),
       tone: "positive",
-      tooltip: `${leastDeviated.label} segmentinde gerçekleşen ile tahmini arasında yalnızca ${deltaTxt} fark var (%${pct} gerçekleşme). Anlamlı bir forecast hatası eşiğinin (${formatCompactCurrency(MIN_DELTA_FOR_SMALL_VARIANCE, "USD")}) altındaki en isabetli segment.`,
+      tooltip: fill(t("tc.insights.leastDeviated.tip"), {
+        label: leastDeviated.label,
+        amount: deltaTxt,
+        pct,
+        floor: formatCompactCurrency(MIN_DELTA_FOR_SMALL_VARIANCE, "USD"),
+      }),
       targetNodeId: leastDeviated.id,
     });
   }

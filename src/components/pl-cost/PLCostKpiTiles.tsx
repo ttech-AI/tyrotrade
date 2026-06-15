@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/tooltip";
 import { GlassPanel } from "@/components/glass/GlassPanel";
 import { formatCompactCurrency } from "@/lib/format";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type { PLCostMetrics } from "@/lib/selectors/plCost";
 
 interface PLCostKpiTilesProps {
@@ -77,6 +78,7 @@ export function PLCostKpiTiles({
   totalProjects,
   topVariance,
 }: PLCostKpiTilesProps) {
+  const t = useT();
   const overBudget = rootMetrics.deltaUsd > 0;
   const onTarget =
     rootMetrics.realizedExpectedPct != null &&
@@ -92,81 +94,87 @@ export function PLCostKpiTiles({
     <TooltipProvider delayDuration={250}>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <Tile
-          label="Toplam Tahmini"
+          label={t("tc.kpi.estimated")}
           value={formatCompactCurrency(rootMetrics.expectedUsd, "USD")}
-          sub={`${totalProjects} proje`}
+          sub={`${totalProjects} ${t("tc.kpi.projects")}`}
           icon={Coins02Icon}
           tone="slate"
+          formulaLabel={t("tc.kpi.formula")}
           tooltip={{
-            title: "Toplam Tahmini Gider",
-            body:
-              "Filtrelenmiş tüm projelerin Masraf Tahmini (cost estimate) toplamı. Her projedeki Navlun, Sigorta, Gümrük ve diğer kalemlerin USD eşdeğer toplamından gelir. Karşılaştırma referansı budur — gerçekleşen bu rakama yakınsadıkça performans hedeftedir.",
+            title: t("tc.kpi.estimated.t"),
+            body: t("tc.kpi.estimated.b"),
             formula: "Σ project.costEstimate.totalUsd",
           }}
         />
         <Tile
-          label="Toplam Gerçekleşen"
+          label={t("tc.kpi.realized")}
           value={formatCompactCurrency(rootMetrics.realizedUsd, "USD")}
-          sub="rollup'tan toplam"
+          sub={t("tc.kpi.realized.sub")}
           icon={ChartHistogramIcon}
           tone="sky"
           valueBold
+          formulaLabel={t("tc.kpi.formula")}
           tooltip={{
-            title: "Toplam Gerçekleşen Gider",
-            body:
-              "F&O fatura/expense kayıtlarından gelen gerçekleşen gider toplamı. Inventdimb → distribution → expense-line zincirinden aggregate edilir. Her satırın işareti Vendor(+)/Customer(−) bazına göre, iade (isReturned) ise ters çevrilerek hesaplanır — Power BI ile birebir. Vergi/hazine kodları (KDV, Damga) hariç tutulur. Bu rakam tahmine yaklaştıkça proje performansı tutarlıdır.",
+            title: t("tc.kpi.realized.t"),
+            body: t("tc.kpi.realized.b"),
             formula: "Σ rollup.totalUsd (PRJ × expense)",
           }}
         />
         <Tile
-          label="Gerçekleşme"
+          label={t("tc.kpi.realization")}
           value={
             rootMetrics.realizedExpectedPct == null
               ? "—"
               : `%${rootMetrics.realizedExpectedPct.toFixed(1)}`
           }
-          sub={onTarget ? "hedefte" : overBudget ? "bütçe aşıldı" : "altında"}
+          sub={
+            onTarget
+              ? t("tc.kpi.onTarget")
+              : overBudget
+                ? t("tc.kpi.overBudget")
+                : t("tc.kpi.underBudget")
+          }
           icon={TargetIcon}
           tone={tonePctLabel}
+          formulaLabel={t("tc.kpi.formula")}
           tooltip={{
-            title: "Gerçekleşme Oranı",
-            body:
-              "Gerçekleşen ile Tahmini arasındaki oransal ilişki. %95–%105 aralığı hedefte sayılır — bu aralıkta yeşil, üzerinde kırmızı (bütçe aşıldı), altında amber (henüz tamamlanmamış olabilir) gösterilir.",
-            formula: "Gerçekleşen ÷ Tahmini × 100",
+            title: t("tc.kpi.realization.t"),
+            body: t("tc.kpi.realization.b"),
+            formula: t("tc.kpi.realization.f"),
           }}
         />
         <Tile
-          label="Δ Sapma"
+          label={t("tc.kpi.delta")}
           value={
             rootMetrics.deltaUsd === 0
               ? "—"
               : `${overBudget ? "+" : "−"}${formatCompactCurrency(Math.abs(rootMetrics.deltaUsd), "USD")}`
           }
-          sub={overBudget ? "bütçe üstü" : "bütçe altı"}
+          sub={overBudget ? t("tc.kpi.overBudgetShort") : t("tc.kpi.underBudgetShort")}
           icon={overBudget ? TrendingUp : TrendingDown}
           tone={toneDelta}
           valueBold
+          formulaLabel={t("tc.kpi.formula")}
           tooltip={{
-            title: "Mutlak Sapma (USD)",
-            body:
-              "Gerçekleşen − Tahmini farkı. Pozitif değer bütçe üstü, negatif değer bütçe altı kalındığını gösterir. Yön kadar büyüklüğü de önemli: küçük bir % sapma bile dolar tabanında büyük olabilir (özellikle yüksek hacimli projelerde).",
-            formula: "Gerçekleşen − Tahmini",
+            title: t("tc.kpi.delta.t"),
+            body: t("tc.kpi.delta.b"),
+            formula: t("tc.kpi.delta.f"),
           }}
         />
         <Tile
-          label="En Sapan"
+          label={t("tc.kpi.topVariance")}
           value={
             topVariance
               ? `${topVariance.deltaUsd >= 0 ? "+" : "−"}${formatCompactCurrency(Math.abs(topVariance.deltaUsd), "USD")}`
               : "—"
           }
-          sub={topVariance ? topVariance.label : "veri yok"}
+          sub={topVariance ? topVariance.label : t("common.noData")}
           icon={Alert02Icon}
           tone="amber"
+          formulaLabel={t("tc.kpi.formula")}
           tooltip={{
-            title: "En Sapan L3 Düğümü",
-            body:
-              "Tüm 'Vessel × Statü' (3. seviye) düğümleri arasında mutlak sapması (|Gerçekleşen − Tahmini|) en yüksek olanı. Tahminin sıfır olduğu düğümler hariç tutulur (oran patlaması engellenir). Hangi proje/geminin sapmaya en çok katkı verdiğini görmek için tabloda arayın.",
+            title: t("tc.kpi.topVariance.t"),
+            body: t("tc.kpi.topVariance.b"),
             formula: "arg max |deltaUsd|",
           }}
         />
@@ -182,6 +190,7 @@ function Tile({
   icon,
   tone,
   valueBold,
+  formulaLabel,
   tooltip,
 }: {
   label: string;
@@ -191,6 +200,8 @@ function Tile({
   icon: any;
   tone: Tone;
   valueBold?: boolean;
+  /** Translated "Formula" / "Formül" label for the tooltip footer. */
+  formulaLabel: string;
   tooltip: {
     title: string;
     body: string;
@@ -263,7 +274,7 @@ function Tile({
           </p>
           <div className="mt-2 pt-1.5 border-t border-foreground/10">
             <div className="text-[9.5px] uppercase tracking-wider text-muted-foreground font-semibold mb-0.5">
-              Formül
+              {formulaLabel}
             </div>
             <code className="text-[11px] font-mono text-foreground/90 leading-tight">
               {tooltip.formula}

@@ -14,6 +14,7 @@ import {
   formatNumber,
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type { PLCostNode } from "@/lib/selectors/plCost";
 
 interface PLCostDetailPanelProps {
@@ -21,11 +22,14 @@ interface PLCostDetailPanelProps {
   onClose: () => void;
 }
 
+/** Per-level icon + accent palette + translation-key references for
+ *  the level label and its child label. The label/childLabel text is
+ *  resolved at render time via `t()` — see `Body`. */
 const LEVEL_META: Record<
   1 | 2 | 3 | 4,
   {
-    label: string;
-    childLabel: string;
+    labelKey: string;
+    childLabelKey: string;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     icon: any;
     accentBg: string;
@@ -34,32 +38,32 @@ const LEVEL_META: Record<
   }
 > = {
   1: {
-    label: "Segment",
-    childLabel: "Statü",
+    labelKey: "tc.panel.level.segment",
+    childLabelKey: "tc.panel.level.status",
     icon: Globe02Icon,
     accentBg: "linear-gradient(135deg, #38bdf8, #0284c7)",
     accentRing: "rgba(56,189,248,0.40)",
     accentText: "rgb(7 89 133)",
   },
   2: {
-    label: "Statü",
-    childLabel: "Gemi / Proje",
+    labelKey: "tc.panel.level.status",
+    childLabelKey: "tc.panel.level.vesselProject",
     icon: WorkflowSquare05Icon,
     accentBg: "linear-gradient(135deg, #a78bfa, #7c3aed)",
     accentRing: "rgba(167,139,250,0.40)",
     accentText: "rgb(76 29 149)",
   },
   3: {
-    label: "Gemi / Proje",
-    childLabel: "Gider Kalemi",
+    labelKey: "tc.panel.level.vesselProject",
+    childLabelKey: "tc.panel.level.expenseLine",
     icon: ShipmentTrackingIcon,
     accentBg: "linear-gradient(135deg, #34d399, #059669)",
     accentRing: "rgba(16,185,129,0.40)",
     accentText: "rgb(6 95 70)",
   },
   4: {
-    label: "Gider Kalemi",
-    childLabel: "Voucher Satırı",
+    labelKey: "tc.panel.level.expenseLine",
+    childLabelKey: "tc.panel.level.voucherLine",
     icon: ReceiptDollarIcon,
     accentBg: "linear-gradient(135deg, #fbbf24, #d97706)",
     accentRing: "rgba(245,158,11,0.40)",
@@ -114,12 +118,15 @@ export function PLCostDetailPanel({ node, onClose }: PLCostDetailPanelProps) {
 }
 
 function Body({ node, onClose }: { node: PLCostNode; onClose: () => void }) {
+  const t = useT();
   const m = node.metrics;
   const overBudget = m.deltaUsd > 0;
   const onTarget =
     m.realizedExpectedPct != null && Math.abs(m.realizedExpectedPct - 100) <= 5;
   const tone = onTarget ? "neutral" : overBudget ? "danger" : "positive";
   const meta = LEVEL_META[node.level];
+  const levelLabel = t(meta.labelKey);
+  const childLabel = t(meta.childLabelKey);
 
   return (
     <>
@@ -136,7 +143,7 @@ function Body({ node, onClose }: { node: PLCostNode; onClose: () => void }) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold">
-            {meta.label}
+            {levelLabel}
           </div>
           <div className="text-[16px] font-bold tracking-tight leading-tight truncate mt-0.5">
             {looksLikeProjectNo(node.label) ? (
@@ -164,7 +171,7 @@ function Body({ node, onClose }: { node: PLCostNode; onClose: () => void }) {
         <button
           type="button"
           onClick={onClose}
-          aria-label="Detay panelini kapat"
+          aria-label={t("tc.panel.close")}
           className="size-8 rounded-lg grid place-items-center hover:bg-foreground/10 transition-colors shrink-0"
         >
           <X className="size-4" />
@@ -180,7 +187,7 @@ function Body({ node, onClose }: { node: PLCostNode; onClose: () => void }) {
         {node.children && node.children.length > 0 && (
           <TopChildrenSection
             children={node.children}
-            childLabel={meta.childLabel}
+            childLabel={childLabel}
           />
         )}
 
@@ -208,6 +215,7 @@ function VarianceGauge({
   metrics: PLCostNode["metrics"];
   tone: "positive" | "danger" | "neutral";
 }) {
+  const t = useT();
   const pct = metrics.realizedExpectedPct;
   const palette = {
     positive: { bg: "rgba(16,185,129,0.10)", text: "rgb(4 120 87)", bar: "rgb(16 185 129)" },
@@ -225,7 +233,7 @@ function VarianceGauge({
     >
       <div className="flex items-baseline justify-between mb-2">
         <div className="text-[10.5px] uppercase tracking-wider font-semibold text-muted-foreground">
-          Gerçekleşme %
+          {t("tc.panel.realizationPct")}
         </div>
         <div
           className="text-[28px] font-bold tabular-nums leading-none"
@@ -248,7 +256,7 @@ function VarianceGauge({
       <div className="flex items-baseline justify-between mt-3 text-[12px]">
         <div>
           <div className="text-muted-foreground/80 font-medium uppercase tracking-wide text-[10px]">
-            Δ Sapma
+            {t("tc.panel.delta")}
           </div>
           <div
             className="font-bold tabular-nums"
@@ -261,7 +269,7 @@ function VarianceGauge({
         </div>
         <div className="text-right">
           <div className="text-muted-foreground/80 font-medium uppercase tracking-wide text-[10px]">
-            Tahmini → Gerçekleşen
+            {t("tc.panel.estimatedToRealized")}
           </div>
           <div className="font-mono tabular-nums">
             {formatCompactCurrency(metrics.expectedUsd, "USD")} →{" "}
@@ -291,6 +299,7 @@ function TopChildrenSection({
   children: PLCostNode[];
   childLabel: string;
 }) {
+  const t = useT();
   // Sort by realizedUsd desc, take top 3
   const top = [...children]
     .sort((a, b) => b.metrics.realizedUsd - a.metrics.realizedUsd)
@@ -299,7 +308,9 @@ function TopChildrenSection({
   return (
     <div>
       <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold mb-1.5 px-1 flex items-center justify-between">
-        <span>En Büyük {childLabel} Kırılımı</span>
+        <span>
+          {t("tc.panel.topChildrenA")} {childLabel} {t("tc.panel.topChildrenB")}
+        </span>
         <span className="font-mono normal-case tracking-normal text-muted-foreground/70">
           {top.length}/{children.length}
         </span>
@@ -359,7 +370,7 @@ function TopChildrenSection({
         })}
         {remaining > 0 && (
           <div className="px-3 py-1.5 text-[10.5px] text-muted-foreground italic">
-            +{remaining} {childLabel.toLowerCase()} daha
+            +{remaining} {childLabel.toLowerCase()} {t("tc.panel.moreSuffix")}
           </div>
         )}
       </div>
@@ -368,57 +379,58 @@ function TopChildrenSection({
 }
 
 function MetricGrid({ node }: { node: PLCostNode }) {
+  const t = useT();
   const m = node.metrics;
   const items: Array<{ label: string; value: string; muted?: boolean }> = [
     {
-      label: "Tahmini USD",
+      label: t("tc.panel.estimatedUsd"),
       value: formatCompactCurrency(m.expectedUsd, "USD"),
     },
     {
-      label: "Gerçekleşen USD",
+      label: t("tc.panel.realizedUsd"),
       value: formatCompactCurrency(m.realizedUsd, "USD"),
     },
     {
-      label: "Tahmini Birim USD/MT",
+      label: t("tc.panel.estimatedUnitUsdMt"),
       value: m.expectedPriceUsdPerMt
         ? formatNumber(m.expectedPriceUsdPerMt, 2)
         : "—",
     },
     {
-      label: "Gerçek. Birim USD/MT",
+      label: t("tc.panel.realizedUnitUsdMt"),
       value: m.realizedPriceUsdPerMt
         ? formatNumber(m.realizedPriceUsdPerMt, 2)
         : "—",
     },
     {
-      label: "Vessel MT",
+      label: t("tc.panel.vesselMt"),
       value: m.quantityVesselMt
         ? `${formatNumber(m.quantityVesselMt, 0)} t`
         : "—",
     },
     {
-      label: "Tahmini MT",
+      label: t("tc.panel.estimatedMt"),
       value: m.expectedQuantityMt
         ? `${formatNumber(m.expectedQuantityMt, 0)} t`
         : "—",
     },
     {
-      label: "R/E Ton %",
+      label: t("tc.panel.reTonPct"),
       value:
         m.realizedExpectedTonPct == null
           ? "—"
           : `%${m.realizedExpectedTonPct.toFixed(1)}`,
     },
     {
-      label: "Katkı satır sayısı",
-      value: `${node.rawProjectNos.length} proje`,
+      label: t("tc.panel.contributingRows"),
+      value: `${node.rawProjectNos.length} ${t("tc.panel.projectsUnit")}`,
       muted: true,
     },
   ];
   return (
     <div>
       <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold mb-1.5 px-1">
-        Tüm Metrikler
+        {t("tc.panel.allMetrics")}
       </div>
       <div className="grid grid-cols-2 gap-2">
         {items.map((it) => (
@@ -449,6 +461,7 @@ function ExpenseRowsTable({
 }: {
   rows: NonNullable<PLCostNode["rawExpenseRows"]>;
 }) {
+  const t = useT();
   // Sort by abs(totalUsd) desc — biggest contributors lead.
   const sorted = [...rows].sort(
     (a, b) => Math.abs(b.totalUsd) - Math.abs(a.totalUsd)
@@ -456,15 +469,15 @@ function ExpenseRowsTable({
   return (
     <div>
       <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold mb-1.5 px-1">
-        Ham Voucher Satırları ({rows.length})
+        {t("tc.panel.rawVoucherRows")} ({rows.length})
       </div>
       <div className="rounded-lg border border-border/30 overflow-hidden max-h-72 overflow-y-auto">
         <table className="w-full text-[11px]">
           <thead className="bg-foreground/[0.04] sticky top-0">
             <tr>
-              <Th>Proje</Th>
-              <Th>Kalem</Th>
-              <Th align="right">Tutar</Th>
+              <Th>{t("tc.panel.colProject")}</Th>
+              <Th>{t("tc.panel.colItem")}</Th>
+              <Th align="right">{t("tc.panel.colAmount")}</Th>
             </tr>
           </thead>
           <tbody>
@@ -507,6 +520,7 @@ function ExpenseRowsTable({
 }
 
 function ProjectListSection({ projectNos }: { projectNos: string[] }) {
+  const t = useT();
   // De-dupe and cap to ~12 visible to avoid mega-list in the panel.
   const unique = Array.from(new Set(projectNos));
   const visible = unique.slice(0, 12);
@@ -514,7 +528,7 @@ function ProjectListSection({ projectNos }: { projectNos: string[] }) {
   return (
     <div>
       <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground font-semibold mb-1.5 px-1">
-        Bu Düzeydeki Projeler ({unique.length})
+        {t("tc.panel.projectsAtLevel")} ({unique.length})
       </div>
       <div className="flex flex-wrap gap-1">
         {visible.map((no) => (
@@ -523,7 +537,7 @@ function ProjectListSection({ projectNos }: { projectNos: string[] }) {
             to={`/projects/${no}`}
             state={{ focusProjectNo: no }}
             onClick={(e) => e.stopPropagation()}
-            title={`${no} projesini Vessel Projects'te aç`}
+            title={`${no} ${t("tc.panel.openInProjects")}`}
             className="group inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-foreground/[0.06] hover:bg-foreground/[0.10] text-[10.5px] font-mono transition-colors"
           >
             {no}
@@ -535,7 +549,7 @@ function ProjectListSection({ projectNos }: { projectNos: string[] }) {
         ))}
         {hidden > 0 && (
           <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-foreground/[0.04] text-[10.5px] text-muted-foreground italic">
-            +{hidden} daha
+            +{hidden} {t("tc.panel.moreSuffix")}
           </span>
         )}
       </div>
@@ -572,6 +586,7 @@ function ProjectNoLink({
   projectNo: string;
   className?: string;
 }) {
+  const t = useT();
   return (
     <Link
       to={`/projects/${projectNo}`}
@@ -582,7 +597,7 @@ function ProjectNoLink({
       // pinned.
       state={{ focusProjectNo: projectNo }}
       onClick={(e) => e.stopPropagation()}
-      title={`${projectNo} projesini Vessel Projects'te aç`}
+      title={`${projectNo} ${t("tc.panel.openInProjects")}`}
       className={cn(
         "group inline-flex items-center gap-1 font-mono tabular-nums hover:underline underline-offset-2 decoration-foreground/40 transition-colors hover:text-foreground",
         className

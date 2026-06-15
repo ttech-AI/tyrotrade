@@ -13,6 +13,7 @@ import { Loader2 } from "lucide-react";
 import { GlassPanel } from "@/components/glass/GlassPanel";
 import { useThemeAccent } from "@/components/layout/theme-accent";
 import { formatNumber } from "@/lib/format";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type { StageProgress } from "@/hooks/useActualExpenseRollup";
 import type { RollupStage } from "@/lib/dataverse/actualExpenseRollup";
 
@@ -23,75 +24,56 @@ interface PLCostProgressProps {
   totalProjects: number;
 }
 
-/** Localised label + descriptive sub-line for each rollup stage.
+/** Per-stage icon + translation-key base. The user-facing text
+ *  (title / running sub-line / count label / AI phrase) is resolved at
+ *  render time via `t()` keyed on this base — see `resolveStageMeta`.
  *  Wording is end-user friendly — no F&O entity names, no system
  *  jargon like "inventdimid". Each stage gets its own glyph so the
- *  user sees the chain visually progress.
- *
- *  `aiPhrase` is the dynamic headline shown above the step list —
- *  changes as the engine moves through stages so the user feels
- *  the AI "thinking" out loud rather than staring at a static
- *  "Konsolide Ediliyor" string for 60 seconds. */
+ *  user sees the chain visually progress. */
 const STAGE_META: Record<
   RollupStage,
   {
-    title: string;
-    /** Pre-completion sub-line — what the engine is doing right now. */
-    runningSubtitle: string;
-    /** Post-completion count formatter — what just landed. */
-    countLabel: (n: number) => string;
-    /** Short evocative phrase for the main header — feels like an
-     *  AI narrating its current thought (2-4 words max). */
-    aiPhrase: string;
+    /** Translation key base, e.g. "tc.progress.inventdimb". */
+    keyBase: string;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     icon: any;
   }
 > = {
-  inventdimb: {
-    title: "Proje Tanım Kayıtları",
-    runningSubtitle: "Aktif projelere ait kayıt anahtarları toplanıyor",
-    countLabel: (n) => `${formatNumber(n, 0)} proje kaydı çözümlendi`,
-    aiPhrase: "Veri akışını çözümlüyor",
-    icon: Folder01Icon,
-  },
-  refmap: {
-    title: "Masraf Sınıflandırma",
-    runningSubtitle:
-      "Tahmini gider sınıflarının metinsel etiketleri eşleniyor",
-    countLabel: (n) => `${formatNumber(n, 0)} masraf kategorisi haritalandı`,
-    aiPhrase: "Etiketleri sentezliyor",
-    icon: Tag01Icon,
-  },
-  dist: {
-    title: "Masraf Tahsisat Bağlantıları",
-    runningSubtitle:
-      "Proje kayıtlarına bağlı masraf voucher numaraları taranıyor",
-    countLabel: (n) => `${formatNumber(n, 0)} masraf vorucher'ı bağlandı`,
-    aiPhrase: "Bağlantıları kuruyor",
-    icon: ReceiptDollarIcon,
-  },
+  inventdimb: { keyBase: "tc.progress.inventdimb", icon: Folder01Icon },
+  refmap: { keyBase: "tc.progress.refmap", icon: Tag01Icon },
+  dist: { keyBase: "tc.progress.dist", icon: ReceiptDollarIcon },
   "expense-line": {
-    title: "Gerçekleşen Gider Satırları",
-    runningSubtitle: "Authoritative masraf satırları indiriliyor",
-    countLabel: (n) => `${formatNumber(n, 0)} fatura satırı analiz edildi`,
-    aiPhrase: "Kayıtları analiz ediyor",
+    keyBase: "tc.progress.expenseLine",
     icon: Invoice03Icon,
   },
-  aggregate: {
-    title: "Toplama & Optimizasyon",
-    runningSubtitle:
-      "Fiyat farkları düşülüyor, proje × kategori bazında konsolide ediliyor",
-    countLabel: (n) =>
-      `${formatNumber(n, 0)} özet satırı oluşturuldu — analiz hazır`,
-    aiPhrase: "İçgörü üretiyor",
-    icon: ChartHistogramIcon,
-  },
+  aggregate: { keyBase: "tc.progress.aggregate", icon: ChartHistogramIcon },
 };
 
-/** Idle phrase shown before the first stage starts (rare — the
- *  pipeline transitions from "all pending" → "stage 1 running" very
- *  quickly, but if the network is slow this is the bridge). */
-const IDLE_AI_PHRASE = "Düşünüyor";
+/** Resolved, language-aware copy for one stage. Built per render from
+ *  `STAGE_META` + the active `t()`. `countLabel` keeps the formatting
+ *  numeric (locale-agnostic) and only translates the surrounding noun
+ *  phrase — e.g. "1.234 project records resolved". */
+interface ResolvedStageMeta {
+  title: string;
+  runningSubtitle: string;
+  countLabel: (n: number) => string;
+  aiPhrase: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  icon: any;
+}
+function resolveStageMeta(
+  stage: RollupStage,
+  t: (key: string) => string
+): ResolvedStageMeta {
+  const { keyBase, icon } = STAGE_META[stage];
+  return {
+    title: t(`${keyBase}.title`),
+    runningSubtitle: t(`${keyBase}.sub`),
+    countLabel: (n) => `${formatNumber(n, 0)} ${t(`${keyBase}.count`)}`,
+    aiPhrase: t(`${keyBase}.phrase`),
+    icon,
+  };
+}
 
 /**
  * Premium AI-engine-style progress UI — chain-of-thought reveal as
@@ -105,6 +87,7 @@ export function PLCostProgress({
   stages,
   totalProjects,
 }: PLCostProgressProps) {
+  const t = useT();
   const accent = useThemeAccent();
 
   // The headline phrase follows the actively-running stage. We pick
@@ -114,8 +97,8 @@ export function PLCostProgress({
   // an AI narrating its current thought instead of a static label.
   const runningStage = stages.find((s) => s.status === "running");
   const aiPhrase = runningStage
-    ? STAGE_META[runningStage.stage].aiPhrase
-    : IDLE_AI_PHRASE;
+    ? t(`${STAGE_META[runningStage.stage].keyBase}.phrase`)
+    : t("tc.progress.idle");
 
   return (
     <div className="h-full flex items-center justify-center p-6 overflow-y-auto">
@@ -182,7 +165,7 @@ export function PLCostProgress({
           <span
             className="text-brand-gradient text-[26px] font-bold uppercase tracking-[0.18em] leading-none"
           >
-            TYRO AI Motoru
+            {t("tc.progress.engine")}
           </span>
 
           {/* Dynamic phrase + bouncing wave dots. The phrase swaps
@@ -210,9 +193,7 @@ export function PLCostProgress({
 
           <p className="text-[13px] text-muted-foreground max-w-md leading-snug">
             <strong className="text-foreground">{totalProjects}</strong>{" "}
-            projeye ait gerçekleşen gider verileri zincirleme analiz ile
-            toplanıyor. Her adımın çıktısı bir sonraki adımın girdisi
-            oluyor — yapay zekânın muhakeme süreci gibi.
+            {t("tc.progress.descA")}
           </p>
         </div>
 
@@ -226,7 +207,7 @@ export function PLCostProgress({
               <StepRow
                 key={s.stage}
                 stage={s}
-                meta={STAGE_META[s.stage]}
+                meta={resolveStageMeta(s.stage, t)}
                 accentSolid={accent.solid}
                 accentTint={accent.tint}
                 accentRing={accent.ring}
@@ -281,7 +262,7 @@ function StepRow({
   stepNumber,
 }: {
   stage: StageProgress;
-  meta: (typeof STAGE_META)[RollupStage];
+  meta: ResolvedStageMeta;
   accentSolid: string;
   accentTint: string;
   accentRing: string;

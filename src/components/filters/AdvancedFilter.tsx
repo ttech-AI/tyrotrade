@@ -30,7 +30,19 @@ import {
   lastNFinancialYears,
 } from "@/lib/dashboard/financialPeriod";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type { Project } from "@/lib/dataverse/entities";
+
+/** Map a period key to its `filter.period.*` translation key. The
+ *  `PERIODS` data module keeps Turkish `label`s for legacy callers;
+ *  the filter UI resolves the localized label through this map. */
+const PERIOD_LABEL_KEY: Record<PeriodKey, string> = {
+  monthly: "filter.period.monthly",
+  quarterly: "filter.period.quarterly",
+  yearly: "filter.period.yearly",
+  fy: "filter.period.fy",
+  all: "filter.period.all",
+};
 
 interface AdvancedFilterProps {
   /** Source projects — used to extract distinct option values per
@@ -126,6 +138,7 @@ export function AdvancedFilter({
   tone = "accent",
   className,
 }: AdvancedFilterProps) {
+  const t = useT();
   const accent = useThemeAccent();
   const triggerTone = tone === "muted" ? MUTED_TONE : accent;
   const activeCount = projectFilterCount(
@@ -174,7 +187,7 @@ export function AdvancedFilter({
           // active count.
           <button
             type="button"
-            aria-label="Gelişmiş filtre"
+            aria-label={t("filter.aria")}
             className={cn(
               "size-9 rounded-xl grid place-items-center shrink-0 shadow-sm relative transition-transform",
               "hover:scale-[1.04] active:scale-95",
@@ -215,7 +228,7 @@ export function AdvancedFilter({
           // the outer drops + adding an indigo edge tint for affordance.
           <button
             type="button"
-            aria-label="Gelişmiş filtre"
+            aria-label={t("filter.aria")}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
             onFocus={() => setHovered(true)}
@@ -261,7 +274,7 @@ export function AdvancedFilter({
               strokeWidth={2}
               style={{ color: MUTED_TONE.solid }}
             />
-            <span>Filtre</span>
+            <span>{t("filter.label")}</span>
             {activeCount > 0 && (
               <span
                 className="ml-0.5 h-5 min-w-5 px-1.5 inline-flex items-center justify-center rounded-full text-[10.5px] font-bold tabular-nums text-white"
@@ -281,7 +294,7 @@ export function AdvancedFilter({
           // element next to it.
           <button
             type="button"
-            aria-label="Gelişmiş filtre"
+            aria-label={t("filter.aria")}
             className={cn(
               "h-9 rounded-full px-3.5 min-w-[110px] inline-flex items-center justify-center gap-2 shrink-0 relative transition-transform",
               "text-[13px] font-semibold tracking-tight",
@@ -300,7 +313,7 @@ export function AdvancedFilter({
             }}
           >
             <HugeiconsIcon icon={FilterIcon} size={16} strokeWidth={2} />
-            <span>Filtre</span>
+            <span>{t("filter.label")}</span>
             {activeCount > 0 && (
               <span
                 className="ml-0.5 h-5 min-w-5 px-1.5 inline-flex items-center justify-center rounded-full text-[10.5px] font-bold tabular-nums text-white"
@@ -316,7 +329,7 @@ export function AdvancedFilter({
         ) : (
           <button
             type="button"
-            aria-label="Gelişmiş filtre"
+            aria-label={t("filter.aria")}
             className={cn(
               // rounded-full + symmetric px-3.5 + min-w-[110px] mirrors
               // AskAiButton so the topbar pair reads as identical siblings.
@@ -333,7 +346,7 @@ export function AdvancedFilter({
             }}
           >
             <HugeiconsIcon icon={FilterIcon} size={16} strokeWidth={2} />
-            <span>Filtre</span>
+            <span>{t("filter.label")}</span>
             {activeCount > 0 && (
               <span
                 className="ml-0.5 h-5 min-w-5 px-1.5 inline-flex items-center justify-center rounded-full text-[10.5px] font-bold tabular-nums"
@@ -398,12 +411,12 @@ export function AdvancedFilter({
           </span>
           <div className="min-w-0 flex-1">
             <div className="text-[14px] font-semibold tracking-tight leading-tight">
-              Gelişmiş Filtre
+              {t("filter.title")}
             </div>
             <div className="text-[11px] text-muted-foreground leading-tight mt-0.5">
               {hasFilters
-                ? `${activeCount} filtre aktif`
-                : "Çoklu seçim + arama"}
+                ? t("filter.activeCount").replace("{count}", String(activeCount))
+                : t("filter.multiSelectSearch")}
             </div>
           </div>
         </div>
@@ -444,12 +457,12 @@ export function AdvancedFilter({
           {/* 1. Segment */}
           {options.segments.length > 0 && (
             <ComboboxSection
-              title="Segment"
+              title={t("filter.segment")}
               count={filters.segments.size}
               options={options.segments}
               selected={filters.segments}
               onChange={(next) => onChange({ ...filters, segments: next })}
-              placeholder="Tüm segmentler"
+              placeholder={t("filter.segment.placeholder")}
               accent={accent}
             />
           )}
@@ -457,14 +470,14 @@ export function AdvancedFilter({
           {/* 2. Sefer Durumu — converted from chip toggle to combobox */}
           {options.voyageStatuses.length > 0 && (
             <ComboboxSection
-              title="Sefer Durumu"
+              title={t("filter.voyageStatus")}
               count={filters.voyageStatuses.size}
               options={options.voyageStatuses}
               selected={filters.voyageStatuses}
               onChange={(next) =>
                 onChange({ ...filters, voyageStatuses: next })
               }
-              placeholder="Tüm sefer durumları"
+              placeholder={t("filter.voyageStatus.placeholder")}
               accent={accent}
             />
           )}
@@ -472,12 +485,12 @@ export function AdvancedFilter({
           {/* 3a. Ana Trader (lead/desk owner — `mserp_maintraderid`) */}
           {options.mainTraders.length > 0 && (
             <ComboboxSection
-              title="Ana Trader"
+              title={t("filter.mainTrader")}
               count={filters.mainTraders.size}
               options={options.mainTraders}
               selected={filters.mainTraders}
               onChange={(next) => onChange({ ...filters, mainTraders: next })}
-              placeholder="Tüm ana trader'lar"
+              placeholder={t("filter.mainTrader.placeholder")}
               accent={accent}
             />
           )}
@@ -485,12 +498,12 @@ export function AdvancedFilter({
           {/* 3b. Trader (per-project executor — `mserp_traderid`) */}
           {options.traders.length > 0 && (
             <ComboboxSection
-              title="Trader"
+              title={t("filter.trader")}
               count={filters.traders.size}
               options={options.traders}
               selected={filters.traders}
               onChange={(next) => onChange({ ...filters, traders: next })}
-              placeholder="Tüm trader'lar"
+              placeholder={t("filter.trader.placeholder")}
               accent={accent}
             />
           )}
@@ -498,13 +511,13 @@ export function AdvancedFilter({
           {/* 4a. Kalkış Limanı — combobox */}
           {options.loadingPorts.length > 0 && (
             <ComboboxSection
-              title="Kalkış Limanı"
+              title={t("filter.loadingPort")}
               count={filters.loadingPorts.size}
               options={options.loadingPorts}
               selected={filters.loadingPorts}
               onChange={(next) => onChange({ ...filters, loadingPorts: next })}
-              placeholder="Tüm kalkış limanları"
-              searchPlaceholder="Liman ara…"
+              placeholder={t("filter.loadingPort.placeholder")}
+              searchPlaceholder={t("filter.port.search")}
               accent={accent}
             />
           )}
@@ -512,15 +525,15 @@ export function AdvancedFilter({
           {/* 4b. Varış Limanı — combobox */}
           {options.dischargePorts.length > 0 && (
             <ComboboxSection
-              title="Varış Limanı"
+              title={t("filter.dischargePort")}
               count={filters.dischargePorts.size}
               options={options.dischargePorts}
               selected={filters.dischargePorts}
               onChange={(next) =>
                 onChange({ ...filters, dischargePorts: next })
               }
-              placeholder="Tüm varış limanları"
-              searchPlaceholder="Liman ara…"
+              placeholder={t("filter.dischargePort.placeholder")}
+              searchPlaceholder={t("filter.port.search")}
               accent={accent}
             />
           )}
@@ -528,12 +541,12 @@ export function AdvancedFilter({
           {/* 5a. Durum — combobox */}
           {options.statuses.length > 0 && (
             <ComboboxSection
-              title="Durum"
+              title={t("filter.status")}
               count={filters.statuses.size}
               options={options.statuses}
               selected={filters.statuses}
               onChange={(next) => onChange({ ...filters, statuses: next })}
-              placeholder="Tüm durumlar"
+              placeholder={t("filter.status.placeholder")}
               accent={accent}
             />
           )}
@@ -541,12 +554,12 @@ export function AdvancedFilter({
           {/* 5b. Teslimat Koşulu — combobox */}
           {options.incoterms.length > 0 && (
             <ComboboxSection
-              title="Teslimat Koşulu"
+              title={t("filter.incoterm")}
               count={filters.incoterms.size}
               options={options.incoterms}
               selected={filters.incoterms}
               onChange={(next) => onChange({ ...filters, incoterms: next })}
-              placeholder="Tüm teslimat koşulları"
+              placeholder={t("filter.incoterm.placeholder")}
               accent={accent}
             />
           )}
@@ -554,12 +567,12 @@ export function AdvancedFilter({
           {/* 6a. Şirket */}
           {options.companies.length > 0 && (
             <ComboboxSection
-              title="Şirket"
+              title={t("filter.company")}
               count={filters.companies.size}
               options={options.companies}
               selected={filters.companies}
               onChange={(next) => onChange({ ...filters, companies: next })}
-              placeholder="Tüm şirketler"
+              placeholder={t("filter.company.placeholder")}
               accent={accent}
             />
           )}
@@ -567,13 +580,13 @@ export function AdvancedFilter({
           {/* 6b. Gemi */}
           {options.vessels.length > 0 && (
             <ComboboxSection
-              title="Gemi"
+              title={t("filter.vessel")}
               count={filters.vessels.size}
               options={options.vessels}
               selected={filters.vessels}
               onChange={(next) => onChange({ ...filters, vessels: next })}
-              placeholder="Tüm gemiler"
-              searchPlaceholder="Gemi ara…"
+              placeholder={t("filter.vessel.placeholder")}
+              searchPlaceholder={t("filter.vessel.search")}
               accent={accent}
             />
           )}
@@ -581,13 +594,13 @@ export function AdvancedFilter({
           {/* 6c. Tedarikçi */}
           {options.suppliers.length > 0 && (
             <ComboboxSection
-              title="Tedarikçi"
+              title={t("filter.supplier")}
               count={filters.suppliers.size}
               options={options.suppliers}
               selected={filters.suppliers}
               onChange={(next) => onChange({ ...filters, suppliers: next })}
-              placeholder="Tüm tedarikçiler"
-              searchPlaceholder="Tedarikçi ara…"
+              placeholder={t("filter.supplier.placeholder")}
+              searchPlaceholder={t("filter.supplier.search")}
               accent={accent}
             />
           )}
@@ -595,13 +608,13 @@ export function AdvancedFilter({
           {/* 6d. Müşteri / Alıcı */}
           {options.buyers.length > 0 && (
             <ComboboxSection
-              title="Müşteri / Alıcı"
+              title={t("filter.buyer")}
               count={filters.buyers.size}
               options={options.buyers}
               selected={filters.buyers}
               onChange={(next) => onChange({ ...filters, buyers: next })}
-              placeholder="Tüm müşteriler"
-              searchPlaceholder="Müşteri ara…"
+              placeholder={t("filter.buyer.placeholder")}
+              searchPlaceholder={t("filter.buyer.search")}
               accent={accent}
             />
           )}
@@ -609,12 +622,12 @@ export function AdvancedFilter({
           {/* 6e. Proje Grubu */}
           {options.groups.length > 0 && (
             <ComboboxSection
-              title="Proje Grubu"
+              title={t("filter.group")}
               count={filters.groups.size}
               options={options.groups}
               selected={filters.groups}
               onChange={(next) => onChange({ ...filters, groups: next })}
-              placeholder="Tüm gruplar"
+              placeholder={t("filter.group.placeholder")}
               accent={accent}
             />
           )}
@@ -624,13 +637,13 @@ export function AdvancedFilter({
               as the catchall lookup. */}
           {options.projects.length > 0 && (
             <ComboboxSection
-              title="Proje No"
+              title={t("filter.projectNo")}
               count={filters.projectNos.size}
               options={options.projects}
               selected={filters.projectNos}
               onChange={(next) => onChange({ ...filters, projectNos: next })}
-              placeholder="Tüm projeler"
-              searchPlaceholder="Proje no, ad, gemi, segment ara…"
+              placeholder={t("filter.projectNo.placeholder")}
+              searchPlaceholder={t("filter.projectNo.search")}
               accent={accent}
             />
           )}
@@ -653,7 +666,7 @@ export function AdvancedFilter({
             style={hasFilters ? { color: accent.solid } : undefined}
           >
             <HugeiconsIcon icon={FilterResetIcon} size={13} strokeWidth={2} />
-            Filtreleri Temizle
+            {t("filter.clear")}
           </Button>
           {resultCount !== undefined && totalCount !== undefined && (
             <div className="text-[11px] text-muted-foreground text-right">
@@ -666,15 +679,16 @@ export function AdvancedFilter({
                     {resultCount}
                   </span>
                   {" / "}
-                  <span className="tabular-nums">{totalCount}</span> proje
+                  <span className="tabular-nums">{totalCount}</span>{" "}
+                  {t("filter.resultCountSuffix")}
                 </>
               ) : (
                 <>
-                  Tüm{" "}
+                  {t("filter.allLead")}{" "}
                   <span className="font-semibold text-foreground tabular-nums">
                     {totalCount}
                   </span>{" "}
-                  proje
+                  {t("filter.allTail")}
                 </>
               )}
             </div>
@@ -738,12 +752,13 @@ function PeriodSection({
   fyKey: string | null;
   onChange: (period: PeriodKey, fyKey: string | null) => void;
 }) {
+  const t = useT();
   const fyOptions = React.useMemo(() => lastNFinancialYears(new Date(), 3), []);
   const showFyOptions = period === "fy";
   return (
     <div className="flex flex-col gap-1.5">
       <SectionHeader
-        title="Dönem"
+        title={t("filter.period")}
         count={
           period === "fy" && (fyKey ?? getCurrentFyKey()) === getCurrentFyKey()
             ? 0
@@ -768,14 +783,14 @@ function PeriodSection({
       >
         {PERIODS.map((p) => (
           <ToggleGroupItem key={p.key} value={p.key} className={CHIP_CLASS}>
-            {p.label}
+            {t(PERIOD_LABEL_KEY[p.key])}
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
       {showFyOptions && (
         <div className="mt-1.5">
           <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1">
-            Finansal Yıl
+            {t("filter.financialYear")}
           </div>
           <ToggleGroup
             type="single"

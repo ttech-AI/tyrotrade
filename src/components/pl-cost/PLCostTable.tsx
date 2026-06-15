@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type { PLCostNode, ViewMode } from "@/lib/selectors/plCost";
 
 interface PLCostTableProps {
@@ -100,6 +101,7 @@ export function PLCostTable({
   selectedNodeId,
   onSelectNode,
 }: PLCostTableProps) {
+  const t = useT();
   // All segments collapsed by default — the user expands the
   // segment they care about. Otherwise an executive scrolling
   // through 15+ segments × N voyage statuses lands in a sea of
@@ -181,7 +183,7 @@ export function PLCostTable({
                   dir={sortKey === "label" ? sortDir : null}
                   onClick={() => handleSort("label")}
                 >
-                  Segment Kırılımı
+                  {t("tc.col.segmentBreakdown")}
                 </SortHeaderButton>
               </th>
               <SortableTh
@@ -190,7 +192,7 @@ export function PLCostTable({
                 dir={sortKey === "expectedUsd" ? sortDir : null}
                 onSort={handleSort}
               >
-                Tahmini USD
+                {t("tc.col.estimatedUsd")}
               </SortableTh>
               <SortableTh
                 sortKey="realizedUsd"
@@ -198,7 +200,7 @@ export function PLCostTable({
                 dir={sortKey === "realizedUsd" ? sortDir : null}
                 onSort={handleSort}
               >
-                Gerçekleşen USD
+                {t("tc.col.realizedUsd")}
               </SortableTh>
               <SortableTh
                 sortKey="realizedExpectedPct"
@@ -206,7 +208,7 @@ export function PLCostTable({
                 dir={sortKey === "realizedExpectedPct" ? sortDir : null}
                 onSort={handleSort}
               >
-                R/E %
+                {t("tc.col.rePct")}
               </SortableTh>
               <SortableTh
                 sortKey="expectedPriceUsdPerMt"
@@ -214,7 +216,7 @@ export function PLCostTable({
                 dir={sortKey === "expectedPriceUsdPerMt" ? sortDir : null}
                 onSort={handleSort}
               >
-                Tahmini Birim
+                {t("tc.col.estimatedUnit")}
               </SortableTh>
               <SortableTh
                 sortKey="realizedPriceUsdPerMt"
@@ -222,7 +224,7 @@ export function PLCostTable({
                 dir={sortKey === "realizedPriceUsdPerMt" ? sortDir : null}
                 onSort={handleSort}
               >
-                Gerçek. Birim
+                {t("tc.col.realizedUnit")}
               </SortableTh>
               <SortableTh
                 sortKey="realizedExpectedTonPct"
@@ -230,7 +232,7 @@ export function PLCostTable({
                 dir={sortKey === "realizedExpectedTonPct" ? sortDir : null}
                 onSort={handleSort}
               >
-                R/E Ton %
+                {t("tc.col.reTonPct")}
               </SortableTh>
               <SortableTh
                 sortKey="quantityVesselMt"
@@ -238,7 +240,7 @@ export function PLCostTable({
                 dir={sortKey === "quantityVesselMt" ? sortDir : null}
                 onSort={handleSort}
               >
-                Vessel MT
+                {t("tc.col.vesselMt")}
               </SortableTh>
               <SortableTh
                 sortKey="expectedQuantityMt"
@@ -246,7 +248,7 @@ export function PLCostTable({
                 dir={sortKey === "expectedQuantityMt" ? sortDir : null}
                 onSort={handleSort}
               >
-                Tahmini MT
+                {t("tc.col.estimatedMt")}
               </SortableTh>
               <SortableTh
                 sortKey="deltaUsd"
@@ -254,7 +256,7 @@ export function PLCostTable({
                 dir={sortKey === "deltaUsd" ? sortDir : null}
                 onSort={handleSort}
               >
-                Δ USD
+                {t("tc.col.deltaUsd")}
               </SortableTh>
             </tr>
           </thead>
@@ -276,7 +278,7 @@ export function PLCostTable({
                   colSpan={10}
                   className="px-4 py-12 text-center text-sm text-muted-foreground"
                 >
-                  Filtreye uyan veri yok
+                  {t("tc.table.empty")}
                 </td>
               </tr>
             )}
@@ -461,6 +463,7 @@ function Row({
   selected: boolean;
   onSelect?: (node: PLCostNode) => void;
 }) {
+  const t = useT();
   const accent = useThemeAccent();
   const hasChildren = !!node.children && node.children.length > 0;
   const indent = (node.level - 1) * 18;
@@ -568,7 +571,7 @@ function Row({
                 onToggle(node.id);
               }}
               className="size-5 rounded grid place-items-center hover:bg-foreground/10 shrink-0 transition-colors"
-              aria-label={expanded ? "Daralt" : "Genişlet"}
+              aria-label={expanded ? t("tc.table.collapse") : t("tc.table.expand")}
             >
               <ChevronRight
                 className={cn(

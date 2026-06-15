@@ -13,6 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type {
   PLCostInsight,
   InsightTone,
@@ -84,6 +85,7 @@ export function PLCostInsightsRibbon({
   insights,
   onSelectNode,
 }: PLCostInsightsRibbonProps) {
+  const t = useT();
   if (insights.length === 0) return null;
 
   return (
@@ -96,7 +98,7 @@ export function PLCostInsightsRibbon({
             strokeWidth={2}
             className="text-amber-500"
           />
-          Akıllı İçgörüler
+          {t("tc.insights.title")}
         </span>
         <span className="h-5 w-px bg-border/60 shrink-0" />
         {insights.map((ins, i) => (
@@ -122,6 +124,7 @@ function Chip({
   insight: PLCostInsight;
   onClick?: () => void;
 }) {
+  const t = useT();
   const palette = TONE_PALETTE[insight.tone];
   const interactive = !!onClick;
 
@@ -195,7 +198,7 @@ function Chip({
               className="text-[10.5px] font-semibold uppercase tracking-wider mt-2 pt-1.5 border-t border-foreground/10"
               style={{ color: palette.text }}
             >
-              ▸ Tıklayın · Detay panel açılır
+              {t("tc.insights.clickHint")}
             </div>
           )}
         </div>

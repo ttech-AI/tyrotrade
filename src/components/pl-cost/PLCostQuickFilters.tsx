@@ -4,6 +4,7 @@ import {
   type MultiSelectOption,
 } from "@/components/ui/multi-select-combobox";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import type { Project } from "@/lib/dataverse/entities";
 import type { ProjectFilterState } from "@/lib/filters/projectFilters";
 
@@ -36,6 +37,7 @@ export function PLCostQuickFilters({
   filters,
   onChange,
 }: PLCostQuickFiltersProps) {
+  const t = useT();
   const accent = useThemeAccent();
 
   // Distinct option lists derived from the unfiltered domain project
@@ -83,56 +85,62 @@ export function PLCostQuickFilters({
   return (
     <div
       role="group"
-      aria-label="Hızlı filtreler"
+      aria-label={t("tc.quickFilters.aria")}
       className="flex items-end gap-2.5 flex-wrap min-w-0 flex-1"
     >
       <Combo
-        label="Segment"
+        label={t("tc.qf.segment")}
         options={options.segments}
         selected={filters.segments}
         onChange={(next) => onChange({ ...filters, segments: next })}
         accent={accent}
-        searchPlaceholder="Segment ara..."
+        placeholder={t("tc.qf.all")}
+        searchPlaceholder={t("tc.qf.segmentSearch")}
       />
       <Combo
-        label="Proje"
+        label={t("tc.qf.project")}
         options={options.projects}
         selected={filters.projectNos}
         onChange={(next) => onChange({ ...filters, projectNos: next })}
         accent={accent}
-        searchPlaceholder="Proje no / adı ara..."
+        placeholder={t("tc.qf.all")}
+        searchPlaceholder={t("tc.qf.projectSearch")}
       />
       <Combo
-        label="Gemi"
+        label={t("tc.qf.vessel")}
         options={options.vessels}
         selected={filters.vessels}
         onChange={(next) => onChange({ ...filters, vessels: next })}
         accent={accent}
-        searchPlaceholder="Gemi adı ara..."
+        placeholder={t("tc.qf.all")}
+        searchPlaceholder={t("tc.qf.vesselSearch")}
       />
       <Combo
-        label="Gemi Durumu"
+        label={t("tc.qf.vesselStatus")}
         options={options.voyageStatuses}
         selected={filters.voyageStatuses}
         onChange={(next) => onChange({ ...filters, voyageStatuses: next })}
         accent={accent}
-        searchPlaceholder="Durum ara..."
+        placeholder={t("tc.qf.all")}
+        searchPlaceholder={t("tc.qf.vesselStatusSearch")}
       />
       <Combo
-        label="Ana Trader"
+        label={t("tc.qf.mainTrader")}
         options={options.mainTraders}
         selected={filters.mainTraders}
         onChange={(next) => onChange({ ...filters, mainTraders: next })}
         accent={accent}
-        searchPlaceholder="Ana trader ara..."
+        placeholder={t("tc.qf.all")}
+        searchPlaceholder={t("tc.qf.mainTraderSearch")}
       />
       <Combo
-        label="Trader"
+        label={t("tc.qf.trader")}
         options={options.traders}
         selected={filters.traders}
         onChange={(next) => onChange({ ...filters, traders: next })}
         accent={accent}
-        searchPlaceholder="Trader ara..."
+        placeholder={t("tc.qf.all")}
+        searchPlaceholder={t("tc.qf.traderSearch")}
       />
     </div>
   );
@@ -165,6 +173,7 @@ function Combo({
   selected,
   onChange,
   accent,
+  placeholder,
   searchPlaceholder,
 }: {
   label: string;
@@ -172,6 +181,7 @@ function Combo({
   selected: Set<string>;
   onChange: (next: Set<string>) => void;
   accent: { solid: string; ring: string; tint: string };
+  placeholder: string;
   searchPlaceholder: string;
 }) {
   // Stable id for aria-labelledby linkage. useRef instead of useId
@@ -199,7 +209,7 @@ function Combo({
         selected={selected}
         onChange={onChange}
         accent={accent}
-        placeholder="Hepsi"
+        placeholder={placeholder}
         searchPlaceholder={searchPlaceholder}
         triggerClassName="text-[12.5px]"
         triggerAriaLabelledBy={idRef.current}

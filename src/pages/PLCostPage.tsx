@@ -39,6 +39,7 @@ import {
   makeEmptyFilters,
   type ProjectFilterState,
 } from "@/lib/filters/projectFilters";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
 /**
  * P&L Cost — Tahmini × Gerçekleşen maliyet karşılaştırma raporu.
@@ -55,6 +56,7 @@ import {
  *     (lazy auto-fetched on mount, 6h freshness cache)
  */
 export function PLCostPage() {
+  const t = useT();
   const accent = useThemeAccent();
   const { projects: rawProjects } = useProjects();
   const rollup = useActualExpenseRollup();
@@ -145,7 +147,10 @@ export function PLCostPage() {
     };
   }, [tree]);
 
-  const insights = React.useMemo(() => generateSmartInsights(tree), [tree]);
+  const insights = React.useMemo(
+    () => generateSmartInsights(tree, t),
+    [tree, t]
+  );
 
   // Refresh handler — the TYRO AI progress UI takes over the content
   // area whenever `isFetching` is true, so there's no separate toast
@@ -200,7 +205,7 @@ export function PLCostPage() {
       <GlassPanel
         tone="strong"
         className="rounded-2xl shrink-0"
-        aria-label="Trade Cost araç çubuğu"
+        aria-label={t("tc.toolbar.aria")}
       >
         <div className="px-4 py-3 flex items-end gap-3 flex-wrap">
           <PLCostQuickFilters
@@ -214,7 +219,7 @@ export function PLCostPage() {
           />
           <div
             role="toolbar"
-            aria-label="Trade Cost eylem kümesi"
+            aria-label={t("tc.toolbar.actions")}
             className="flex items-end gap-2.5 shrink-0"
           >
             <AdvancedFilter
@@ -228,11 +233,13 @@ export function PLCostPage() {
               value={viewMode}
               onChange={setViewMode}
               accent={accent}
+              t={t}
             />
             <RefreshButton
               onClick={handleRefresh}
               isFetching={rollup.isFetching}
               accent={accent}
+              t={t}
             />
           </div>
         </div>
@@ -240,7 +247,7 @@ export function PLCostPage() {
 
       {/* ─── İçerik ─── */}
       {rollup.error ? (
-        <ErrorState error={rollup.error} onRetry={rollup.refresh} />
+        <ErrorState error={rollup.error} onRetry={rollup.refresh} t={t} />
       ) : rollup.isFetching ? (
         // Any in-flight fetch — initial load, post-Veri-Yönetimi
         // invalidation, or manual "Yenile" click — takes over the
@@ -268,6 +275,7 @@ export function PLCostPage() {
           count={filteredProjids.length}
           stale={!rollup.isEmpty && !coversFilter}
           onCompute={handleRefresh}
+          t={t}
         />
       ) : (
         <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden max-lg:overflow-y-auto">
@@ -321,16 +329,18 @@ function ViewModeToggle({
   value,
   onChange,
   accent,
+  t,
 }: {
   value: ViewMode;
   onChange: (v: ViewMode) => void;
   accent: ThemeAccent;
+  t: (key: string) => string;
 }) {
   return (
     <TooltipProvider delayDuration={250}>
       <div
         role="radiogroup"
-        aria-label="Görünüm modu"
+        aria-label={t("tc.viewMode.aria")}
         // iOS-style segmented control: subtle gray track, active
         // segment pops out as a white pill with a small lift shadow,
         // inactive segment lets the track's gray show through.
@@ -340,16 +350,16 @@ function ViewModeToggle({
           active={value === "project"}
           onClick={() => onChange("project")}
           icon={Briefcase01Icon}
-          label="Proje"
-          tooltip="3. seviyede projeleri grupla"
+          label={t("tc.viewMode.project")}
+          tooltip={t("tc.viewMode.projectTip")}
           accent={accent}
         />
         <ToggleButton
           active={value === "vessel"}
           onClick={() => onChange("vessel")}
           icon={BoatIcon}
-          label="Gemi"
-          tooltip="3. seviyede gemileri grupla"
+          label={t("tc.viewMode.vessel")}
+          tooltip={t("tc.viewMode.vesselTip")}
           accent={accent}
         />
       </div>
@@ -424,10 +434,12 @@ function RefreshButton({
   onClick,
   isFetching,
   accent,
+  t,
 }: {
   onClick: () => void;
   isFetching: boolean;
   accent: ThemeAccent;
+  t: (key: string) => string;
 }) {
   return (
     <TooltipProvider delayDuration={120}>
@@ -437,7 +449,7 @@ function RefreshButton({
             type="button"
             onClick={onClick}
             disabled={isFetching}
-            aria-label={isFetching ? "Hesaplama sürüyor" : "Yenile"}
+            aria-label={isFetching ? t("tc.refresh.busyAria") : t("tc.refresh.aria")}
             aria-busy={isFetching}
             aria-live="polite"
             className="size-9 rounded-full grid place-items-center shrink-0 shadow-sm transition-all hover:scale-[1.04] active:scale-95 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
@@ -474,7 +486,7 @@ function RefreshButton({
               className="text-[11.5px] font-bold uppercase tracking-wider"
               style={{ color: accent.solid }}
             >
-              Hesaplama sürüyor…
+              {t("tc.refresh.running")}
             </div>
           ) : (
             <>
@@ -482,10 +494,10 @@ function RefreshButton({
                 className="text-[11.5px] font-bold uppercase tracking-wider"
                 style={{ color: accent.solid }}
               >
-                Yenile
+                {t("tc.refresh.title")}
               </div>
               <div className="text-[11px] text-muted-foreground mt-0.5">
-                Trade Cost motorunu yeniden çalıştır
+                {t("tc.refresh.sub")}
               </div>
             </>
           )}
@@ -498,18 +510,20 @@ function RefreshButton({
 function ErrorState({
   error,
   onRetry,
+  t,
 }: {
   error: string;
   onRetry: () => void;
+  t: (key: string) => string;
 }) {
   return (
     <GlassPanel tone="default" className="flex-1 min-h-0 rounded-2xl">
       <div className="h-full flex items-center justify-center p-8">
         <div className="max-w-md text-center space-y-3">
-          <div className="text-rose-700 font-semibold">Hata</div>
+          <div className="text-rose-700 font-semibold">{t("tc.error.title")}</div>
           <p className="text-sm text-muted-foreground break-words">{error}</p>
           <Button onClick={onRetry} variant="outline" size="sm">
-            Tekrar dene
+            {t("tc.error.retry")}
           </Button>
         </div>
       </div>
@@ -536,6 +550,7 @@ function ComputePrompt({
   count,
   stale,
   onCompute,
+  t,
 }: {
   accentRing: string;
   accentGradient: string;
@@ -545,10 +560,17 @@ function ComputePrompt({
   /** Cache exists but the current filter widened past it → re-run. */
   stale: boolean;
   onCompute: () => void;
+  t: (key: string) => string;
 }) {
   // Rough wall-clock hint scaled by scope — a segment is seconds, the
   // whole tenant is minutes. Encourages narrowing the filter.
   const heavy = count > 150;
+  // Interpolated "filtered N projects" fragment — words come from the
+  // translation, the number is injected so it never bakes into a key.
+  const filteredProjectsLabel = t("tc.prompt.filteredProjects").replace(
+    "{count}",
+    String(count)
+  );
   return (
     <GlassPanel tone="default" className="flex-1 min-h-0 rounded-2xl">
       <div className="h-full flex items-center justify-center p-8">
@@ -573,33 +595,32 @@ function ComputePrompt({
           {/* Headline + açıklama */}
           <div className="space-y-2">
             <h2 className="text-xl font-bold tracking-tight text-foreground">
-              Tahmini × Gerçekleşen Maliyet
+              {t("tc.prompt.title")}
             </h2>
             <p className="text-[13.5px] text-muted-foreground leading-relaxed max-w-md mx-auto">
               {stale ? (
                 <>
-                  Filtre değişti — yeni kapsam için yeniden hesapla. Hesapla,
-                  yalnızca{" "}
+                  {t("tc.prompt.staleLead")}{" "}
                   <span className="font-semibold text-foreground">
-                    filtrelenmiş {count} proje
+                    {filteredProjectsLabel}
                   </span>{" "}
-                  için gerçekleşen masrafları çeker.
+                  {t("tc.prompt.staleTail")}
                 </>
               ) : (
                 <>
-                  Her segment için{" "}
+                  {t("tc.prompt.freshLeadA")}{" "}
                   <span className="font-semibold text-foreground">
-                    Tahmini Gider
+                    {t("tc.prompt.estimatedExpense")}
                   </span>{" "}
-                  ve{" "}
+                  {t("tc.prompt.freshAnd")}{" "}
                   <span className="font-semibold text-foreground">
-                    Gerçekleşen Gider
+                    {t("tc.prompt.realizedExpense")}
                   </span>{" "}
-                  karşılaştırması. Hesapla, yalnızca{" "}
+                  {t("tc.prompt.freshMid")}{" "}
                   <span className="font-semibold text-foreground">
-                    filtrelenmiş {count} proje
+                    {filteredProjectsLabel}
                   </span>{" "}
-                  için çalışır; sonuç önbelleğe alınır.
+                  {t("tc.prompt.freshTail")}
                 </>
               )}
             </p>
@@ -616,17 +637,17 @@ function ComputePrompt({
               }}
             >
               <HugeiconsIcon icon={RefreshIcon} size={17} strokeWidth={2} />
-              Hesapla ({count})
+              {t("tc.prompt.compute")} ({count})
             </button>
           ) : (
             <div className="text-[13px] text-muted-foreground/90 pt-1">
-              Henüz proje verisi yüklenmedi.{" "}
+              {t("tc.prompt.noProjects")}{" "}
               <Link
                 to="/data"
                 className="font-semibold text-foreground hover:underline inline-flex items-center gap-1"
               >
                 <HugeiconsIcon icon={Database01Icon} size={13} strokeWidth={2} />
-                Veri Yönetimi'ne git
+                {t("tc.prompt.goToData")}
               </Link>
             </div>
           )}
@@ -635,15 +656,13 @@ function ComputePrompt({
           {hasProjects && heavy && (
             <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 text-amber-700 text-[12px] font-medium">
               <span className="size-1.5 rounded-full bg-amber-500" />
-              {count} proje uzun sürebilir — üstten bir segment seçerek
-              saniyelere indirebilirsin.
+              {count} {t("tc.prompt.heavyLead")}
             </div>
           )}
 
           {/* Ne göreceğini anlatan ince alt-satır */}
           <p className="text-[11.5px] text-muted-foreground/70 leading-relaxed">
-            Segment → Voyage Status → Proje/Gemi → Masraf kalemi
-            hiyerarşisi, sapma metrikleri ve drill-down paneli ile.
+            {t("tc.prompt.hierarchy")}
           </p>
         </div>
       </div>
