@@ -24,14 +24,17 @@ import { useIsMobile } from "@/hooks/useMediaQuery";
 import { useThemeAccent } from "./theme-accent";
 import { shouldUseMock } from "@/lib/dataverse";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
-const PAGE_TITLES: Record<string, string> = {
-  "/dashboard": "Yönetici Paneli",
-  "/overview": "Genel Bakış",
-  "/projects": "Vessel Projects",
-  "/price-tracking": "Fiyat Takibi",
-  "/data": "Veri Yönetimi",
-  "/settings": "Ayarlar",
+// pathname → i18n title key (resolved via t()). Only used as the fallback
+// title for paths without a PAGE_TITLE_CONFIGS entry.
+const PAGE_TITLE_KEYS: Record<string, string> = {
+  "/dashboard": "title.dashboard",
+  "/overview": "title.overview",
+  "/projects": "title.projects",
+  "/price-tracking": "title.priceTracking",
+  "/data": "title.dataManagement",
+  "/settings": "title.settings",
 };
 
 export function AppShell() {
@@ -46,9 +49,11 @@ function ShellInner() {
   const isMobile = useIsMobile();
   const { mobileOpen, setMobileOpen } = useSidebar();
   const location = useLocation();
-  const title =
-    PAGE_TITLES[location.pathname] ||
-    (location.pathname.startsWith("/projects") ? "Vessel Projects" : "tyroFreight");
+  const t = useT();
+  const titleKey =
+    PAGE_TITLE_KEYS[location.pathname] ||
+    (location.pathname.startsWith("/projects") ? "title.projects" : "title.app");
+  const title = t(titleKey);
 
   const { accounts, instance } = useMsal();
   const msalAccount = accounts[0] ?? instance.getActiveAccount() ?? null;
@@ -347,8 +352,9 @@ function TopBar({
 
 interface PageTitleConfig {
   renderIcon: () => React.ReactNode;
-  label: string;
-  title: string;
+  /** i18n keys (translations.ts) — resolved via t() in PageTitleSlot. */
+  labelKey: string;
+  titleKey: string;
 }
 
 const PAGE_TITLE_CONFIGS: Array<{
@@ -361,30 +367,28 @@ const PAGE_TITLE_CONFIGS: Array<{
       renderIcon: () => (
         <HugeiconsIcon icon={Home01Icon} size={16} strokeWidth={2} />
       ),
-      label: "Dashboard",
-      title: "Yönetici Paneli",
+      labelKey: "eyebrow.dashboard",
+      titleKey: "title.dashboard",
     },
   },
   {
-    // H1 deliberately differs from "/" (Dashboard), whose title is
-    // already "Genel Bakış" — two pages must not share the same topbar
-    // headline. Sidebar label stays "Genel Bakış"; the topbar headline
-    // says what the page actually contains.
+    // H1 deliberately differs from the sidebar label so the two pages
+    // (Overview vs Dashboard) don't share a topbar headline.
     match: (p) => p === "/overview",
     config: {
       renderIcon: () => (
         <HugeiconsIcon icon={PieChartIcon} size={16} strokeWidth={2} />
       ),
-      label: "Genel Bakış",
-      title: "Gemi Projeleri Özeti",
+      labelKey: "eyebrow.overview",
+      titleKey: "title.overview",
     },
   },
   {
     match: (p) => p === "/projects" || p.startsWith("/projects/"),
     config: {
       renderIcon: () => <Ship className="size-4" strokeWidth={2} />,
-      label: "Vessel Projects",
-      title: "Sefer Takibi",
+      labelKey: "eyebrow.projects",
+      titleKey: "title.projects",
     },
   },
   {
@@ -393,8 +397,8 @@ const PAGE_TITLE_CONFIGS: Array<{
       renderIcon: () => (
         <HugeiconsIcon icon={HotPriceIcon} size={16} strokeWidth={2} />
       ),
-      label: "Trade Cost",
-      title: "Tahmini × Gerçekleşen Maliyet",
+      labelKey: "eyebrow.tradeCost",
+      titleKey: "title.tradeCost",
     },
   },
   {
@@ -403,24 +407,24 @@ const PAGE_TITLE_CONFIGS: Array<{
       renderIcon: () => (
         <HugeiconsIcon icon={ChartLineData01Icon} size={16} strokeWidth={2} />
       ),
-      label: "Fiyat Takibi",
-      title: "İndikatif Navlun Fiyatları",
+      labelKey: "eyebrow.priceTracking",
+      titleKey: "title.priceTracking",
     },
   },
   {
     match: (p) => p === "/data",
     config: {
       renderIcon: () => <Database className="size-4" strokeWidth={2} />,
-      label: "Veri Yönetimi",
-      title: "Dataverse Inspector",
+      labelKey: "eyebrow.dataManagement",
+      titleKey: "title.dataManagement",
     },
   },
   {
     match: (p) => p === "/settings",
     config: {
       renderIcon: () => <Settings className="size-4" strokeWidth={2} />,
-      label: "Ayarlar",
-      title: "Uygulama Tercihleri",
+      labelKey: "eyebrow.settings",
+      titleKey: "title.settings",
     },
   },
 ];
@@ -433,6 +437,7 @@ function PageTitleSlot({
   pathname: string;
 }) {
   const accent = useThemeAccent();
+  const t = useT();
   const mock = shouldUseMock();
   const matched = PAGE_TITLE_CONFIGS.find((c) => c.match(pathname))?.config;
   const isDataInspector = pathname === "/data";
@@ -442,7 +447,7 @@ function PageTitleSlot({
       <div className="min-w-0 flex-1">
         <h1 className="text-base font-semibold truncate">{title}</h1>
         <p className="text-[11px] text-muted-foreground truncate">
-          Freight Operations
+          {t("app.tagline")}
         </p>
       </div>
     );
@@ -462,7 +467,7 @@ function PageTitleSlot({
       </span>
       <div className="min-w-0">
         <div className="text-[10.5px] uppercase tracking-wider text-muted-foreground flex items-center gap-2 leading-tight">
-          {matched.label}
+          {t(matched.labelKey)}
           {isDataInspector && (
             <span
               className={cn(
@@ -483,7 +488,7 @@ function PageTitleSlot({
           )}
         </div>
         <h1 className="text-[15px] font-semibold tracking-tight leading-tight truncate">
-          {matched.title}
+          {t(matched.titleKey)}
         </h1>
       </div>
     </div>
