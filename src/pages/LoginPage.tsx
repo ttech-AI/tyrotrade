@@ -12,6 +12,7 @@ import {
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/useMediaQuery";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
 
 // Lazy-load the 3D globe scene — keeps three.js + world-atlas out of
@@ -49,6 +50,7 @@ interface LoginPageProps {
  */
 export function LoginPage({ onLogin, isLoading }: LoginPageProps = {}) {
   const reduce = useReducedMotion();
+  const t = useT();
   const T = (delay: number) =>
     reduce
       ? { duration: 0 }
@@ -106,7 +108,7 @@ export function LoginPage({ onLogin, isLoading }: LoginPageProps = {}) {
           <Logo size={40} />
           <div className="flex flex-col leading-none">
             <span className="text-[10px] uppercase tracking-[0.3em] text-sky-400/80 font-semibold">
-              Tiryaki
+              {t("login.eyebrow")}
             </span>
             <span className="text-2xl font-extrabold tracking-tight">
               <span className="text-white">tyro</span>
@@ -128,13 +130,12 @@ export function LoginPage({ onLogin, isLoading }: LoginPageProps = {}) {
             className="mb-5 md:mb-[clamp(0.75rem,3vh,2.25rem)] text-center md:text-left"
           >
             <h1 className="text-[20px] sm:text-4xl md:text-[length:clamp(1.5rem,4.2vh,2.25rem)] font-bold tracking-tight leading-[1.2] text-white">
-              Uluslararası{" "}
-              <span className="text-brand-gradient">Tedarik Zinciri</span>{" "}
-              Platformu<span className="text-sky-400">.</span>
+              {t("login.headline.a")}{" "}
+              <span className="text-brand-gradient">{t("login.headline.b")}</span>{" "}
+              {t("login.headline.c")}<span className="text-sky-400">.</span>
             </h1>
             <p className="hidden md:block mt-[clamp(0.5rem,1.6vh,1rem)] text-[13.5px] sm:text-[15px] text-slate-400 leading-relaxed">
-              Tedarikten teslimata, uluslararası ticaretin tüm operasyon
-              süreçlerini tek panelden yönet.
+              {t("login.tagline")}
             </p>
           </motion.div>
 
@@ -152,7 +153,7 @@ export function LoginPage({ onLogin, isLoading }: LoginPageProps = {}) {
             className="flex flex-col gap-1.5 md:grid md:grid-cols-2 md:gap-[clamp(0.5rem,1.4vh,0.625rem)] mb-5 md:mb-[clamp(0.75rem,3vh,2.5rem)]"
           >
             {FEATURES.map((f) => (
-              <FeatureCell key={f.title} {...f} />
+              <FeatureCell key={f.titleKey} {...f} />
             ))}
           </motion.ul>
 
@@ -195,7 +196,7 @@ export function LoginPage({ onLogin, isLoading }: LoginPageProps = {}) {
                     >
                       verse
                     </span>
-                    <span className="text-white"> ile bağlan</span>
+                    <span className="text-white">{t("login.cta.connect")}</span>
                   </span>
                   <HugeiconsIcon
                     icon={LoginCircle02Icon}
@@ -221,7 +222,7 @@ export function LoginPage({ onLogin, isLoading }: LoginPageProps = {}) {
                     >
                       verse
                     </span>
-                    <span className="text-white"> ile bağlan</span>
+                    <span className="text-white">{t("login.cta.connect")}</span>
                   </span>
                   <HugeiconsIcon
                     icon={LoginCircle02Icon}
@@ -237,11 +238,11 @@ export function LoginPage({ onLogin, isLoading }: LoginPageProps = {}) {
               )}
             </Button>
             <p className="hidden md:block mt-3 text-[11px] text-slate-500 text-center">
-              Yetkili Tiryaki kullanıcıları için. Erişim yoksa{" "}
+              {t("login.cta.access.a")}{" "}
               <span className="text-sky-400 underline decoration-dotted">
-                BT ekibiyle
+                {t("login.cta.access.link")}
               </span>{" "}
-              iletişime geç.
+              {t("login.cta.access.b")}
             </p>
           </motion.div>
         </div>
@@ -287,6 +288,7 @@ export function LoginPage({ onLogin, isLoading }: LoginPageProps = {}) {
 
 function ConnectionOverlay({ visible }: { visible: boolean }) {
   const isMobile = useIsMobile();
+  const t = useT();
   const portalSize = isMobile ? 80 : 96; // px — size-20 vs size-24
   const logoSize = isMobile ? 44 : 56;
   const ringScaleMax = isMobile ? 1.8 : 2.2;
@@ -356,7 +358,7 @@ function ConnectionOverlay({ visible }: { visible: boolean }) {
         <div className="text-2xl sm:text-3xl font-bold tracking-tight lowercase relative text-center px-4">
           <span className="text-white">tyro</span>
           <span style={{ color: "#38bdf8" }}>verse</span>{" "}
-          <span className="text-slate-300">bağlanıyor</span>
+          <span className="text-slate-300">{t("login.overlay.connecting")}</span>
           <motion.span
             animate={{ opacity: [0.2, 1, 0.2] }}
             transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
@@ -367,7 +369,7 @@ function ConnectionOverlay({ visible }: { visible: boolean }) {
         </div>
 
         <div className="text-[11px] sm:text-[12px] text-slate-500 tracking-wide text-center px-6">
-          Microsoft kimlik doğrulamasına yönlendiriliyorsun
+          {t("login.overlay.redirecting")}
         </div>
       </div>
     </motion.div>
@@ -378,30 +380,30 @@ function ConnectionOverlay({ visible }: { visible: boolean }) {
 
 interface Feature {
   icon: typeof ShipmentTrackingIcon;
-  title: string;
-  body: string;
+  titleKey: string;
+  bodyKey: string;
 }
 
 const FEATURES: Feature[] = [
   {
     icon: ShipmentTrackingIcon,
-    title: "Uluslararası Proje Takibi",
-    body: "Proje, gemi pozisyonu ve milestone zaman çizelgesi",
+    titleKey: "login.feature.tracking.title",
+    bodyKey: "login.feature.tracking.body",
   },
   {
     icon: ChartLineData01Icon,
-    title: "KPI & P/L",
-    body: "Segment bütçesi vs gerçekleşen satış karşılaştırması",
+    titleKey: "login.feature.kpi.title",
+    bodyKey: "login.feature.kpi.body",
   },
   {
     icon: RouteBlockIcon,
-    title: "Liman & Rota",
-    body: "Yükleme-tahliye limanları, sefer rotası takibi",
+    titleKey: "login.feature.route.title",
+    bodyKey: "login.feature.route.body",
   },
   {
     icon: AiBrain01Icon,
-    title: "TYRO AI",
-    body: "Yapay zeka asistanına doğal dilde soru sor",
+    titleKey: "login.feature.ai.title",
+    bodyKey: "login.feature.ai.body",
   },
 ];
 
@@ -436,7 +438,8 @@ function SceneFallback({ children }: { children: React.ReactNode }) {
   );
 }
 
-function FeatureCell({ icon, title, body }: Feature) {
+function FeatureCell({ icon, titleKey, bodyKey }: Feature) {
+  const t = useT();
   return (
     <motion.li
       variants={{
@@ -477,10 +480,10 @@ function FeatureCell({ icon, title, body }: Feature) {
       </div>
       <div className="min-w-0 flex-1 md:flex-initial">
         <div className="text-[12.5px] font-semibold text-white tracking-tight leading-tight">
-          {title}
+          {t(titleKey)}
         </div>
         <div className="text-[10.5px] text-slate-400 leading-snug mt-0.5 line-clamp-1 md:line-clamp-2">
-          {body}
+          {t(bodyKey)}
         </div>
       </div>
     </motion.li>

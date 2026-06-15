@@ -19,10 +19,24 @@ import { useProjects } from "@/hooks/useProjects";
 import { hasUsableShipPlan } from "@/lib/selectors/project";
 import type { Project } from "@/lib/dataverse/entities";
 import { useThemeAccent } from "@/components/layout/theme-accent";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
 /* ─────────── Types ─────────── */
 
+/**
+ * Stable category identity keys — used both as the grouping key and as a
+ * lookup into `CATEGORY_LABEL` for the (translated) heading shown in the UI.
+ * The string values are internal identifiers, not display text.
+ */
 type Category = "Sayfalar" | "Projeler" | "Limanlar" | "Gemiler";
+
+/** Category identity → translation key for its rendered heading. */
+const CATEGORY_LABEL: Record<Category, string> = {
+  Sayfalar: "cmd.cat.pages",
+  Projeler: "cmd.cat.projects",
+  Limanlar: "cmd.cat.ports",
+  Gemiler: "cmd.cat.vessels",
+};
 
 interface BaseItem {
   id: string;
@@ -36,6 +50,10 @@ interface PageItem extends BaseItem {
   type: "page";
   path: string;
   icon: IconSvgElement;
+  /** Translation key for the page label (reuses `nav.*`). */
+  labelKey: string;
+  /** Translation key for the page sublabel, when present. */
+  sublabelKey?: string;
 }
 
 interface ProjectItem extends BaseItem {
@@ -48,50 +66,59 @@ type ResultItem = PageItem | ProjectItem;
 
 /* ─────────── Static page index ─────────── */
 
-const PAGES: Omit<PageItem, "category">[] = [
+/**
+ * Page index template. Labels reuse the sidebar `nav.*` keys so command
+ * results match the navigation; sublabels use `cmd.page.*.sub`. The display
+ * `label`/`sublabel` strings are resolved via `t()` when results are built.
+ */
+type PageTemplate = Pick<PageItem, "id" | "type" | "path" | "icon" | "labelKey"> & {
+  sublabelKey?: string;
+};
+
+const PAGES: PageTemplate[] = [
   {
     id: "page-dashboard",
     type: "page",
-    label: "Dashboard",
-    sublabel: "Ana panel · KPI'lar · Kral Projeler",
+    labelKey: "nav.dashboard",
+    sublabelKey: "cmd.page.dashboard.sub",
     path: "/dashboard",
     icon: Home01Icon,
   },
   {
     id: "page-overview",
     type: "page",
-    label: "Genel Bakış",
-    sublabel: "Grup & segment özeti · bekleyen gemiler",
+    labelKey: "nav.overview",
+    sublabelKey: "cmd.page.overview.sub",
     path: "/overview",
     icon: PieChartIcon,
   },
   {
     id: "page-projects",
     type: "page",
-    label: "Projeler",
-    sublabel: "Proje listesi · harita · detay",
+    labelKey: "nav.projects",
+    sublabelKey: "cmd.page.projects.sub",
     path: "/projects",
     icon: ShipmentTrackingIcon,
   },
   {
     id: "page-data",
     type: "page",
-    label: "Veri Yönetimi",
-    sublabel: "CRUD · D365 senkron",
+    labelKey: "nav.dataManagement",
+    sublabelKey: "cmd.page.data.sub",
     path: "/data",
     icon: DatabaseIcon,
   },
   {
     id: "page-settings",
     type: "page",
-    label: "Ayarlar",
+    labelKey: "nav.settings",
     path: "/settings",
     icon: Settings01Icon,
   },
   {
     id: "page-help",
     type: "page",
-    label: "Yardım",
+    labelKey: "nav.help",
     path: "/help",
     icon: HelpCircleIcon,
   },
@@ -179,6 +206,7 @@ interface CommandPaletteProps {
 export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const navigate = useNavigate();
   const accent = useThemeAccent();
+  const t = useT();
   const { projects: rawProjects } = useProjects();
   // Same default as Projects/Dashboard pages: only show projects with a
   // usable ship plan in the search results.
@@ -219,14 +247,18 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     const q = query.toLowerCase().trim();
     const items: ResultItem[] = [];
 
-    // Pages — always shown when no query, filtered when query present
+    // Pages — always shown when no query, filtered when query present.
+    // Labels/sublabels are resolved from translation keys so search matches
+    // the language the user sees.
     for (const p of PAGES) {
+      const label = t(p.labelKey);
+      const sublabel = p.sublabelKey ? t(p.sublabelKey) : undefined;
       if (
         !q ||
-        p.label.toLowerCase().includes(q) ||
-        (p.sublabel && p.sublabel.toLowerCase().includes(q))
+        label.toLowerCase().includes(q) ||
+        (sublabel && sublabel.toLowerCase().includes(q))
       ) {
-        items.push({ ...p, category: "Sayfalar" });
+        items.push({ ...p, label, sublabel, category: "Sayfalar" });
       }
     }
 
@@ -234,7 +266,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     items.push(...searchProjects(q, projects));
 
     return items;
-  }, [query, projects]);
+  }, [query, projects, t]);
 
   // Reset selection on query change
   React.useEffect(() => {
@@ -305,7 +337,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
             )}
             role="dialog"
             aria-modal="true"
-            aria-label="Komut paleti"
+            aria-label={t("cmd.dialogAria")}
           >
             {/* Specular hairline */}
             <div
@@ -326,9 +358,9 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={onInputKeyDown}
-                placeholder="Ara… sayfa, proje, gemi, liman"
+                placeholder={t("cmd.placeholder")}
                 className="flex-1 bg-transparent border-0 outline-none text-[14px] text-foreground placeholder:text-muted-foreground/70"
-                aria-label="Arama"
+                aria-label={t("cmd.searchAria")}
               />
               <kbd className="select-none rounded-md px-1.5 py-0.5 text-[10px] font-mono font-medium text-muted-foreground ring-1 ring-inset ring-border/70 bg-background/80">
                 ESC
@@ -343,7 +375,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
             >
               {results.length === 0 && (
                 <div className="px-3 py-10 text-center text-[12.5px] text-muted-foreground">
-                  {query ? "Sonuç bulunamadı" : "Aramaya başlayın…"}
+                  {query ? t("cmd.empty.noResults") : t("cmd.empty.start")}
                 </div>
               )}
 
@@ -359,7 +391,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                   <React.Fragment key={item.id}>
                     {showHeader && (
                       <div className="px-2.5 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                        {item.category}
+                        {t(CATEGORY_LABEL[item.category])}
                       </div>
                     )}
                     <button
@@ -442,19 +474,19 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
                 <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-background/70 ring-1 ring-border/60">
                   ↑↓
                 </kbd>
-                gezin
+                {t("cmd.footer.navigate")}
               </span>
               <span className="inline-flex items-center gap-1">
                 <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-background/70 ring-1 ring-border/60">
                   ↵
                 </kbd>
-                seç
+                {t("cmd.footer.select")}
               </span>
               <span className="ml-auto inline-flex items-center gap-1.5">
                 <kbd className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-background/70 ring-1 ring-border/60">
                   ⌘K
                 </kbd>
-                aç / kapat
+                {t("cmd.footer.toggle")}
               </span>
             </div>
           </motion.div>

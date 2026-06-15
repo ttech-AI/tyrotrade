@@ -1054,6 +1054,127 @@ const tr: StringMap = {
   "dm.inspector.tabFields": "Alanlar",
   "dm.inspector.tabJson": "Ham JSON",
   "dm.inspector.selectRow": "Sol panelden bir satır seç",
+
+  /* ── Yardım / Help ── */
+  "help.hero.title": "Yardım & Kullanım Rehberi",
+  "help.hero.body":
+    "tyroFreight'in dört ana sayfası, header butonları ve klavye kısayolları için kısa anlatım. Hangi bölüme tıklayacağını bulamadığında veya yeni bir yöneticiye linki gönderdiğinde başlangıç noktası bu sayfadır.",
+  "help.section.pages": "Sayfalar",
+  "help.section.topbar": "Header Butonları",
+  "help.section.shortcuts": "Klavye Kısayolları",
+  "help.footer":
+    "Daha fazla yardım için Tiryaki BT ekibine ulaşabilirsin. Veri erişim sorunlarında yöneticinin Power Platform admin merkezinde ilgili rolün atandığından emin ol.",
+  /* Page cards */
+  "help.page.dashboard.title": "Dashboard",
+  "help.page.dashboard.tagline": "Yönetici özeti · KPI bento grid",
+  "help.page.dashboard.body":
+    "Açıldığında portföydeki seçili dönemin (varsayılan: aktif finansal yıl) tüm tahmini ve gerçekleşen özetini tek ekranda gösterir. KPI kartlarına tıklayarak proje bazlı kırılım drawer'ı açılır; oradan ilgili projeye tek tıkla geçilir.",
+  "help.page.dashboard.b1":
+    "Dönem Performansı, Tahmini K&Z, Tahmini Miktar — finansal headline'lar.",
+  "help.page.dashboard.b2":
+    "Aktif Pipeline, Ortalama Transit, Para Birimi Maruziyeti — operasyonel sağlık.",
+  "help.page.dashboard.b3":
+    "Koridor Konsantrasyonu, Karşı Taraf Dağılımı — risk göstergeleri (HHI).",
+  "help.page.dashboard.b4":
+    "Kral Projeler & Kral Segmentler — satış / kâr / zarar liderlik tabloları.",
+  "help.page.dashboard.b5":
+    "Olaylar paneli — son 30 ve önümüzdeki 30 gün milestone akışı.",
+  "help.page.projects.title": "Vessel Projects",
+  "help.page.projects.tagline": "Proje bazlı detay · harita + zaman çizelgesi",
+  "help.page.projects.body":
+    "Bireysel projeyi seçip rotasını dünya haritasında, zaman çizelgesini milestone bantında, finansal göstergelerini sağ paneldeki kartlarda izlersin. Solda proje listesi + arama + gelişmiş filtre; ortada harita + animasyonlu gemi marker; sağda Proje Genel, Komodite Satış, Tahmini Gider, Gerçekleşen K&Z kartları.",
+  "help.page.projects.b1":
+    "Solda 437 proje listesi, search'ten gemi/liman/tedarikçi/müşteri arayabilirsin.",
+  "help.page.projects.b2":
+    "Gelişmiş Filtre — sefer durumu, durum, incoterm, segment, trader, tedarikçi, alıcı, gemi, proje grubu çoklu filtreler + dönem.",
+  "help.page.projects.b3":
+    "Ortada MapLibre haritası — yükleme limanı, deniz rotası, animasyonlu gemi pozisyonu, varış limanı.",
+  "help.page.projects.b4":
+    "Sağda kart yığını — proje özeti, kargo değeri, masraf bucket'ları, gerçekleşen K&Z karşılaştırması.",
+  "help.page.data.title": "Veri Yönetimi",
+  "help.page.data.tagline": "Dataverse entity inspector · 5 tablo",
+  "help.page.data.body":
+    "Dataverse'ten gelen ham veriyi denetlemek + filtrelemek için. Ana tab Projeler; alt taklarda her seçili projenin satırları, gemi planı, tahmini gider satırları ve gerçekleşen satış faturaları. Verileri Güncelle butonu 7 entity'yi sırayla çeker, sonuç toast'la bildirilir.",
+  "help.page.data.b1":
+    "Projeler tablosu — sortlanabilir, filtrelenir, detay paneli sağa açılır.",
+  "help.page.data.b2":
+    "Tahmini Bütçe (Segment) tab'ı — segment bazlı bütçe vs. gerçekleşen.",
+  "help.page.data.b3":
+    "Gelişmiş Filtre paneli + dönem filtresi (FY/aylık/çeyreklik/yıllık/tüm zamanlar).",
+  "help.page.data.b4":
+    "Verileri Güncelle butonu — 7 adımlık fetch + cache write, toast'ta proje sayısı + süre.",
+  "help.page.settings.title": "Ayarlar",
+  "help.page.settings.tagline": "API key, model, agent URL",
+  "help.page.settings.body":
+    "Gemini API key (AI sohbet için), Gemini model seçimi, Copilot Studio agent URL'i (TYRO Chat drawer'ı için), localStorage temizliği gibi tarayıcı düzeyinde tercihler.",
+  "help.page.settings.b1":
+    "Gemini API Key — varsayılan dev key gömülü, kendi key'inle override edebilirsin.",
+  "help.page.settings.b2":
+    "Model seçimi — gemini-2.5-flash / 2.5-pro / 1.5-flash arasında geçiş.",
+  "help.page.settings.b3":
+    "TYRO Chat URL — Copilot Studio webchat URL'i; boş bırakıp kaydedersen varsayılana döner.",
+  "help.page.settings.b4":
+    "Yerel Depolama — tüm cache slot'larını listeler, tek tek veya toplu silebilirsin.",
+  /* Topbar buttons */
+  "help.topbar.filter.title": "Gelişmiş Filtre",
+  "help.topbar.filter.body":
+    "Header'daki beyaz cam pill — proje, gemi, tedarikçi, alıcı, segment, durum gibi 11 ayrı boyutta çoklu filtre + finansal dönem seçimi. Aynı filtre Dashboard, Vessel Projects ve Veri Yönetimi sayfalarında ortak çalışır — bir kez seçtiğin filtre üç sayfada da geçerlidir.",
+  "help.topbar.notification.title": "Bildirim",
+  "help.topbar.notification.body":
+    "Yaklaşan ve geçmiş milestone'ları tek panelde gösterir — son 30 gün gerçekleşen olaylar + önümüzdeki 30 gün için planlı yükleme/varış/tahliye tarihleri. Bildirime tıklayınca ilgili proje seçili olarak Vessel Projects sayfasına gidersin.",
+  "help.topbar.ai.title": "TYRO AI",
+  "help.topbar.ai.body":
+    "Google Gemini destekli sohbet drawer'ı — proje, gemi ve finansal verileri doğal Türkçe ile sorgulayabilirsin. \"Yolda olan gemiler\", \"En kârlı 3 segment\", \"Risk altındaki düşük marjlı projeler\" gibi sorular önceden hazırlanmış. Sohbet bağlamı her seferinde dashboard verisinden besleniyor.",
+  "help.topbar.chat.title": "TYRO Chat",
+  "help.topbar.chat.body":
+    "Microsoft Copilot Studio agent'ını embedded iframe olarak açar — TYRO ticaret operasyonu için özel eğitilmiş agent. Drawer açılırken bir karşılama ekranı sunar; \"Sohbete başla\" tıklayınca canlı agent görünür hale gelir.",
+  "help.topbar.refresh.title": "Verileri Güncelle (Veri Yönetimi)",
+  "help.topbar.refresh.body":
+    "Veri Yönetimi sayfasındaki yuvarlak buton — Dataverse'ten 5 ana entity + sales aggregate verilerini sırayla çeker (~15 saniye). Premium toast ile her adım gösterilir; başarı veya hata bildirilir. Login sonrası ilk açılışta otomatik olarak çalışır.",
+  /* Keyboard shortcuts */
+  "help.kbd.cmdk": "Komut paleti — sayfalar, projeler arasında hızlı ara",
+  "help.kbd.esc": "Açık drawer / popover'ı kapat",
+  "help.kbd.tab": "Filtre alanları, suggestion chip'leri arasında gezin",
+
+  /* ── Login ── */
+  "login.eyebrow": "Tiryaki",
+  "login.headline.a": "Uluslararası",
+  "login.headline.b": "Tedarik Zinciri",
+  "login.headline.c": "Platformu",
+  "login.tagline":
+    "Tedarikten teslimata, uluslararası ticaretin tüm operasyon süreçlerini tek panelden yönet.",
+  "login.cta.connect": " ile bağlan",
+  "login.cta.access.a": "Yetkili Tiryaki kullanıcıları için. Erişim yoksa",
+  "login.cta.access.link": "BT ekibiyle",
+  "login.cta.access.b": "iletişime geç.",
+  "login.overlay.connecting": "bağlanıyor",
+  "login.overlay.redirecting": "Microsoft kimlik doğrulamasına yönlendiriliyorsun",
+  "login.feature.tracking.title": "Uluslararası Proje Takibi",
+  "login.feature.tracking.body": "Proje, gemi pozisyonu ve milestone zaman çizelgesi",
+  "login.feature.kpi.title": "KPI & P/L",
+  "login.feature.kpi.body": "Segment bütçesi vs gerçekleşen satış karşılaştırması",
+  "login.feature.route.title": "Liman & Rota",
+  "login.feature.route.body": "Yükleme-tahliye limanları, sefer rotası takibi",
+  "login.feature.ai.title": "TYRO AI",
+  "login.feature.ai.body": "Yapay zeka asistanına doğal dilde soru sor",
+
+  /* ── Command Palette ── */
+  "cmd.placeholder": "Ara… sayfa, proje, gemi, liman",
+  "cmd.searchAria": "Arama",
+  "cmd.dialogAria": "Komut paleti",
+  "cmd.empty.noResults": "Sonuç bulunamadı",
+  "cmd.empty.start": "Aramaya başlayın…",
+  "cmd.cat.pages": "Sayfalar",
+  "cmd.cat.projects": "Projeler",
+  "cmd.cat.ports": "Limanlar",
+  "cmd.cat.vessels": "Gemiler",
+  "cmd.footer.navigate": "gezin",
+  "cmd.footer.select": "seç",
+  "cmd.footer.toggle": "aç / kapat",
+  "cmd.page.dashboard.sub": "Ana panel · KPI'lar · Kral Projeler",
+  "cmd.page.overview.sub": "Grup & segment özeti · bekleyen gemiler",
+  "cmd.page.projects.sub": "Proje listesi · harita · detay",
+  "cmd.page.data.sub": "CRUD · D365 senkron",
 };
 
 const en: StringMap = {
@@ -2081,6 +2202,127 @@ const en: StringMap = {
   "dm.inspector.tabFields": "Fields",
   "dm.inspector.tabJson": "Raw JSON",
   "dm.inspector.selectRow": "Select a row from the left panel",
+
+  /* ── Yardım / Help ── */
+  "help.hero.title": "Help & User Guide",
+  "help.hero.body":
+    "A short walkthrough of tyroFreight's four main pages, header buttons and keyboard shortcuts. This is your starting point when you can't find where to click or want to share a link with a new manager.",
+  "help.section.pages": "Pages",
+  "help.section.topbar": "Header Buttons",
+  "help.section.shortcuts": "Keyboard Shortcuts",
+  "help.footer":
+    "For further help, reach out to the Tiryaki IT team. For data access issues, make sure your administrator has assigned the relevant role in the Power Platform admin center.",
+  /* Page cards */
+  "help.page.dashboard.title": "Dashboard",
+  "help.page.dashboard.tagline": "Executive summary · KPI bento grid",
+  "help.page.dashboard.body":
+    "On open, it shows the full estimated and realized summary for the selected period (default: the active financial year) of the portfolio on a single screen. Click a KPI card to open a per-project breakdown drawer; from there you can jump to a project in one click.",
+  "help.page.dashboard.b1":
+    "Period Performance, Estimated P&L, Estimated Quantity — financial headlines.",
+  "help.page.dashboard.b2":
+    "Active Pipeline, Average Transit, Currency Exposure — operational health.",
+  "help.page.dashboard.b3":
+    "Corridor Concentration, Counterparty Distribution — risk indicators (HHI).",
+  "help.page.dashboard.b4":
+    "Top Projects & Top Segments — sales / profit / loss leaderboards.",
+  "help.page.dashboard.b5":
+    "Events panel — milestone stream for the last 30 and next 30 days.",
+  "help.page.projects.title": "Vessel Projects",
+  "help.page.projects.tagline": "Per-project detail · map + timeline",
+  "help.page.projects.body":
+    "Select an individual project to track its route on the world map, its timeline on the milestone band, and its financial indicators on the cards in the right rail. On the left: project list + search + advanced filter; in the center: map + animated vessel marker; on the right: Project Overview, Commodity Sales, Estimated Expense and Realized P&L cards.",
+  "help.page.projects.b1":
+    "A list of 437 projects on the left; search by vessel/port/supplier/buyer.",
+  "help.page.projects.b2":
+    "Advanced Filter — multi-select filters for voyage status, status, incoterm, segment, trader, supplier, buyer, vessel, project group + period.",
+  "help.page.projects.b3":
+    "MapLibre map in the center — loading port, sea route, animated vessel position, discharge port.",
+  "help.page.projects.b4":
+    "Card stack on the right — project summary, cargo value, expense buckets, realized P&L comparison.",
+  "help.page.data.title": "Data Management",
+  "help.page.data.tagline": "Dataverse entity inspector · 5 tables",
+  "help.page.data.body":
+    "For inspecting and filtering the raw data coming from Dataverse. The main tab is Projects; sub-tabs hold each selected project's lines, vessel plan, estimated expense lines and realized sales invoices. The Refresh Data button fetches 7 entities in sequence and reports the result via a toast.",
+  "help.page.data.b1":
+    "Projects table — sortable, filterable, detail panel opens to the right.",
+  "help.page.data.b2":
+    "Estimated Budget (Segment) tab — budget vs. realized by segment.",
+  "help.page.data.b3":
+    "Advanced Filter panel + period filter (FY / monthly / quarterly / yearly / all time).",
+  "help.page.data.b4":
+    "Refresh Data button — 7-step fetch + cache write; toast shows project count + duration.",
+  "help.page.settings.title": "Settings",
+  "help.page.settings.tagline": "API key, model, agent URL",
+  "help.page.settings.body":
+    "Browser-level preferences such as the Gemini API key (for AI chat), Gemini model choice, the Copilot Studio agent URL (for the TYRO Chat drawer), and clearing localStorage.",
+  "help.page.settings.b1":
+    "Gemini API Key — a default dev key is embedded; you can override it with your own.",
+  "help.page.settings.b2":
+    "Model selection — switch between gemini-2.5-flash / 2.5-pro / 1.5-flash.",
+  "help.page.settings.b3":
+    "TYRO Chat URL — Copilot Studio webchat URL; leave it blank and save to revert to the default.",
+  "help.page.settings.b4":
+    "Local Storage — lists all cache slots; delete them individually or all at once.",
+  /* Topbar buttons */
+  "help.topbar.filter.title": "Advanced Filter",
+  "help.topbar.filter.body":
+    "The white glass pill in the header — multi-select filters across 11 separate dimensions like project, vessel, supplier, buyer, segment and status + financial period selection. The same filter works across the Dashboard, Vessel Projects and Data Management pages — a filter you set once applies to all three.",
+  "help.topbar.notification.title": "Notifications",
+  "help.topbar.notification.body":
+    "Shows upcoming and past milestones in a single panel — events from the last 30 days + planned loading/arrival/discharge dates for the next 30 days. Click a notification to open the Vessel Projects page with the related project selected.",
+  "help.topbar.ai.title": "TYRO AI",
+  "help.topbar.ai.body":
+    "A Google Gemini-powered chat drawer — query project, vessel and financial data in natural language. Questions like \"vessels in transit\", \"top 3 most profitable segments\", \"low-margin projects at risk\" are prepared in advance. The chat context is fed from dashboard data every time.",
+  "help.topbar.chat.title": "TYRO Chat",
+  "help.topbar.chat.body":
+    "Opens the Microsoft Copilot Studio agent as an embedded iframe — an agent specially trained for TYRO trade operations. The drawer shows a welcome screen on open; click \"Start chat\" to make the live agent visible.",
+  "help.topbar.refresh.title": "Refresh Data (Data Management)",
+  "help.topbar.refresh.body":
+    "The round button on the Data Management page — fetches 5 main entities + sales aggregate data from Dataverse in sequence (~15 seconds). A premium toast shows each step and reports success or failure. It runs automatically on the first load after login.",
+  /* Keyboard shortcuts */
+  "help.kbd.cmdk": "Command palette — quickly search across pages and projects",
+  "help.kbd.esc": "Close an open drawer / popover",
+  "help.kbd.tab": "Move between filter fields and suggestion chips",
+
+  /* ── Login ── */
+  "login.eyebrow": "Tiryaki",
+  "login.headline.a": "International",
+  "login.headline.b": "Supply Chain",
+  "login.headline.c": "Platform",
+  "login.tagline":
+    "From sourcing to delivery, manage every operational process of international trade from a single panel.",
+  "login.cta.connect": " to connect",
+  "login.cta.access.a": "For authorized Tiryaki users. If you don't have access,",
+  "login.cta.access.link": "the IT team",
+  "login.cta.access.b": "get in touch with.",
+  "login.overlay.connecting": "connecting",
+  "login.overlay.redirecting": "Redirecting you to Microsoft authentication",
+  "login.feature.tracking.title": "International Project Tracking",
+  "login.feature.tracking.body": "Project, vessel position and milestone timeline",
+  "login.feature.kpi.title": "KPI & P/L",
+  "login.feature.kpi.body": "Segment budget vs. realized sales comparison",
+  "login.feature.route.title": "Port & Route",
+  "login.feature.route.body": "Loading-discharge ports, voyage route tracking",
+  "login.feature.ai.title": "TYRO AI",
+  "login.feature.ai.body": "Ask the AI assistant questions in natural language",
+
+  /* ── Command Palette ── */
+  "cmd.placeholder": "Search… page, project, vessel, port",
+  "cmd.searchAria": "Search",
+  "cmd.dialogAria": "Command palette",
+  "cmd.empty.noResults": "No results found",
+  "cmd.empty.start": "Start typing to search…",
+  "cmd.cat.pages": "Pages",
+  "cmd.cat.projects": "Projects",
+  "cmd.cat.ports": "Ports",
+  "cmd.cat.vessels": "Vessels",
+  "cmd.footer.navigate": "navigate",
+  "cmd.footer.select": "select",
+  "cmd.footer.toggle": "open / close",
+  "cmd.page.dashboard.sub": "Main panel · KPIs · Top Projects",
+  "cmd.page.overview.sub": "Group & segment summary · pending vessels",
+  "cmd.page.projects.sub": "Project list · map · detail",
+  "cmd.page.data.sub": "CRUD · D365 sync",
 };
 
 export const translations: Record<Lang, StringMap> = { tr, en };
