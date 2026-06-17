@@ -619,6 +619,11 @@ const tr: StringMap = {
   "proj.expenseSheet.matchedInEstimate": "Tahmini tarafta da var",
   "proj.expenseSheet.itemsSuffix": "kalem",
   "proj.expenseSheet.recordsSuffix": "kayıt",
+  "proj.expenseSheet.toggleRecords": "Kayıt detaylarını aç/kapat",
+  "proj.expenseSheet.acct.vendor": "Tedarikçi",
+  "proj.expenseSheet.acct.customer": "Müşteri",
+  "proj.expenseSheet.acct.ledger": "Genel muhasebe",
+  "proj.expenseSheet.acct.bank": "Banka",
   /* Budget / Realized P&L card */
   "proj.budget.eyebrow": "Gerçekleşen Kâr & Zarar",
   "proj.budget.title": "Tahmini × Gerçekleşen Kâr & Zarar",
@@ -1797,6 +1802,11 @@ const en: StringMap = {
   "proj.expenseSheet.matchedInEstimate": "Also on the estimated side",
   "proj.expenseSheet.itemsSuffix": "lines",
   "proj.expenseSheet.recordsSuffix": "records",
+  "proj.expenseSheet.toggleRecords": "Toggle record details",
+  "proj.expenseSheet.acct.vendor": "Vendor",
+  "proj.expenseSheet.acct.customer": "Customer",
+  "proj.expenseSheet.acct.ledger": "General accounting",
+  "proj.expenseSheet.acct.bank": "Bank",
   /* Budget / Realized P&L card */
   "proj.budget.eyebrow": "Realized Profit & Loss",
   "proj.budget.title": "Estimated × Realized P&L",

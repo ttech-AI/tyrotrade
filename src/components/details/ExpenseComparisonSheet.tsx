@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ArrowLeftRight } from "lucide-react";
+import { ArrowLeftRight, ChevronRight } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { BalanceScaleIcon } from "@hugeicons/core-free-icons";
 import {
@@ -43,11 +43,32 @@ const REAL = {
   border: "rgba(5, 150, 105, 0.22)",
 };
 
+/** One underlying expense-line record behind a realized aggregate —
+ *  surfaced when the user expands a realized item. */
+interface RealizedRecord {
+  /** masraf no — `mserp_expensenum`. */
+  expenseNum: string;
+  /** signed USD contribution (`mserp_amountcur_usd`). */
+  usd: number;
+  /** native line amount (`mserp_amountcur`). */
+  nativeAmount: number;
+  /** line currency (from the joined header). */
+  currency: string;
+  /** USD exchange rate at txn date (from the header). */
+  rate: number;
+  /** `mserp_accounttype` (Vendor / Customer / General accounting / Bank). */
+  accountType: number | null;
+  /** free-text line description. */
+  description: string;
+}
+
 interface RealizedItem {
   code: string;
   name: string;
   totalUsd: number;
   rowCount: number;
+  /** The individual line records that compose this aggregate. */
+  records: RealizedRecord[];
 }
 
 interface EstimateItem {
@@ -87,17 +108,41 @@ export function ExpenseComparisonSheet({
         String(r["mserp_refexpenseid"] ?? "").trim() ||
         String(r["mserp_description"] ?? "").trim() ||
         code;
+      const record: RealizedRecord = {
+        expenseNum: String(r["mserp_expensenum"] ?? "").trim(),
+        usd,
+        nativeAmount: Number(r["mserp_amountcur"]) || 0,
+        currency:
+          String(r["mserp_currencycode"] ?? "").trim().toUpperCase() || "USD",
+        rate: Number(r["mserp_exchratesecond"]) || 1,
+        accountType:
+          r["mserp_accounttype"] === undefined ||
+          r["mserp_accounttype"] === null
+            ? null
+            : Number(r["mserp_accounttype"]),
+        description: String(r["mserp_description"] ?? "").trim(),
+      };
       const item = byCode.get(code);
       if (item) {
         item.totalUsd += usd;
         item.rowCount += 1;
+        item.records.push(record);
       } else {
-        byCode.set(code, { code, name, totalUsd: usd, rowCount: 1 });
+        byCode.set(code, {
+          code,
+          name,
+          totalUsd: usd,
+          rowCount: 1,
+          records: [record],
+        });
       }
     }
-    return [...byCode.values()].sort(
-      (a, b) => Math.abs(b.totalUsd) - Math.abs(a.totalUsd)
-    );
+    const items = [...byCode.values()];
+    // Largest contribution first — both at the item level and within each
+    // item's record list, so the biggest driver is always on top.
+    for (const it of items)
+      it.records.sort((a, b) => Math.abs(b.usd) - Math.abs(a.usd));
+    return items.sort((a, b) => Math.abs(b.totalUsd) - Math.abs(a.totalUsd));
   }, [realizedRows]);
 
   // Tahmini: composer'ın costEstimateLines'ı + gerçekleşenden ad devri.
@@ -233,17 +278,12 @@ export function ExpenseComparisonSheet({
               }
             >
               {realizedItems.map((item) => (
-                <ItemRow
+                <RealizedItemRow
                   key={item.code}
-                  name={item.name}
-                  code={item.code}
+                  item={item}
                   matched={estimateCodes.has(item.code)}
                   matchNote={t("proj.expenseSheet.matchedInEstimate")}
-                  sub={`${item.rowCount} ${t("proj.expenseSheet.recordsSuffix")}`}
-                  value={`${item.totalUsd < 0 ? "−" : ""}${formatCurrency(Math.abs(item.totalUsd), "USD", { maximumFractionDigits: 0 })}`}
-                  valueClassName={
-                    item.totalUsd < 0 ? "text-emerald-700" : undefined
-                  }
+                  t={t}
                 />
               ))}
             </Section>
@@ -384,6 +424,136 @@ function ItemRow({
         )}
       >
         {value}
+      </span>
+    </div>
+  );
+}
+
+/** F&O `mserp_accounttype` → kısa etiket. Boş string bilinmeyen/null. */
+function acctLabel(at: number | null, t: (key: string) => string): string {
+  switch (at) {
+    case 200000003:
+      return t("proj.expenseSheet.acct.vendor");
+    case 200000001:
+      return t("proj.expenseSheet.acct.customer");
+    case 200000000:
+      return t("proj.expenseSheet.acct.ledger");
+    case 200000002:
+      return t("proj.expenseSheet.acct.bank");
+    default:
+      return "";
+  }
+}
+
+/** Gerçekleşen kalem satırı — sol başında aç/kapa oku. Açılınca aggregate'i
+ *  oluşturan satır-bazlı kayıtlar (masraf no + hesap tipi + ham tutar/kur +
+ *  işaretli USD) alt blokta görünür. */
+function RealizedItemRow({
+  item,
+  matched,
+  matchNote,
+  t,
+}: {
+  item: RealizedItem;
+  matched: boolean;
+  matchNote: string;
+  t: (key: string) => string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const negative = item.totalUsd < 0;
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-label={t("proj.expenseSheet.toggleRecords")}
+        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left hover:bg-foreground/[0.025] transition-colors"
+      >
+        <ChevronRight
+          className={cn(
+            "size-3.5 shrink-0 text-muted-foreground/70 transition-transform duration-150",
+            open && "rotate-90"
+          )}
+          strokeWidth={2.5}
+          aria-hidden
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-[13px] font-medium text-foreground leading-snug truncate">
+              {item.name}
+            </span>
+            {matched && <MatchBadge note={matchNote} />}
+          </div>
+          <div className="flex items-center gap-1.5 mt-1">
+            <CodeChip code={item.code} />
+            <span className="text-[11px] text-muted-foreground truncate">
+              {item.rowCount} {t("proj.expenseSheet.recordsSuffix")}
+            </span>
+          </div>
+        </div>
+        <span
+          className={cn(
+            "text-[13px] font-bold tabular-nums shrink-0",
+            negative ? "text-emerald-700" : "text-foreground"
+          )}
+        >
+          {negative ? "−" : ""}
+          {formatCurrency(Math.abs(item.totalUsd), "USD", {
+            maximumFractionDigits: 0,
+          })}
+        </span>
+      </button>
+      {open && (
+        <div className="bg-foreground/[0.02] border-t border-border/40 divide-y divide-border/30">
+          {item.records.map((rec, i) => (
+            <RecordRow key={`${rec.expenseNum}-${i}`} rec={rec} t={t} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Tek gerçekleşen kayıt — masraf no + hesap tipi + (USD değilse) ham tutar/kur
+ *  ve sağda işaretli USD. İndentli, ana satırın altında. */
+function RecordRow({
+  rec,
+  t,
+}: {
+  rec: RealizedRecord;
+  t: (key: string) => string;
+}) {
+  const negative = rec.usd < 0;
+  const acct = acctLabel(rec.accountType, t);
+  const nonUsd = rec.currency !== "" && rec.currency !== "USD";
+  return (
+    <div className="flex items-center justify-between gap-3 pl-[2.35rem] pr-3.5 py-2">
+      <div className="min-w-0 flex-1">
+        <div className="text-[12px] text-foreground/90 leading-snug truncate">
+          {rec.description || rec.expenseNum || "—"}
+        </div>
+        <div className="flex items-center gap-x-1.5 gap-y-0.5 mt-1 flex-wrap">
+          {rec.expenseNum && <CodeChip code={rec.expenseNum} />}
+          {acct && (
+            <span className="text-[10.5px] text-muted-foreground">{acct}</span>
+          )}
+          {nonUsd && (
+            <span className="text-[10.5px] text-muted-foreground tabular-nums">
+              · {formatNumber(rec.nativeAmount, 2)} {rec.currency} ×{" "}
+              {formatNumber(rec.rate, 4)}
+            </span>
+          )}
+        </div>
+      </div>
+      <span
+        className={cn(
+          "text-[12px] font-semibold tabular-nums shrink-0",
+          negative ? "text-emerald-700" : "text-foreground/80"
+        )}
+      >
+        {negative ? "−" : ""}
+        {formatCurrency(Math.abs(rec.usd), "USD", { maximumFractionDigits: 0 })}
       </span>
     </div>
   );

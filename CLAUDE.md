@@ -19,13 +19,18 @@ There is no test runner configured. `npm run lint` runs the TypeScript compiler 
 
 TYRO International Trade ("tyrotrade") — a dashboard for Tiryaki's international commodity trade operations: buying grain / oilseed at one port, shipping it to another via vessel or truck, tracking budget vs. actuals across the voyage. The data model mirrors the Dynamics 365 F&O **TRYK Projeler** module (project header + vessel plan + project lines + cost estimate + actuals). Active scope is filtered server-side by `PROJECTS_FILTER` (`refreshAll.ts`) to `mserp_tryprojectsegment ne null` OR-ed with a `PROJECT_ID_EXCEPTIONS` allowlist (currently `ORGANIK01`) — ~840 projects. The earlier `mserp_dlvmode eq 'Gemi'` sea-only restriction was **removed** so Karayolu / Konteyner / sub-projects with a segment also surface; don't reintroduce it.
 
-Main app surfaces (each is its own page module):
+Main app surfaces (each is its own page module under `<AppShell>`; routes in `src/App.tsx`). Bare `/` redirects to `/overview`.
 
-- `/` — **Dashboard** (BentoGrid KPI tiles + Leaderboards + Events)
-- `/projects` and `/projects/:projectId` — **Vessel Projects** (3-pane: list + map + detail rail)
-- `/pl-cost` — **Trade Cost** (Tahmini × Gerçekleşen — segment-level hierarchical comparison; route prefix `/pl-cost` preserved for code-search continuity, UI label says "Trade Cost")
+- `/overview` — **Genel Bakış / Executive Panel** (`OverviewPage`) — the public landing page (group/segment summary), shown to ALL authenticated users. This is the default route.
+- `/dashboard` — **Dashboard** (`DashboardPage`, BentoGrid KPI tiles + Leaderboards + Events) — **`RestrictedRoute`**: only users for whom `useCanSeeRestricted()` is true; others are redirected to `DEFAULT_ALLOWED_ROUTE`.
+- `/projects` and `/projects/:projectId` — **Vessel Projects / Sefer Takibi** (EN: "Vessel Ops") — 3-pane: list + map + detail rail.
+- `/pl-cost` — **Trade Cost** (Tahmini × Gerçekleşen — segment-level hierarchical comparison; route prefix `/pl-cost` preserved for code-search continuity, UI label says "Trade Cost") — also **`RestrictedRoute`**.
+- `/price-tracking` — **Fiyat Takibi / Price Analysis** (`PriceTrackingPage`) — indicative-freight price page joining two indicative-freight entities. Public (no `RestrictedRoute`).
 - `/data` — **Veri Yönetimi** inspector (raw entity tabs + refresh button)
+- `/vessel-map` — standalone full-bleed `VesselMapPage`.
 - `/settings`, `/help` — config / help
+
+`RestrictedRoute` (`src/App.tsx`) gates `/dashboard` + `/pl-cost` behind `useCanSeeRestricted()` — the guard hides the route AND the page itself, redirecting unauthorised users to `DEFAULT_ALLOWED_ROUTE`.
 
 Sibling apps share the lowercase wordmark and Inter Variable font:
 
