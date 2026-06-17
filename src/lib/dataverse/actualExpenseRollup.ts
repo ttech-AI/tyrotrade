@@ -71,34 +71,39 @@ const EXPENSE_ENTITY = "mserp_tryaiexpenselineentities";
  *  as the per-project chain in `useProjectExpenseLines`. */
 const EXPENSE_TABLE_ENTITY = "mserp_tryaiexpensetableentities";
 
-/** F&O `mserp_accounttype` option-set values seen on expense
- *  table headers. Vendor = real cost we incurred; Customer =
- *  reflection voucher (we billed the customer to recover the
- *  cost). General accounting (200000000) is a manual journal we
- *  drop because we can't classify it automatically. Same
- *  constants live in `useProjectExpenseLines` — extend in both
- *  files together if F&O introduces a new option-set value we
- *  need to handle. */
-const ACCOUNT_TYPE_VENDOR = 200000003;
+/** F&O `mserp_accounttype` option-set values. Power BI counts every
+ *  non-Customer type as a cost (+); only Customer reflection vouchers
+ *  subtract (−). Same model lives in `useProjectExpenseLines` — keep
+ *  in sync. (4 values in the tenant: Vendor 200000003, General
+ *  accounting 200000000, Bank 200000002, Customer 200000001.) */
 const ACCOUNT_TYPE_CUSTOMER = 200000001;
+/** Cost-side account types → +1 (Vendor / General accounting / Bank).
+ *  Anything here and not Customer is a real incurred cost. */
+const COST_ACCOUNT_TYPES = new Set<number>([200000003, 200000000, 200000002]);
 const REFMAP_ENTITY = "mserp_tryaiotherexpenseprojectlineentities";
 
 /** F&O `mserp_expenseid` codes excluded from realised operational
  *  P&L. Same set + names that live in `useProjectExpenseLines.ts`
  *  so the per-project drill-down and the Trade Cost aggregate agree.
- *  Pass-through TAXES / treasury transfers only — the price-difference
- *  codes 710017 / 710041 were removed (Power BI counts them; their
- *  direction is handled by the Vendor/Customer × isReturned sign):
+ *  Pass-through TAXES / treasury transfers + price-difference codes —
+ *  Power BI's realised report shows none of these (verified on
+ *  PRJ000002000 + PRJ000002026):
  *    - "730030" — ITHALAT BULK KDV (vergi)
  *    - "731016" — ITHALAT - DAMGA VERGISI (vergi)
  *    - "790051" — ITHALAT - HAZINE FIYAT FARKI (hazine transferi)
  *    - "790052" — IHRACAT - HAZINE FIYAT FARKI (hazine transferi)
+ *    - "710017" — FIYAT FARKLARI (fiyat farkı)
+ *    - "710041" — SATIS FIYAT FARKLARI (fiyat farkı)
+ *    - "712207" — (Power BI saymıyor)
  *  Extend in both files together. */
 const EXCLUDED_EXPENSE_IDS = new Set<string>([
   "730030",
   "731016",
   "790051",
   "790052",
+  "710017",
+  "710041",
+  "712207",
 ]);
 
 /** F&O `mserp_posted` → tri-state. NoYes OPTION-SET (not boolean):
@@ -584,9 +589,12 @@ export async function fetchActualExpenseRollupForAllProjects(
       droppedDraftCount += 1;
       continue;
     }
+    // Keep cost-side (Vendor / General accounting / Bank) AND Customer
+    // (reflection) rows; drop only truly unknown / null account types.
     if (
-      header.accountType !== ACCOUNT_TYPE_VENDOR &&
-      header.accountType !== ACCOUNT_TYPE_CUSTOMER
+      header.accountType !== ACCOUNT_TYPE_CUSTOMER &&
+      (header.accountType === null ||
+        !COST_ACCOUNT_TYPES.has(header.accountType))
     ) {
       droppedUnknownAccountTypeCount += 1;
       continue;
@@ -655,37 +663,33 @@ export async function fetchActualExpenseRollupForAllProjects(
     for (const en of projExpenseNums) {
       const expRows = rowsByExpenseNum.get(en);
       if (!expRows) continue;
-      // Header is guaranteed present (line indexing gate above
-      // only kept rows whose expensenum is in headerByExpenseNum
-      // with a Vendor/Customer accountType).
+      // Header guaranteed present (line indexing gate kept only rows with
+      // a Customer or cost-side accountType).
       const header = headerByExpenseNum.get(en)!;
-      // Base Vendor(+)/Customer(−), flipped when the line is returned
-      // (returned Vendor cost reduces realised, returned Customer
-      // reflection adds back). Matches Power BI — verified PRJ000002000.
-      const base = header.accountType === ACCOUNT_TYPE_VENDOR ? +1 : -1;
+      // Customer reflection (−), every other (cost) type (+); flipped when
+      // the line is returned (returned cost reduces realised, returned
+      // reflection adds back). Matches Power BI (PRJ000002000/2026).
+      const base = header.accountType === ACCOUNT_TYPE_CUSTOMER ? -1 : +1;
       const sign = header.isReturned ? -base : base;
       for (const exr of expRows) {
-        // Cross-contamination guard: a line reached via a shared
-        // inventdimid / expensenum may belong to a DIFFERENT project —
-        // its authoritative `mserp_projectnum` then names that other
-        // project. Empty projectnum is fine; a foreign one must not be
-        // attributed to THIS project.
-        const linePid = String(exr.mserp_projectnum ?? "").trim();
-        if (linePid && linePid !== projid) continue;
         const expenseId = String(exr.mserp_expenseid ?? "").trim();
         if (!expenseId) continue;
-        // Belonging test for lines NOT explicitly stamped with THIS
-        // project (empty projectnum — an explicit match is authoritative).
-        // Keep only if the (expensenum, expenseid) pair actually
-        // distributed to this project via the dist entity, OR the line's
-        // financial-dimension string names the project. The pair check
-        // (not just the expensenum) stops a sibling line on a shared
-        // voucher — carrying a different, non-distributed code — from
-        // leaking in. Mirrors useProjectExpenseLines (verified vs Power
-        // BI on PRJ000002291: drops the stray 720089 Ledger-account line).
-        if (linePid !== projid) {
-          const pairDistributed = dimDerivedPairs.has(`${en}|${expenseId}`);
-          if (!pairDistributed) {
+        const linePid = String(exr.mserp_projectnum ?? "").trim();
+        // Distribution-wins belonging (mirrors useProjectExpenseLines). The
+        // (expensenum, expenseid) PAIR distributed to THIS project via the
+        // dist entity is authoritative and OVERRIDES the line's projectnum —
+        // a cost booked under a different "fixing" project (FFIX…, always out
+        // of scope so it never double-claims) yet distributed here belongs
+        // here, exactly as Power BI attributes it (verified PRJ000002026).
+        // The pair (not just the expensenum) also keeps a sibling line on a
+        // shared voucher from leaking in (PRJ000002291). Only when NOT
+        // distributed here do we fall back to projectnum: a foreign stamp
+        // drops it; an empty/own stamp needs the project in the dimension
+        // string.
+        const pairDistributed = dimDerivedPairs.has(`${en}|${expenseId}`);
+        if (!pairDistributed) {
+          if (linePid && linePid !== projid) continue;
+          if (linePid !== projid) {
             const ddv = String(exr.mserp_defaultdimensiondisplayvalue ?? "");
             if (!ddv.includes(projid)) {
               droppedDimMismatchCount += 1;

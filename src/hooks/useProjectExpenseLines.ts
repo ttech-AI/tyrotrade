@@ -44,15 +44,27 @@ const EXPENSE_ENTITY = "mserp_tryaiexpenselineentities";
  *  map. */
 const EXPENSE_TABLE_ENTITY = "mserp_tryaiexpensetableentities";
 
-/** F&O `mserp_accounttype` option-set values seen on expense
- *  table headers. Vendor entries are real cost we incurred;
- *  Customer entries are reflection vouchers (we billed the
- *  customer to recover the cost) so they NET the Vendor side
- *  out — same expensenum appears with both flavours. General
- *  accounting entries are manual journals we can't classify
- *  automatically. */
-const ACCOUNT_TYPE_VENDOR = 200000003;
+/** F&O `mserp_accounttype` option-set values seen on expense table
+ *  headers (4 distinct values live in the tenant):
+ *    - 200000003 Vendor            — real cost we incurred (+)
+ *    - 200000000 General accounting — GL / manual cost journal (+)
+ *    - 200000002 Bank              — bank-side cost (+)
+ *    - 200000001 Customer          — reflection voucher (we billed the
+ *                                     customer to recover a cost) (−)
+ *  Power BI's realised expense counts ALL of these: every non-Customer
+ *  type is a cost (+), only Customer reflections subtract. (Verified
+ *  vs Power BI on PRJ000002000 + PRJ000002026 — the earlier "only
+ *  Vendor/Customer, drop the rest" rule wrongly dropped the General-
+ *  accounting 720089 lines Power BI includes.) `isReturned` flips the
+ *  sign on either side. */
 const ACCOUNT_TYPE_CUSTOMER = 200000001;
+/** Cost-side account types → +1. Anything here (and not Customer) is a
+ *  real incurred cost. Unknown / null types still drop (can't sign). */
+const COST_ACCOUNT_TYPES = new Set<number>([
+  200000003, // Vendor
+  200000000, // General accounting
+  200000002, // Bank
+]);
 
 /** F&O `mserp_expenseid` codes excluded from realised operational
  *  P&L. The enrichment step drops any expense line whose code
@@ -61,25 +73,32 @@ const ACCOUNT_TYPE_CUSTOMER = 200000001;
  *  itself is strictly numeric, so a label rename in F&O won't
  *  re-admit the row.
  *
- *  Excluded set — pass-through TAXES / treasury transfers only. The
- *  price-difference codes 710017 (FIYAT FARKLARI) and 710041 (SATIS
- *  FIYAT FARKLARI) used to be here, but Power BI counts them in
- *  realised expense (verified on PRJ000002000), so they were removed —
- *  their direction is now handled by the Vendor/Customer × isReturned
- *  sign below, not by exclusion:
+ *  Excluded set — pass-through TAXES / treasury transfers + price-
+ *  difference codes. Power BI's realised-expense report leaves ALL of
+ *  these out (verified on PRJ000002000 + PRJ000002026 — Power BI shows
+ *  no 710041 / 710017 / 712207 rows for either):
  *    - "730030" — ITHALAT BULK KDV (vergi)
  *    - "731016" — ITHALAT - DAMGA VERGISI (vergi)
  *    - "790051" — ITHALAT - HAZINE FIYAT FARKI (hazine transferi)
  *    - "790052" — IHRACAT - HAZINE FIYAT FARKI (hazine transferi)
+ *    - "710017" — FIYAT FARKLARI (fiyat farkı — Power BI saymıyor)
+ *    - "710041" — SATIS FIYAT FARKLARI (fiyat farkı — Power BI saymıyor)
+ *    - "712207" — (Power BI saymıyor)
  *
- *  Extend this set as new pass-through / tax codes surface; the same
- *  constant lives in `actualExpenseRollup.ts` so the per-project
+ *  NOTE: 710017 / 710041 were briefly removed from this set on the
+ *  belief Power BI counts them; the user's Power BI exports for both
+ *  PRJ000002000 and PRJ000002026 show they do NOT, so they are excluded.
+ *  Extend this set as new pass-through / tax / price-diff codes surface;
+ *  the same constant lives in `actualExpenseRollup.ts` so the per-project
  *  drill-down and the Trade Cost aggregate stay in sync. */
 const EXCLUDED_EXPENSE_IDS = new Set<string>([
   "730030",
   "731016",
   "790051",
   "790052",
+  "710017",
+  "710041",
+  "712207",
 ]);
 
 /** Reference-map entity — per project, carries
@@ -425,26 +444,29 @@ async function runExpenseChain(
       droppedExcludedCount += 1;
       continue;
     }
-    // Foreign-projectnum guard.
     const linePid = String(r.mserp_projectnum ?? "").trim();
-    if (linePid && linePid !== projectNo) {
-      droppedForeignProjectCount += 1;
-      continue;
-    }
     const expensenum = String(r.mserp_expensenum ?? "").trim();
-    // Belonging test for lines NOT explicitly stamped with THIS project
-    // (empty projectnum — an explicit match is authoritative and trusted).
-    // A line belongs only if its (expensenum, expenseid) pair was actually
-    // distributed to this project via the dist entity, OR its financial-
-    // dimension string names the project. The pair check (not just the
-    // expensenum) is what stops a sibling line — sharing a distributed
-    // voucher but carrying a different, non-distributed code — from leaking
-    // in (verified vs Power BI on PRJ000002291: drops the stray 720089
-    // Ledger-account line, keeps the Item-distributed 730034).
-    if (linePid !== projectNo) {
-      const pairDistributed =
-        !!expensenum && !!code && distPairSet.has(`${expensenum}|${code}`);
-      if (!pairDistributed) {
+    // Distribution-wins belonging. A line belongs to THIS project when its
+    // (expensenum, expenseid) PAIR was distributed here via the dist entity
+    // (inventdimid chain) — and that OVERRIDES the line's own projectnum: a
+    // cost can be booked under a different "fixing" project (FFIX…) yet
+    // distributed to this voyage project, and Power BI attributes it by the
+    // distribution (verified PRJ000002026 — the NAVLUN voucher is booked to
+    // FFIX001145 but distributed here; FFIX projects are all out of scope so
+    // they never double-claim it). The PAIR (not just the expensenum) also
+    // stops a sibling line — sharing a distributed voucher but carrying a
+    // different, non-distributed code — from leaking in (PRJ000002291's stray
+    // 720089). Only when NOT distributed here do we fall back to projectnum:
+    // a foreign stamp drops it; an empty/own stamp needs the project to
+    // appear in the financial-dimension string.
+    const pairDistributed =
+      !!expensenum && !!code && distPairSet.has(`${expensenum}|${code}`);
+    if (!pairDistributed) {
+      if (linePid && linePid !== projectNo) {
+        droppedForeignProjectCount += 1;
+        continue;
+      }
+      if (linePid !== projectNo) {
         const ddv = String(r.mserp_defaultdimensiondisplayvalue ?? "");
         if (!ddv.includes(projectNo)) {
           droppedDimMismatchCount += 1;
@@ -463,10 +485,11 @@ async function runExpenseChain(
       continue;
     }
     const base =
-      header.accountType === ACCOUNT_TYPE_VENDOR
-        ? +1
-        : header.accountType === ACCOUNT_TYPE_CUSTOMER
-          ? -1
+      header.accountType === ACCOUNT_TYPE_CUSTOMER
+        ? -1
+        : header.accountType !== null &&
+            COST_ACCOUNT_TYPES.has(header.accountType)
+          ? +1
           : 0;
     if (base === 0) {
       droppedUnknownAccountTypeCount += 1;
