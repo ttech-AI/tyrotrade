@@ -36,6 +36,7 @@
 import type { DataverseClient } from "@/lib/dataverse";
 import { listAllByInChunked } from "@/lib/dataverse/refreshAll";
 import { EXPENSE_LINE_COLUMNS } from "@/lib/dataverse/columnOrder";
+import { EXTRACOST_ENTITY } from "@/lib/dataverse/extraCostExpense";
 
 /** Realised expense rollup row — one per (projectNo, expenseId). */
 export interface ActualExpenseRollupRow {
@@ -186,6 +187,72 @@ export interface RollupProgress {
 
 export type ProgressCallback = (p: RollupProgress) => void;
 
+/* ─────────── Extra-cost (yan masraf) rollup ─────────── */
+
+/** Server-side `$apply` aggregation for the extra-cost entity: one row
+ *  per (sub-project × expenseId × expensename). Aggregating on the
+ *  server is essential here — some sub-projects carry 100K-277K detail
+ *  rows, so pulling them per-project (like `extraCostExpense.ts` does for
+ *  a single selected project) would be ruinous at tenant scale. The
+ *  reporting amount is already USD. */
+const EXTRACOST_ROLLUP_APPLY =
+  "filter(mserp_trysubprojectid ne null and mserp_trysubprojectid ne '')" +
+  "/groupby((mserp_trysubprojectid,mserp_expenseid,mserp_expensename)," +
+  "aggregate(mserp_distribuitionamountreporting with sum as totalusd,$count as rowcount))";
+
+/**
+ * Tenant-wide extra-cost realised rollup. The extra-cost entity is the
+ * ONLY realised source for sub-projects whose freight chain is empty
+ * (e.g. the Organik book) — see `extraCostExpense.ts`. One server-side
+ * groupby returns per (sub-project × expenseId) aggregates, filtered to
+ * the active `projids`. The reporting amount is already USD, so the sum
+ * is straight-positive with NO FX / sign / exclusion logic — mirroring
+ * the per-project hook exactly so the Trade Cost aggregate and the
+ * project drill-down always agree.
+ *
+ * Safe to union with the freight rollup: the two sources partition
+ * cleanly (verified live) — a project with extra-cost rows never has a
+ * freight chain and vice-versa — so no expense is ever double-counted.
+ *
+ * Best-effort: callers should tolerate a thrown error (the caller wraps
+ * this in a `.catch` and proceeds with freight-only rows).
+ */
+export async function fetchExtraCostRollupForAllProjects(
+  client: DataverseClient,
+  projids: string[]
+): Promise<ActualExpenseRollupRow[]> {
+  if (projids.length === 0) return [];
+  const wanted = new Set(projids.map((p) => p.trim()).filter(Boolean));
+
+  const res = await client.listAll<Record<string, unknown>>(EXTRACOST_ENTITY, {
+    $apply: EXTRACOST_ROLLUP_APPLY,
+  });
+
+  const out: ActualExpenseRollupRow[] = [];
+  for (const g of res.value) {
+    const projectNo = String(g.mserp_trysubprojectid ?? "").trim();
+    if (!projectNo || !wanted.has(projectNo)) continue;
+    const totalUsd = Number(g.totalusd);
+    if (!Number.isFinite(totalUsd)) continue;
+    const name = String(g.mserp_expensename ?? "").trim();
+    const rowCount = Number(g.rowcount);
+    out.push({
+      projectNo,
+      expenseId: String(g.mserp_expenseid ?? "").trim(),
+      // No sample voucher from a groupby — drill-down uses the per-project
+      // chain for detail; this aggregate only needs the totals.
+      expenseNum: "",
+      // expensename already reads like the forecast class (e.g.
+      // "İTHALAT BULK - NAVLUN"), matching the per-project mapping.
+      refExpenseId: name || null,
+      description: name,
+      totalUsd,
+      rowCount: Number.isFinite(rowCount) ? rowCount : 0,
+    });
+  }
+  return out;
+}
+
 /**
  * Tenant-wide pipeline (4 chunked fetches; refmap is parallel with
  * the inventdimb step so the whole thing runs in roughly the time of
@@ -218,6 +285,23 @@ export async function fetchActualExpenseRollupForAllProjects(
   onProgress?: ProgressCallback
 ): Promise<ActualExpenseRollupRow[]> {
   if (projids.length === 0) return [];
+
+  // Extra-cost (yan masraf) realised rollup — fired in parallel with the
+  // whole freight chain since it shares no inputs. Best-effort: a failure
+  // logs and yields []. Awaited at every return path below so its rows are
+  // never dropped, even when the freight chain comes back empty (the
+  // Organik case, where extra-cost is the only realised source).
+  const extraCostPromise = fetchExtraCostRollupForAllProjects(
+    client,
+    projids
+  ).catch((reason) => {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[actualExpenseRollup] extra-cost (yan masraf) rollup failed — proceeding with freight-chain rows only:",
+      reason
+    );
+    return [] as ActualExpenseRollupRow[];
+  });
 
   // Mark steps 1 & R as running. They fire in parallel.
   onProgress?.({ stage: "inventdimb", status: "running" });
@@ -336,7 +420,7 @@ export async function fetchActualExpenseRollupForAllProjects(
   // Proceed if EITHER path yielded project links — a project may have
   // only projectnum-direct expenses (no inventdimid at all).
   if (projToInventDimIds.size === 0 && projToProjnumExpenseNums.size === 0)
-    return [];
+    return await extraCostPromise;
 
   // Step 2: dist rows → expensenums, keyed by inventdimid.
   onProgress?.({ stage: "dist", status: "running" });
@@ -374,7 +458,7 @@ export async function fetchActualExpenseRollupForAllProjects(
     count: allExpenseNums.length,
   });
 
-  if (allExpenseNums.length === 0) return [];
+  if (allExpenseNums.length === 0) return await extraCostPromise;
 
   // Step 3: authoritative expense-line rows + expense-table
   // headers in parallel. The header fetch supplies FX context
@@ -641,6 +725,12 @@ export async function fetchActualExpenseRollupForAllProjects(
       });
     }
   }
+  // Union the extra-cost (yan masraf) realised rows. Clean partition with
+  // the freight chain (verified live) → no double-counting; append rather
+  // than merge. Counted into the aggregate progress below.
+  const extraCostRows = await extraCostPromise;
+  if (extraCostRows.length > 0) result.push(...extraCostRows);
+
   onProgress?.({
     stage: "aggregate",
     status: "done",

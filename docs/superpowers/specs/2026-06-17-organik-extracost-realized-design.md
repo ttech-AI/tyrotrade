@@ -31,9 +31,9 @@
 ## Consumers (değişmez)
 Gider Karşılaştırması + Gerçekleşen K&Z + detay paneli zaten `mserp_amountcur_usd` toplayıp `refexpenseid`/`description` ile grupluyor; sentetik satırlar bunları taşıyor.
 
-## Risk / follow-up
-- **Çift-sayım:** union → hem freight zinciri hem extra-cost dolu projede şişme olabilir. ORGANIK01-133 temiz (freight boş). Non-Organik bir çift-kaynaklı projede doğrula; şişme varsa "extra-cost öncelikli" moda geç (extra-cost varsa freight'i o proje için yok say) — 1 satırlık değişiklik.
-- **Rollup:** `actualExpenseRollup.ts` (Trade Cost tenant aggregate) aynı extra-cost'u sonra alır — per-proje drill-down ile tutarlılık için.
+## Risk / follow-up — ÇÖZÜLDÜ (2026-06-17)
+- **Çift-sayım: YOK (canlı doğrulandı).** Extra-cost `mserp_trysubprojectid` (alt-proje) ile, freight zinciri `mserp_inventdimension2` (ana-proje) ile çalışıyor → temiz partisyon. Extra-cost kaydı olan projelerin freight zinciri BOŞ (HASATA-2, PRJ…-1, PRJ…-14 vb. hepsi `inventdimb=0`); çalışan freight zincirli projelerin (PRJ000002570, ORGANIK01 ana 292K dim) extra-cost'u 0. Bir proje ya freight ya extra-cost — ikisi birden değil. Union güvenli; "extra-cost öncelikli" moda gerek kalmadı.
+- **Rollup: YAPILDI.** `actualExpenseRollup.ts` → `fetchExtraCostRollupForAllProjects` eklendi. Tek server-side `$apply groupby((trysubprojectid,expenseid,expensename),sum+count)` (detay satır ÇEKMEZ — bazı projeler 100K-277K satır), `projids`'e filtrelenir, freight rollup'a append edilir. ORGANIK01-133 = 349.224,73 (per-proje ile birebir). Düz pozitif toplam, FX/işaret/exclusion yok — per-proje hook ile aynı.
 
 ## Verify
 `npm run lint` + `npm run build`. ORGANIK01-133 → ~349.224 USD. Read-only korunur (sadece `listAll`). Kullanıcı tarayıcıda doğrular.
