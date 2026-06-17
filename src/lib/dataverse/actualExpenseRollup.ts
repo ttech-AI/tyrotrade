@@ -104,7 +104,19 @@ const EXCLUDED_EXPENSE_IDS = new Set<string>([
   "710017",
   "710041",
   "712207",
+  // "712502" — ULUSLARARASI BORSA KOMİSYON GİDERİ (CBOT / futures broker
+  // commission). Power BI doesn't count it (PRJ000002106 = 0).
+  "712502",
 ]);
+
+/** Fixing / booking projects (e.g. `FFIX001145`) are out-of-scope projects a
+ *  cost is originally booked to before being distributed to the real voyage
+ *  project; their projectnum is a redirect, not the true owner. A NON-fixing
+ *  foreign projectnum names the line's real owner (split-voucher case). Same
+ *  helper lives in `useProjectExpenseLines`. */
+function isFixingProject(projectNo: string): boolean {
+  return projectNo.startsWith("FFIX");
+}
 
 /** F&O `mserp_posted` → tri-state. NoYes OPTION-SET (not boolean):
  *  No = 200000000 (draft), Yes = 200000001 (posted to ledger). Also
@@ -675,17 +687,19 @@ export async function fetchActualExpenseRollupForAllProjects(
         const expenseId = String(exr.mserp_expenseid ?? "").trim();
         if (!expenseId) continue;
         const linePid = String(exr.mserp_projectnum ?? "").trim();
-        // Distribution-wins belonging (mirrors useProjectExpenseLines). The
-        // (expensenum, expenseid) PAIR distributed to THIS project via the
-        // dist entity is authoritative and OVERRIDES the line's projectnum —
-        // a cost booked under a different "fixing" project (FFIX…, always out
-        // of scope so it never double-claims) yet distributed here belongs
-        // here, exactly as Power BI attributes it (verified PRJ000002026).
-        // The pair (not just the expensenum) also keeps a sibling line on a
-        // shared voucher from leaking in (PRJ000002291). Only when NOT
-        // distributed here do we fall back to projectnum: a foreign stamp
-        // drops it; an empty/own stamp needs the project in the dimension
-        // string.
+        // A non-empty projectnum naming a DIFFERENT, REAL project means the
+        // line belongs to THAT project (a voucher split per-project carries
+        // one line per owner — e.g. AFZEMSN001056 has a PRJ…2106 line AND a
+        // PRJ…2335 line). Drop it here. Fixing projects (FFIX…) are redirects
+        // → fall through to the distribution check.
+        if (linePid && linePid !== projid && !isFixingProject(linePid))
+          continue;
+        // Distribution-wins for empty / fixing-project lines: the (expensenum,
+        // expenseid) PAIR distributed to THIS project attributes a cost booked
+        // under a fixing project to the real voyage project (PRJ000002026
+        // NAVLUN). The pair (not just the expensenum) keeps a sibling line on
+        // a shared voucher from leaking in (PRJ000002291). Else require the
+        // project in the financial-dimension string.
         const pairDistributed = dimDerivedPairs.has(`${en}|${expenseId}`);
         if (!pairDistributed) {
           if (linePid && linePid !== projid) continue;

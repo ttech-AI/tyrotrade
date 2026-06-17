@@ -99,7 +99,22 @@ const EXCLUDED_EXPENSE_IDS = new Set<string>([
   "710017",
   "710041",
   "712207",
+  // "712502" — ULUSLARARASI BORSA KOMİSYON GİDERİ (CBOT / futures broker
+  // commission). Power BI leaves it out of realised expense (PRJ000002106
+  // shows 712502 = 0). Same financial-commission family as 712207.
+  "712502",
 ]);
+
+/** Fixing / booking projects (e.g. `FFIX001145`) are out-of-`PROJECTS_FILTER`-
+ *  scope projects a cost is originally booked to before being distributed to
+ *  the real voyage project. Their projectnum is a redirect — the distribution
+ *  decides the true owner — so a line stamped with one is NOT treated as
+ *  belonging to that booking project (it falls through to the distribution
+ *  check). A NON-fixing foreign projectnum, by contrast, names the line's real
+ *  owner (split-voucher case) and the line is dropped here. */
+function isFixingProject(projectNo: string): boolean {
+  return projectNo.startsWith("FFIX");
+}
 
 /** Reference-map entity — per project, carries
  *  `(mserp_tryexpensetype, mserp_refexpenseid)` pairs that translate
@@ -446,27 +461,28 @@ async function runExpenseChain(
     }
     const linePid = String(r.mserp_projectnum ?? "").trim();
     const expensenum = String(r.mserp_expensenum ?? "").trim();
-    // Distribution-wins belonging. A line belongs to THIS project when its
-    // (expensenum, expenseid) PAIR was distributed here via the dist entity
-    // (inventdimid chain) — and that OVERRIDES the line's own projectnum: a
-    // cost can be booked under a different "fixing" project (FFIX…) yet
-    // distributed to this voyage project, and Power BI attributes it by the
-    // distribution (verified PRJ000002026 — the NAVLUN voucher is booked to
-    // FFIX001145 but distributed here; FFIX projects are all out of scope so
-    // they never double-claim it). The PAIR (not just the expensenum) also
-    // stops a sibling line — sharing a distributed voucher but carrying a
-    // different, non-distributed code — from leaking in (PRJ000002291's stray
-    // 720089). Only when NOT distributed here do we fall back to projectnum:
-    // a foreign stamp drops it; an empty/own stamp needs the project to
-    // appear in the financial-dimension string.
-    const pairDistributed =
-      !!expensenum && !!code && distPairSet.has(`${expensenum}|${code}`);
-    if (!pairDistributed) {
-      if (linePid && linePid !== projectNo) {
-        droppedForeignProjectCount += 1;
-        continue;
-      }
-      if (linePid !== projectNo) {
+    // A non-empty projectnum naming a DIFFERENT, REAL project means the line
+    // belongs to THAT project — a voucher split per-project carries one line
+    // per owner (e.g. AFZEMSN001056 has a PRJ…2106 line AND a PRJ…2335 line,
+    // each stamped to its own project). Drop it here. The exception is a
+    // fixing/booking project (FFIX…): its projectnum is a redirect, so the
+    // line falls through to the distribution check below.
+    if (linePid && linePid !== projectNo && !isFixingProject(linePid)) {
+      droppedForeignProjectCount += 1;
+      continue;
+    }
+    // Distribution-wins for empty / fixing-project lines. The line belongs
+    // here when its (expensenum, expenseid) PAIR was distributed to this
+    // project via the dist entity — that's how a cost booked under a fixing
+    // project (FFIX…, out of scope) is attributed to the real voyage project,
+    // exactly as Power BI does (PRJ000002026 NAVLUN). The PAIR (not just the
+    // expensenum) also stops a sibling line on a shared voucher carrying a
+    // different, non-distributed code from leaking in (PRJ000002291's stray
+    // 720089). Otherwise require the project in the financial-dimension string.
+    if (linePid !== projectNo) {
+      const pairDistributed =
+        !!expensenum && !!code && distPairSet.has(`${expensenum}|${code}`);
+      if (!pairDistributed) {
         const ddv = String(r.mserp_defaultdimensiondisplayvalue ?? "");
         if (!ddv.includes(projectNo)) {
           droppedDimMismatchCount += 1;
