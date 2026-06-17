@@ -429,15 +429,27 @@ export async function fetchActualExpenseRollupForAllProjects(
     DIST_ENTITY,
     "mserp_inventdimid",
     allInventDimIds,
-    { $select: "mserp_inventdimid,mserp_expensenum" }
+    // Pull `mserp_expenseid` too: the (expensenum, expenseid) pair is what
+    // tells us which code on a shared voucher actually distributed to a
+    // given project — without it a sibling line on the same voucher leaks
+    // in (the PRJ000002291 720089 case). Mirrors useProjectExpenseLines.
+    { $select: "mserp_inventdimid,mserp_expensenum,mserp_expenseid" }
   );
   const dimToExpenseNums = new Map<string, Set<string>>();
+  // Per inventdimid, the set of "expensenum|expenseid" pairs distributed
+  // through it — the line-level belonging gate in the aggregate pass.
+  const dimToExpensePairs = new Map<string, Set<string>>();
   for (const r of distResult.value) {
     const did = String(r.mserp_inventdimid ?? "").trim();
     const en = String(r.mserp_expensenum ?? "").trim();
     if (!did || !en) continue;
     if (!dimToExpenseNums.has(did)) dimToExpenseNums.set(did, new Set());
     dimToExpenseNums.get(did)!.add(en);
+    const code = String(r.mserp_expenseid ?? "").trim();
+    if (code) {
+      if (!dimToExpensePairs.has(did)) dimToExpensePairs.set(did, new Set());
+      dimToExpensePairs.get(did)!.add(`${en}|${code}`);
+    }
   }
 
   // Flat distinct expensenums — union of the dist-chain expensenums AND
@@ -620,11 +632,16 @@ export async function fetchActualExpenseRollupForAllProjects(
     // dimension cross-check in the row loop below.
     const projExpenseNums = new Set<string>();
     const dimDerivedEns = new Set<string>();
+    // (expensenum|expenseid) pairs distributed to THIS project — the
+    // line-level belonging gate (see the row loop below).
+    const dimDerivedPairs = new Set<string>();
     const dimIds = projToInventDimIds.get(projid);
     if (dimIds) {
       for (const did of dimIds) {
         const ens = dimToExpenseNums.get(did);
         if (ens) for (const en of ens) dimDerivedEns.add(en);
+        const pairs = dimToExpensePairs.get(did);
+        if (pairs) for (const p of pairs) dimDerivedPairs.add(p);
       }
     }
     for (const en of dimDerivedEns) projExpenseNums.add(en);
@@ -647,9 +664,6 @@ export async function fetchActualExpenseRollupForAllProjects(
       // reflection adds back). Matches Power BI — verified PRJ000002000.
       const base = header.accountType === ACCOUNT_TYPE_VENDOR ? +1 : -1;
       const sign = header.isReturned ? -base : base;
-      // Projectnum-only lines (not reachable via this project's
-      // inventdimid chain) get a final dimension cross-check below.
-      const projnumOnly = !dimDerivedEns.has(en);
       for (const exr of expRows) {
         // Cross-contamination guard: a line reached via a shared
         // inventdimid / expensenum may belong to a DIFFERENT project —
@@ -658,21 +672,27 @@ export async function fetchActualExpenseRollupForAllProjects(
         // attributed to THIS project.
         const linePid = String(exr.mserp_projectnum ?? "").trim();
         if (linePid && linePid !== projid) continue;
-        // Final dimension cross-check — projectnum-ONLY lines only.
-        // A line reached solely via the mserp_projectnum stamp is trusted
-        // only if this project number appears in its financial-dimension
-        // string. Mistagged projectnum → dimension lacks the project →
-        // drop. (Inventdimid-chain lines are project-dimensioned already
-        // and skip this check — matches useProjectExpenseLines.)
-        if (projnumOnly) {
-          const ddv = String(exr.mserp_defaultdimensiondisplayvalue ?? "");
-          if (!ddv.includes(projid)) {
-            droppedDimMismatchCount += 1;
-            continue;
-          }
-        }
         const expenseId = String(exr.mserp_expenseid ?? "").trim();
         if (!expenseId) continue;
+        // Belonging test for lines NOT explicitly stamped with THIS
+        // project (empty projectnum — an explicit match is authoritative).
+        // Keep only if the (expensenum, expenseid) pair actually
+        // distributed to this project via the dist entity, OR the line's
+        // financial-dimension string names the project. The pair check
+        // (not just the expensenum) stops a sibling line on a shared
+        // voucher — carrying a different, non-distributed code — from
+        // leaking in. Mirrors useProjectExpenseLines (verified vs Power
+        // BI on PRJ000002291: drops the stray 720089 Ledger-account line).
+        if (linePid !== projid) {
+          const pairDistributed = dimDerivedPairs.has(`${en}|${expenseId}`);
+          if (!pairDistributed) {
+            const ddv = String(exr.mserp_defaultdimensiondisplayvalue ?? "");
+            if (!ddv.includes(projid)) {
+              droppedDimMismatchCount += 1;
+              continue;
+            }
+          }
+        }
         const description = String(exr.mserp_description ?? "").trim();
         const rawAmount = Number(exr.mserp_amountcur);
         const nativeAmount = Number.isFinite(rawAmount) ? rawAmount : 0;

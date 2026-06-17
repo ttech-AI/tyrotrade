@@ -295,8 +295,16 @@ async function runExpenseChain(
     ),
   ];
 
-  // Step 1: dist rows for those inventdimids → expensenums (chunked IN).
+  // Step 1: dist rows for those inventdimids → expensenums AND the
+  // (expensenum, expenseid) pairs actually distributed to THIS project
+  // (chunked IN). Pulling `mserp_expenseid` too is what lets us reject a
+  // line that merely SHARES a voucher with a distributed line but whose
+  // own code was distributed to a DIFFERENT project — the "leaked sibling
+  // line" bug: a Ledger-account 720089 line riding in on a voucher whose
+  // Item-distributed 730034 line is the only part that belongs here
+  // (diagnosed vs Power BI on PRJ000002291).
   const distExpensenums: string[] = [];
+  const distPairSet = new Set<string>();
   for (let i = 0; i < inventDimIds.length; i += IN_CHUNK_SIZE) {
     const chunk = inventDimIds.slice(i, i + IN_CHUNK_SIZE);
     const inFilter = `Microsoft.Dynamics.CRM.In(PropertyName='mserp_inventdimid',PropertyValues=[${chunk
@@ -304,17 +312,17 @@ async function runExpenseChain(
       .join(",")}])`;
     const distResult = await client.listAll<Record<string, unknown>>(
       DIST_ENTITY,
-      { $filter: inFilter, $select: "mserp_expensenum" }
+      { $filter: inFilter, $select: "mserp_expensenum,mserp_expenseid" }
     );
     for (const r of distResult.value) {
       const n = String(r.mserp_expensenum ?? "").trim();
-      if (n) distExpensenums.push(n);
+      if (!n) continue;
+      distExpensenums.push(n);
+      const code = String(r.mserp_expenseid ?? "").trim();
+      if (code) distPairSet.add(`${n}|${code}`);
     }
   }
 
-  // Inventdimid-derived = project-dimensioned → trusted. Projectnum-only
-  // expensenums get the dimension cross-check in the loop below.
-  const distSet = new Set(distExpensenums);
   const expensenums = [...new Set([...distExpensenums, ...projNumExpensenums])];
 
   if (expensenums.length === 0) {
@@ -424,12 +432,24 @@ async function runExpenseChain(
       continue;
     }
     const expensenum = String(r.mserp_expensenum ?? "").trim();
-    // Final dimension cross-check — projectnum-ONLY lines only.
-    if (expensenum && !distSet.has(expensenum)) {
-      const ddv = String(r.mserp_defaultdimensiondisplayvalue ?? "");
-      if (!ddv.includes(projectNo)) {
-        droppedDimMismatchCount += 1;
-        continue;
+    // Belonging test for lines NOT explicitly stamped with THIS project
+    // (empty projectnum — an explicit match is authoritative and trusted).
+    // A line belongs only if its (expensenum, expenseid) pair was actually
+    // distributed to this project via the dist entity, OR its financial-
+    // dimension string names the project. The pair check (not just the
+    // expensenum) is what stops a sibling line — sharing a distributed
+    // voucher but carrying a different, non-distributed code — from leaking
+    // in (verified vs Power BI on PRJ000002291: drops the stray 720089
+    // Ledger-account line, keeps the Item-distributed 730034).
+    if (linePid !== projectNo) {
+      const pairDistributed =
+        !!expensenum && !!code && distPairSet.has(`${expensenum}|${code}`);
+      if (!pairDistributed) {
+        const ddv = String(r.mserp_defaultdimensiondisplayvalue ?? "");
+        if (!ddv.includes(projectNo)) {
+          droppedDimMismatchCount += 1;
+          continue;
+        }
       }
     }
     const header = expensenum ? headerByExpensenum.get(expensenum) : undefined;
