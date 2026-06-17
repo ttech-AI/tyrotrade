@@ -468,7 +468,10 @@ function RealizedItemRow({
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
         aria-label={t("proj.expenseSheet.toggleRecords")}
-        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left hover:bg-foreground/[0.025] transition-colors"
+        className={cn(
+          "w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left transition-colors",
+          open ? "bg-foreground/[0.02]" : "hover:bg-foreground/[0.025]"
+        )}
       >
         <ChevronRight
           className={cn(
@@ -505,51 +508,79 @@ function RealizedItemRow({
         </span>
       </button>
       {open && (
-        <div className="bg-foreground/[0.02] border-t border-border/40 divide-y divide-border/30">
-          {item.records.map((rec, i) => (
-            <RecordRow key={`${rec.expenseNum}-${i}`} rec={rec} t={t} />
-          ))}
+        <div className="bg-foreground/[0.025] border-t border-border/40">
+          {/* Emerald tree-rail + indentation tie the records to the parent
+              and align them under its expand control; recessed bg + smaller
+              muted type below make the child level read as clearly nested. */}
+          <div className="ml-6 mr-2 my-1 border-l-2 border-emerald-500/30 pl-3 divide-y divide-border/30">
+            {item.records.map((rec, i) => (
+              <RecordRow
+                key={`${rec.expenseNum}-${i}`}
+                rec={rec}
+                parentName={item.name}
+                t={t}
+              />
+            ))}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-/** Tek gerçekleşen kayıt — masraf no + hesap tipi + (USD değilse) ham tutar/kur
- *  ve sağda işaretli USD. İndentli, ana satırın altında. */
+/** Tek gerçekleşen kayıt — ana satırın altında, ikincil seviye olarak okunur:
+ *  masraf no (kaydın kimliği) önde, hesap tipi + (USD değilse) ham tutar/kur
+ *  yanında. Üst kalemin adı TEKRARLANMAZ — açıklama yalnızca üst addan
+ *  farklıysa (örn. reflection invoice) ayrı bir başlık olarak gösterilir.
+ *  Tipografi küçük + soluk, değer hafif → üst kalemle karışmaz. */
 function RecordRow({
   rec,
+  parentName,
   t,
 }: {
   rec: RealizedRecord;
+  parentName: string;
   t: (key: string) => string;
 }) {
   const negative = rec.usd < 0;
   const acct = acctLabel(rec.accountType, t);
   const nonUsd = rec.currency !== "" && rec.currency !== "USD";
+  // Don't echo the parent category name — only surface a description that
+  // genuinely differs (e.g. a reflection invoice carries its own text).
+  const distinctDesc =
+    rec.description && rec.description !== parentName ? rec.description : "";
+  const meta = (
+    <div className="flex items-center gap-x-1.5 gap-y-0.5 flex-wrap">
+      <CodeChip code={rec.expenseNum || "—"} />
+      {acct && (
+        <span className="text-[10px] text-muted-foreground">{acct}</span>
+      )}
+      {nonUsd && (
+        <span className="text-[10px] text-muted-foreground tabular-nums">
+          · {formatNumber(rec.nativeAmount, 2)} {rec.currency} ×{" "}
+          {formatNumber(rec.rate, 4)}
+        </span>
+      )}
+    </div>
+  );
   return (
-    <div className="flex items-center justify-between gap-3 pl-[2.35rem] pr-3.5 py-2">
+    <div className="flex items-center justify-between gap-3 pr-1 py-1.5">
       <div className="min-w-0 flex-1">
-        <div className="text-[12px] text-foreground/90 leading-snug truncate">
-          {rec.description || rec.expenseNum || "—"}
-        </div>
-        <div className="flex items-center gap-x-1.5 gap-y-0.5 mt-1 flex-wrap">
-          {rec.expenseNum && <CodeChip code={rec.expenseNum} />}
-          {acct && (
-            <span className="text-[10.5px] text-muted-foreground">{acct}</span>
-          )}
-          {nonUsd && (
-            <span className="text-[10.5px] text-muted-foreground tabular-nums">
-              · {formatNumber(rec.nativeAmount, 2)} {rec.currency} ×{" "}
-              {formatNumber(rec.rate, 4)}
-            </span>
-          )}
-        </div>
+        {distinctDesc ? (
+          <>
+            <div className="text-[11.5px] text-foreground/70 leading-snug truncate">
+              {distinctDesc}
+            </div>
+            <div className="mt-0.5">{meta}</div>
+          </>
+        ) : (
+          meta
+        )}
       </div>
       <span
         className={cn(
-          "text-[12px] font-semibold tabular-nums shrink-0",
-          negative ? "text-emerald-700" : "text-foreground/80"
+          "text-[11.5px] font-medium tabular-nums shrink-0",
+          negative ? "text-emerald-700" : "text-foreground/65"
         )}
       >
         {negative ? "−" : ""}
