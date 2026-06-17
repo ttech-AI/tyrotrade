@@ -8,7 +8,9 @@ export type ViewMode = "vessel" | "project";
 export interface PLCostMetrics {
   /** Tahmini USD — composer'dan `costEstimate.totalUsd`. */
   expectedUsd: number;
-  /** Gerçekleşen USD — actual rollup rows toplamı (710041 sign-flipped). */
+  /** Gerçekleşen USD — actual rollup `totalUsd` toplamı. İşaret + kod
+   *  eleme + distribution-wins mantığı rollup içinde uygulanır
+   *  (`actualExpenseRollup.ts`), burada sadece toplanır. */
   realizedUsd: number;
   /** realizedUsd / expectedUsd × 100. null when expectedUsd ≤ 0. */
   realizedExpectedPct: number | null;
