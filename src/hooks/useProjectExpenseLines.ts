@@ -5,12 +5,7 @@ import {
   CACHE_UPDATED_EVENT,
   type CacheUpdatedDetail,
 } from "@/lib/storage/entityCache";
-// ⚠️ GEÇİCİ — Sunrise TR hardcoded gerçekleşen gider (entity gelince bu
-// import + runExpenseChain başındaki blok + modül dosyası SİLİNECEK).
-import {
-  buildSunriseTrOverrideRow,
-  getSunriseTrRealizedOverride,
-} from "@/lib/dataverse/sunriseTrOverrides";
+import { fetchExtraCostExpenseRows } from "@/lib/dataverse/extraCostExpense";
 
 /** Inventory-dimension entity — maps a project number (carried in
  *  `mserp_inventdimension2`) to the set of `mserp_inventdimid` keys
@@ -222,38 +217,40 @@ if (typeof window !== "undefined") {
 async function runExpenseChain(
   projectNo: string
 ): Promise<Record<string, unknown>[]> {
-  // ⚠️ GEÇİCİ — Sunrise TR override: listedeki projeler için zincir HİÇ
-  // koşmaz, kullanıcı tarafından verilen sabit USD tek sentetik kalem
-  // olarak döner (Gider Karşılaştırması + Gerçekleşen K&Z + detay paneli
-  // hepsi bunu tüketir). Entity gelince bu blok silinecek.
-  const sunriseOverride = getSunriseTrRealizedOverride(projectNo);
-  if (sunriseOverride != null) {
-    // eslint-disable-next-line no-console
-    console.info(
-      `[useProjectExpenseLines] ${projectNo}: Sunrise TR GEÇİCİ override aktif — gerçekleşen gider sabit $${sunriseOverride} (entity bekleniyor).`
-    );
-    const rows = [buildSunriseTrOverrideRow(projectNo, sunriseOverride)];
-    cacheSet(projectNo, { rows, fetchedAt: new Date().toISOString() });
-    return rows;
-  }
-
   const client = getDataverseClient();
 
-  // Step 0 / R / P in parallel.
-  const [dimSettled, refMapSettled, projNumSettled] = await Promise.allSettled([
-    client.listAll<Record<string, unknown>>(INVENTDIMB_ENTITY, {
-      $filter: `mserp_inventdimension2 eq '${projectNo}'`,
-      $select: "mserp_inventdimid",
-    }),
-    client.listAll<Record<string, unknown>>(EXPENSE_REFMAP_ENTITY, {
-      $filter: `mserp_etgtryprojid eq '${projectNo}'`,
-      $select: "mserp_tryexpensetype,mserp_refexpenseid",
-    }),
-    client.listAll<Record<string, unknown>>(EXPENSE_ENTITY, {
-      $filter: `mserp_projectnum eq '${projectNo}'`,
-      $select: "mserp_expensenum",
-    }),
-  ]);
+  // Step 0 / R / P + extra-cost (yan masraf) in parallel. Extra-cost is the
+  // realised source for projects the freight chain misses (e.g. Organik); its
+  // rows are appended to the freight-chain rows below. See extraCostExpense.ts
+  // — it replaced the old hardcoded sunriseTrOverrides hack.
+  const [dimSettled, refMapSettled, projNumSettled, extraCostSettled] =
+    await Promise.allSettled([
+      client.listAll<Record<string, unknown>>(INVENTDIMB_ENTITY, {
+        $filter: `mserp_inventdimension2 eq '${projectNo}'`,
+        $select: "mserp_inventdimid",
+      }),
+      client.listAll<Record<string, unknown>>(EXPENSE_REFMAP_ENTITY, {
+        $filter: `mserp_etgtryprojid eq '${projectNo}'`,
+        $select: "mserp_tryexpensetype,mserp_refexpenseid",
+      }),
+      client.listAll<Record<string, unknown>>(EXPENSE_ENTITY, {
+        $filter: `mserp_projectnum eq '${projectNo}'`,
+        $select: "mserp_expensenum",
+      }),
+      fetchExtraCostExpenseRows(client, projectNo),
+    ]);
+
+  // Extra-cost rows (best-effort, already USD via mserp_amountcur_usd). Empty
+  // on failure so a yan-masraf hiccup never zeroes freight-chain realised.
+  const extraCostRows =
+    extraCostSettled.status === "fulfilled" ? extraCostSettled.value : [];
+  if (extraCostSettled.status === "rejected") {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[useProjectExpenseLines] extra-cost fetch failed for ${projectNo}:`,
+      extraCostSettled.reason
+    );
+  }
 
   // Step 0 is required — bail if it failed.
   if (dimSettled.status === "rejected") throw dimSettled.reason;
@@ -321,8 +318,13 @@ async function runExpenseChain(
   const expensenums = [...new Set([...distExpensenums, ...projNumExpensenums])];
 
   if (expensenums.length === 0) {
-    cacheSet(projectNo, { rows: [], fetchedAt: new Date().toISOString() });
-    return [];
+    // Freight chain found nothing — but extra-cost may still carry realised
+    // rows (the Organik case, where realised lives entirely in yan masraf).
+    cacheSet(projectNo, {
+      rows: extraCostRows,
+      fetchedAt: new Date().toISOString(),
+    });
+    return extraCostRows;
   }
 
   // Step 2 + 2b in parallel: line rows + header rows.
@@ -483,8 +485,10 @@ async function runExpenseChain(
     );
   }
 
-  cacheSet(projectNo, { rows: enriched, fetchedAt: new Date().toISOString() });
-  return enriched;
+  // Freight-chain realised ∪ extra-cost realised (union — see spec).
+  const combined = [...enriched, ...extraCostRows];
+  cacheSet(projectNo, { rows: combined, fetchedAt: new Date().toISOString() });
+  return combined;
 }
 
 /** In-flight dedup — hover prefetch + the hook's own fetch share ONE
