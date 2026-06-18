@@ -697,7 +697,7 @@ export function RouteMap({ project }: RouteMapProps) {
           )}
         </div>
 
-        <div className="absolute top-3 left-3 z-[3] pointer-events-none max-w-[calc(100%-5rem)]">
+        <div className="absolute top-3 left-3 z-[3] pointer-events-none max-w-[calc(100%-5rem)] flex flex-col items-start gap-2">
           <GlassPanel
             tone="strong"
             className="rounded-xl pointer-events-auto"
@@ -743,6 +743,29 @@ export function RouteMap({ project }: RouteMapProps) {
               {project && <DurationPills project={project} />}
             </div>
           </GlassPanel>
+
+          {/* Stale-position note — the last reported AIS position is older
+              than the threshold, so the live fix was dropped and the vessel
+              is drawn at its date-based estimate. Lives under the title (not
+              in the top-right control stack) so it can never collide with the
+              controls on narrow / mobile layouts — the left column already
+              reserves a 5rem gutter for them and the note wraps within it. */}
+          {aisStale && (
+            <GlassPanel
+              tone="strong"
+              className="rounded-lg pointer-events-auto"
+            >
+              <div className="flex items-center gap-1.5 px-2 py-1 text-[10.5px] font-medium text-amber-700">
+                <Clock className="size-3 shrink-0" strokeWidth={2.5} />
+                <span>
+                  {t("proj.map.staleNote").replace(
+                    "{days}",
+                    String(aisStale.ageDays)
+                  )}
+                </span>
+              </div>
+            </GlassPanel>
+          )}
         </div>
 
         {/* Place-mode note — route couldn't be drawn, pins are approximate. */}
@@ -840,27 +863,6 @@ export function RouteMap({ project }: RouteMapProps) {
                 </Tooltip>
               </div>
             </GlassPanel>
-
-            {/* Stale-position note — appears directly under the control
-                stack when the last reported AIS position is older than
-                the threshold. The live position was dropped; the vessel
-                is drawn at its date-based estimate instead. */}
-            {aisStale && (
-              <GlassPanel
-                tone="strong"
-                className="rounded-lg pointer-events-auto"
-              >
-                <div className="flex items-center gap-1.5 px-2 py-1 text-[10.5px] font-medium text-amber-700">
-                  <Clock className="size-3 shrink-0" strokeWidth={2.5} />
-                  <span className="whitespace-nowrap">
-                    {t("proj.map.staleNote").replace(
-                      "{days}",
-                      String(aisStale.ageDays)
-                    )}
-                  </span>
-                </div>
-              </GlassPanel>
-            )}
           </div>
         )}
 
