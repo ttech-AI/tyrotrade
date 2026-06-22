@@ -133,9 +133,10 @@ export function PriceTrackingPage() {
       // content area scrolls so stacked KPIs/charts/cards all reach.
       <div className="flex-1 min-h-0 flex flex-col gap-3 overflow-hidden max-lg:overflow-y-auto">
         <FreightKpiTiles kpis={kpis} />
-        {/* Charts: side-by-side on lg (fixed 260px); stacked with real
-            height on mobile so they don't squash into one short box. */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 shrink-0 lg:h-[260px]">
+        {/* Charts: side-by-side on lg (fixed 200px to leave the lanes table
+            more room); stacked with real height on mobile so they don't
+            squash into one short box. */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 shrink-0 lg:h-[200px]">
           <div className="lg:col-span-7 min-h-0 max-lg:min-h-[240px]">
             <FreightTrendChart points={trend.points} currency={trend.currency} />
           </div>
