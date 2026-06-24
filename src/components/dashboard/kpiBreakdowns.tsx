@@ -10,11 +10,14 @@ import {
   Wallet01Icon,
   BalanceScaleIcon,
 } from "@hugeicons/core-free-icons";
+import { useNavigate } from "react-router-dom";
 import {
   KpiGroupHeader,
   KpiProjectRow,
   KpiEmptyState,
+  SegmentChip,
 } from "./KpiDetailDrawer";
+import { cn } from "@/lib/utils";
 import {
   selectCargoValueUsd,
   selectExecutionDate,
@@ -589,22 +592,86 @@ export function CounterpartyBreakdown({
 
 /* ─────────── Period Performance ─────────── */
 
+interface PeriodBreakdownProps extends BreakdownProps {
+  /** projectNo → Σ realized expense USD (from the expense rollup). */
+  realizedExpenseByProject?: Map<string, number>;
+  /** True when the rollup covers the filtered set — gates realized values. */
+  hasRealizedCoverage?: boolean;
+}
+
+interface RealizedRow {
+  p: Project;
+  plUsd: number;
+  salesUsd: number;
+  purchaseUsd: number;
+  expenseUsd: number;
+  marginPct: number | null;
+}
+
+const EMPTY_EXPENSE_MAP = new Map<string, number>();
+
+/** Realized-K/Z palette — emerald (kâr) / rose (zarar) / slate (nötr). */
+function plColor(v: number): string {
+  return v > 0 ? "rgb(4 120 87)" : v < 0 ? "rgb(190 24 93)" : "rgb(71 85 105)";
+}
+function plTint(v: number): string {
+  return v > 0
+    ? "rgba(16,185,129,0.12)"
+    : v < 0
+      ? "rgba(244,63,94,0.12)"
+      : "rgba(100,116,139,0.12)";
+}
+function signedCompact(v: number): string {
+  const sign = v >= 0 ? "+" : "−";
+  return `${sign}${formatCompactCurrency(Math.abs(v), "USD")}`;
+}
+
+/**
+ * Dönem Performansı drawer — per-project **realized** (gerçekleşen) K/Z.
+ * Each row leads with the realized K/Z + margin (sign-coloured), shows
+ * the full untruncated project name, and breaks the figure down into its
+ * Satış / Alış / Gider components so the number is legible at a glance.
+ * Realized values require the expense rollup; until it covers the set the
+ * panel shows a "computing" hint (the page auto-runs the scoped sweep).
+ */
 export function PeriodPerformanceBreakdown({
   projects,
   onClose,
   query,
   sortReversed,
-}: BreakdownProps) {
+  realizedExpenseByProject,
+  hasRealizedCoverage,
+}: PeriodBreakdownProps) {
   const t = useT();
-  const rows = React.useMemo(() => {
+  const expMap = realizedExpenseByProject ?? EMPTY_EXPENSE_MAP;
+
+  const rows = React.useMemo<RealizedRow[]>(() => {
+    if (!hasRealizedCoverage) return [];
     const list = projects
       .filter((p) => filterProject(p, query))
-      .map((p) => ({ p, cargo: selectCargoValueUsd(p) }))
-      .sort((a, b) => b.cargo - a.cargo);
+      .map((p) => {
+        const pl = selectProjectPL(p);
+        const cur = (pl.currency ?? "USD").toUpperCase();
+        const fxDate = selectExecutionDate(p);
+        const salesUsd = p.salesActualUsd ?? 0;
+        const purchaseUsd = toUsdAtDate(pl.purchaseTotal, cur, fxDate);
+        const expenseUsd = expMap.get(p.projectNo) ?? 0;
+        const plUsd = salesUsd - purchaseUsd - expenseUsd;
+        const marginPct = salesUsd > 0 ? (plUsd / salesUsd) * 100 : null;
+        return { p, plUsd, salesUsd, purchaseUsd, expenseUsd, marginPct };
+      })
+      // Realized signal only (invoiced sales or a realized-expense row).
+      .filter((r) => r.salesUsd !== 0 || r.expenseUsd !== 0)
+      .sort((a, b) => b.plUsd - a.plUsd);
     return maybeReverse(list, sortReversed);
-  }, [projects, query, sortReversed]);
+  }, [projects, query, sortReversed, expMap, hasRealizedCoverage]);
 
-  if (rows.length === 0) return <KpiEmptyState message={t("dash.bk.period.empty")} />;
+  if (!hasRealizedCoverage)
+    return <KpiEmptyState message={t("dash.bk.period.computing")} />;
+  if (rows.length === 0)
+    return <KpiEmptyState message={t("dash.bk.period.empty")} />;
+
+  const totalPL = rows.reduce((s, r) => s + r.plUsd, 0);
 
   return (
     <div className="flex flex-col">
@@ -616,21 +683,133 @@ export function PeriodPerformanceBreakdown({
         }
         count={rows.length}
         icon={ChartLineData01Icon}
+        valueChip={
+          <span
+            className="text-[12px] font-bold tabular-nums"
+            style={{ color: plColor(totalPL) }}
+          >
+            {signedCompact(totalPL)}
+          </span>
+        }
       />
-      <div className="flex flex-col gap-0.5">
-        {rows.map(({ p, cargo }) => (
-          <KpiProjectRow
-            key={p.projectNo}
-            projectNo={p.projectNo}
-            projectName={p.projectName}
-            segment={p.segment ?? undefined}
-            vesselName={p.vesselPlan?.vesselName}
-            metric={formatCompactCurrency(cargo, "USD")}
-            onClose={onClose}
-          />
+      <div className="flex flex-col gap-1">
+        {rows.map((r) => (
+          <RealizedPLRow key={r.p.projectNo} row={r} onClose={onClose} t={t} />
         ))}
       </div>
     </div>
+  );
+}
+
+function RealizedPLRow({
+  row,
+  onClose,
+  t,
+}: {
+  row: RealizedRow;
+  onClose: () => void;
+  t: (k: string) => string;
+}) {
+  const navigate = useNavigate();
+  const { p, plUsd, salesUsd, purchaseUsd, expenseUsd, marginPct } = row;
+  const color = plColor(plUsd);
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        onClose();
+        navigate(`/projects/${p.projectNo}`, {
+          state: { focusProjectNo: p.projectNo },
+        });
+      }}
+      className={cn(
+        "w-full text-left rounded-xl px-3 py-2.5 group",
+        "border border-transparent hover:border-border/60 hover:bg-foreground/[0.025]",
+        "transition-colors"
+      )}
+    >
+      {/* Top — projectNo + segment (left) · realized K/Z + margin (right) */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-mono text-[10.5px] tabular-nums text-foreground/55">
+              {p.projectNo}
+            </span>
+            {p.segment && <SegmentChip segment={p.segment} />}
+          </div>
+          {/* Full project name — wraps, never truncated */}
+          <div className="text-[12.5px] font-semibold text-foreground leading-snug mt-1">
+            {p.projectName}
+          </div>
+          {p.vesselPlan?.vesselName && (
+            <div className="mt-0.5 text-[10.5px] text-muted-foreground">
+              <span aria-hidden className="mr-0.5">
+                ⚓
+              </span>
+              {p.vesselPlan.vesselName}
+            </div>
+          )}
+        </div>
+        <div className="shrink-0 flex flex-col items-end gap-1">
+          <span
+            className="text-[15px] font-bold tabular-nums leading-none"
+            style={{ color }}
+          >
+            {signedCompact(plUsd)}
+          </span>
+          {marginPct != null && (
+            <span
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold tabular-nums"
+              style={{ color, backgroundColor: plTint(plUsd) }}
+            >
+              %{marginPct.toFixed(1)}
+            </span>
+          )}
+        </div>
+      </div>
+      {/* Components — makes the K/Z derivation legible at a glance */}
+      <div className="mt-2 flex items-center gap-x-3 gap-y-1 flex-wrap text-[10px]">
+        <Component
+          label={t("dash.bk.period.sales")}
+          value={formatCompactCurrency(salesUsd, "USD")}
+          dot="rgb(2 132 199)"
+        />
+        <Component
+          label={t("dash.bk.period.purchase")}
+          value={formatCompactCurrency(purchaseUsd, "USD")}
+          dot="rgb(100 116 139)"
+        />
+        <Component
+          label={t("dash.bk.period.expense")}
+          value={formatCompactCurrency(expenseUsd, "USD")}
+          dot="rgb(217 119 6)"
+        />
+      </div>
+    </button>
+  );
+}
+
+function Component({
+  label,
+  value,
+  dot,
+}: {
+  label: string;
+  value: string;
+  dot: string;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span
+        aria-hidden
+        className="size-1.5 rounded-full"
+        style={{ background: dot }}
+      />
+      <span className="text-foreground/55">{label}</span>
+      <span className="font-semibold tabular-nums text-foreground/80">
+        {value}
+      </span>
+    </span>
   );
 }
 

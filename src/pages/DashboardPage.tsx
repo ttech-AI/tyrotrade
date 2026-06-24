@@ -478,6 +478,8 @@ export function DashboardPage() {
             now={now}
             query={drawerQuery}
             sortReversed={drawerSortReversed}
+            realizedExpenseByProject={realizedExpenseByProject}
+            hasRealizedCoverage={realizedCoversFilter}
           />
         )}
         {drawerKpi === "pl" && (
