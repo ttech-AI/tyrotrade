@@ -1,8 +1,7 @@
 import { GlassPanel } from "@/components/glass/GlassPanel";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { BentoGrid } from "@/components/dashboard/BentoGrid";
-import { LeaderboardPanel } from "@/components/dashboard/LeaderboardPanel";
-import { LeaderboardSegmentsPanel } from "@/components/dashboard/LeaderboardSegmentsPanel";
+import { PeriodPerformanceTile } from "@/components/dashboard/tiles/PeriodPerformanceTile";
+import { MonthlyPLChart } from "@/components/dashboard/MonthlyPLChart";
 import { AdvancedFilter } from "@/components/filters/AdvancedFilter";
 import {
   KpiDetailDrawer,
@@ -66,9 +65,12 @@ import {
   aggregatePipelineBuckets,
 } from "@/lib/selectors/aggregate";
 import { selectStage } from "@/lib/selectors/project";
+import { aggregateMonthlyPL } from "@/lib/selectors/monthlyPL";
+import { useActualExpenseRollup } from "@/hooks/useActualExpenseRollup";
 import { useThemeAccent } from "@/components/layout/theme-accent";
 import {
   findFyByKey,
+  getCurrentFyKey,
   getFinancialYear,
 } from "@/lib/dashboard/financialPeriod";
 import { cn } from "@/lib/utils";
@@ -81,6 +83,10 @@ import type { Project } from "@/lib/dataverse/entities";
 // `makeEmptyFilters({ includeWithoutShipPlan })`.
 const DASHBOARD_SHIP_PLAN_DEFAULT = true;
 
+// E.M Bakış (Emerging Markets) default lead trader — the page opens
+// pre-filtered to this main trader's current-FY book.
+const EM_DEFAULT_MAIN_TRADER = "TRD-FTB";
+
 export function DashboardPage() {
   // Stable `now` reference for the lifetime of the page mount. Time-based
   // selectors (stage classification, period filters) all read this; freezing
@@ -90,16 +96,19 @@ export function DashboardPage() {
   const { accounts, instance } = useMsal();
   const account = accounts[0] ?? instance.getActiveAccount() ?? null;
   const firstName = account?.name?.trim().split(/\s+/)[0] ?? null;
-  const [filters, setFilters] = React.useState<ProjectFilterState>(() =>
-    makeEmptyFilters({
+  const [filters, setFilters] = React.useState<ProjectFilterState>(() => {
+    // E.M Bakış varsayılanları: mevcut finansal dönem (FY) + ana trader
+    // TRD-FTB. Bu sayfa Emerging Markets KPI ekranı — açılışta doğrudan
+    // güncel dönemin TRD-FTB portföyüne odaklanır; kullanıcı filtre
+    // barından genişletebilir.
+    const base = makeEmptyFilters({
       includeWithoutShipPlan: DASHBOARD_SHIP_PLAN_DEFAULT,
-      // Anasayfa zaman aralığı varsayılanı "Tüm Zamanlar". FY scope'u
-      // çok dar geliyordu (yeni FY başlarken proje sayısı sıfıra inip
-      // KPI'lar boş görünüyordu). Tüm portföy default → kullanıcı
-      // isterse PeriodFilter chip'leriyle daraltır.
-      period: "all",
-    })
-  );
+      period: "fy",
+    });
+    base.fyKey = getCurrentFyKey();
+    base.mainTraders = new Set([EM_DEFAULT_MAIN_TRADER]);
+    return base;
+  });
   // Active KPI drawer — `null` when no tile is open. Each click on a
   // BentoGrid tile fires `onSelectKpi(id)` and we render the matching
   // breakdown component inside the shared KpiDetailDrawer chrome.
@@ -167,6 +176,78 @@ export function DashboardPage() {
     return lists;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects]);
+
+  // ─── Realized-expense rollup (scoped to the filtered E.M set) ───
+  // The global "Verileri Güncelle" already captures realized SALES
+  // (salesActualUsd). The heavier, PBI-calibrated realized EXPENSE is
+  // deliberately kept out of that chain (it'd slow the tenant-wide
+  // refresh for everyone) — here it's computed scoped to exactly the
+  // filtered projects, which is fast for the E.M subset.
+  const rollup = useActualExpenseRollup();
+
+  const filteredProjids = React.useMemo(
+    () => projects.map((p) => p.projectNo).filter(Boolean),
+    [projects]
+  );
+
+  // True only when the cached rollup covers every filtered project; a
+  // widened filter falls back to "uncovered" so realized bars are never
+  // shown partial.
+  const realizedCoversFilter = React.useMemo(() => {
+    if (filteredProjids.length === 0) return false;
+    const computed = new Set(rollup.computedProjids);
+    return filteredProjids.every((id) => computed.has(id));
+  }, [filteredProjids, rollup.computedProjids]);
+
+  // projectNo → Σ realized expense USD (from the rollup rows).
+  const realizedExpenseByProject = React.useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of rollup.rows) {
+      m.set(r.projectNo, (m.get(r.projectNo) ?? 0) + r.totalUsd);
+    }
+    return m;
+  }, [rollup.rows]);
+
+  const monthlyPL = React.useMemo(
+    () =>
+      aggregateMonthlyPL(
+        projects,
+        realizedExpenseByProject,
+        realizedCoversFilter,
+        now,
+        (filters.fyKey && findFyByKey(filters.fyKey)) || getFinancialYear(now)
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [projects, realizedExpenseByProject, realizedCoversFilter, filters.fyKey]
+  );
+
+  const fyShortLabel = React.useMemo(() => {
+    const fy =
+      (filters.fyKey && findFyByKey(filters.fyKey)) || getFinancialYear(now);
+    return fy.label;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.fyKey]);
+
+  // Auto-compute the realized series once per filtered set (non-blocking):
+  // estimated bars render immediately; realized fills in when the scoped
+  // rollup completes. A signature ref guards against re-triggering a
+  // failed/partial run into a loop.
+  const requestedSigRef = React.useRef<string>("");
+  React.useEffect(() => {
+    if (filteredProjids.length === 0) return;
+    if (rollup.isFetching || realizedCoversFilter) return;
+    const sig = [...filteredProjids].sort().join("|");
+    if (requestedSigRef.current === sig) return;
+    requestedSigRef.current = sig;
+    rollup.refresh(filteredProjids);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredProjids, realizedCoversFilter, rollup.isFetching]);
+
+  const handleRealizedRefresh = React.useCallback(() => {
+    if (rollup.isFetching) return;
+    requestedSigRef.current = [...filteredProjids].sort().join("|");
+    rollup.refresh(filteredProjids);
+  }, [rollup, filteredProjids]);
 
   // Approximate "rows visible after search" — counts projects passing
   // the toolbar's free-text query. Matches the per-breakdown filter so
@@ -308,7 +389,7 @@ export function DashboardPage() {
               filters={filters}
               onChange={setFilters}
               shipPlanDefault={DASHBOARD_SHIP_PLAN_DEFAULT}
-              periodDefault="all"
+              periodDefault="fy"
               resultCount={projects.length}
               totalCount={totalAvailable}
               collapsible
@@ -316,23 +397,23 @@ export function DashboardPage() {
           </div>
         </GlassPanel>
 
-        <BentoGrid
-          projects={projects}
-          now={now}
-          onSelectKpi={setDrawerKpi}
-        />
-
-        {/* Kral Projeler + Kral Segmentler yan yana — 12 kolonlu grid'de
-            6+6. Olaylar paneli kaldırıldı: aynı içerik zaten topbar
-            bildirim merkezinde mevcut, dashboard'da iki kez göstermek
-            gereksiz görsel gürültü yaratıyordu. */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-          <div className="min-w-0">
-            <LeaderboardPanel projects={projects} />
-          </div>
-          <div className="min-w-0">
-            <LeaderboardSegmentsPanel projects={projects} />
-          </div>
+        {/* E.M Bakış ana satırı: solda Dönem Performansı (KPI özeti),
+            sağda aylık Tahmini × Gerçekleşen K/Z grafiği. Eski bento
+            kartları ve liderlik panelleri kaldırıldı — bu sayfa artık
+            Emerging Markets KPI ekranı. */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-stretch">
+          <PeriodPerformanceTile
+            projects={projects}
+            now={now}
+            onClick={() => setDrawerKpi("period")}
+          />
+          <MonthlyPLChart
+            points={monthlyPL}
+            hasRealizedCoverage={realizedCoversFilter}
+            isFetching={rollup.isFetching}
+            onRefresh={handleRealizedRefresh}
+            fyLabel={fyShortLabel}
+          />
         </div>
       </div>
 

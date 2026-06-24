@@ -15,8 +15,8 @@ import { useT } from "@/lib/i18n/LanguageProvider";
 import { TONE_FORECAST } from "@/components/details/AccentIconBadge";
 import { aggregateEstimatedPL } from "@/lib/selectors/aggregate";
 import {
-  selectCargoValueUsd,
   selectExecutionDate,
+  selectTotalTons,
 } from "@/lib/selectors/project";
 import { getFinancialYear } from "@/lib/dashboard/financialPeriod";
 import type { Project } from "@/lib/dataverse/entities";
@@ -56,8 +56,8 @@ export function PeriodPerformanceTile({
   const t = useT();
 
   const totalProjects = projects.length;
-  const totalCargoValueUsd = React.useMemo(
-    () => projects.reduce((sum, p) => sum + selectCargoValueUsd(p), 0),
+  const totalTons = React.useMemo(
+    () => projects.reduce((sum, p) => sum + selectTotalTons(p), 0),
     [projects]
   );
   const pl = React.useMemo(() => aggregateEstimatedPL(projects), [projects]);
@@ -125,15 +125,11 @@ export function PeriodPerformanceTile({
             }
           />
           <KPI
-            label={t("dash.tile.period.productValue")}
-            tooltip={t("dash.tile.period.productValueTip")}
+            label={t("dash.tile.period.tonnage")}
+            tooltip={t("dash.tile.period.tonnageTip")}
             value={
               <span className="text-[22px] font-semibold leading-none tracking-tight">
-                <AnimatedNumber
-                  value={totalCargoValueUsd}
-                  preset="currency"
-                  currency="USD"
-                />
+                <AnimatedNumber value={totalTons} preset="tons" />
               </span>
             }
           />

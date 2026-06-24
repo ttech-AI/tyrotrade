@@ -1,0 +1,128 @@
+import type { Project } from "@/lib/dataverse/entities";
+import { selectExecutionDate } from "./project";
+import { selectProjectPL } from "./profitLoss";
+import { toUsdAtDate } from "@/lib/finance/fxRates";
+import { getFinancialYear, type FinancialYear } from "@/lib/dashboard/financialPeriod";
+
+/**
+ * Monthly estimated × realized P&L (K/Z) — powers the E.M Bakış
+ * "Aylık K/Z Performansı" dual-bar chart.
+ *
+ * One point per financial-year month (Jul → Jun, Tiryaki convention).
+ * Each project is bucketed into the month of its execution date
+ * (`operationPeriod` → `projectDate` fallback), the same date the rest
+ * of the dashboard keys FY/period math on.
+ *
+ * Estimated K/Z (per project, FX-converted at the execution date):
+ *   estSalesUsd − estPurchaseUsd − estExpenseUsd
+ * mirrors `aggregateEstimatedPL` exactly so the monthly bars sum back to
+ * the Dönem Performansı headline.
+ *
+ * Realized K/Z (per project):
+ *   realizedSalesUsd − estPurchaseUsd − realizedExpenseUsd
+ * Purchase (alış) is contracted at signing, so the estimate is used as
+ * the realized proxy — the volatility "realized" captures lives in the
+ * sales (`salesActualUsd`, server-aggregated invoices) and the expense
+ * side (the PBI-calibrated `actualExpenseRollup`). A project contributes
+ * to the realized series only when it carries a realized signal
+ * (invoiced sales or a realized-expense row); when the rollup hasn't run
+ * for the filtered set at all (`hasRealizedCoverage = false`) the whole
+ * realized series is null so the chart hides those bars.
+ */
+
+export interface MonthlyPLPoint {
+  /** "2025-07" — calendar-year + month key for bucketing. */
+  monthKey: string;
+  /** Short localized month label, e.g. "Tem". */
+  monthLabel: string;
+  /** Σ estimated K/Z (USD) for projects in this month. */
+  estPL: number;
+  /** Σ realized K/Z (USD); null when the rollup hasn't covered the set. */
+  realizedPL: number | null;
+  /** Projects with a realized signal that fed `realizedPL`. */
+  realizedCount: number;
+  /** Month sits after the current calendar month → render as a faint
+   *  "buffer" bar so past/current vs. future read at a glance. */
+  isFuture: boolean;
+}
+
+const KNOWN_CURRENCIES = new Set(["USD", "EUR", "TRY", "RUB", "GBP"]);
+
+function monthKeyOf(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/**
+ * @param projects                 filtered project set
+ * @param realizedExpenseByProject projectNo → Σ realized expense USD
+ *                                  (from `actualExpenseRollup` rows)
+ * @param hasRealizedCoverage      true when the rollup covers the set
+ * @param now                      stable "today" reference
+ * @param fy                       FY to render (defaults to the FY of `now`)
+ */
+export function aggregateMonthlyPL(
+  projects: Project[],
+  realizedExpenseByProject: Map<string, number>,
+  hasRealizedCoverage: boolean,
+  now: Date = new Date(),
+  fy: FinancialYear = getFinancialYear(now)
+): MonthlyPLPoint[] {
+  const nowKey = monthKeyOf(now);
+
+  // Build the 12 FY-month buckets, Jul (month 6) → Jun.
+  const points: MonthlyPLPoint[] = [];
+  const indexByKey = new Map<string, number>();
+  const monthFmt = new Intl.DateTimeFormat("tr-TR", { month: "short" });
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(fy.startYear, 6 + i, 1);
+    const monthKey = monthKeyOf(d);
+    indexByKey.set(monthKey, i);
+    points.push({
+      monthKey,
+      monthLabel: monthFmt.format(d),
+      estPL: 0,
+      realizedPL: hasRealizedCoverage ? 0 : null,
+      realizedCount: 0,
+      // Future = strictly after the current calendar month.
+      isFuture: monthKey > nowKey,
+    });
+  }
+
+  for (const p of projects) {
+    const exec = new Date(selectExecutionDate(p));
+    if (Number.isNaN(exec.getTime())) continue;
+    const idx = indexByKey.get(monthKeyOf(exec));
+    if (idx === undefined) continue;
+
+    const pl = selectProjectPL(p);
+    const cur = (pl.currency ?? "USD").toUpperCase();
+    const fxDate = selectExecutionDate(p);
+    // Estimated purchase doubles as the realized purchase proxy.
+    const estPurchaseUsd = KNOWN_CURRENCIES.has(cur)
+      ? toUsdAtDate(pl.purchaseTotal, cur, fxDate)
+      : pl.purchaseTotal;
+
+    // Estimated K/Z — only projects with priced lines contribute
+    // (matches aggregateEstimatedPL's gate).
+    if (pl.salesTotal > 0 || pl.purchaseTotal > 0) {
+      const estSalesUsd = KNOWN_CURRENCIES.has(cur)
+        ? toUsdAtDate(pl.salesTotal, cur, fxDate)
+        : pl.salesTotal;
+      points[idx].estPL += estSalesUsd - estPurchaseUsd - pl.expenseTotal;
+    }
+
+    // Realized K/Z — needs a realized signal.
+    if (hasRealizedCoverage) {
+      const realizedSalesUsd = p.salesActualUsd ?? 0;
+      const realizedExpenseUsd = realizedExpenseByProject.get(p.projectNo) ?? 0;
+      if (realizedSalesUsd !== 0 || realizedExpenseUsd !== 0) {
+        points[idx].realizedPL =
+          (points[idx].realizedPL ?? 0) +
+          (realizedSalesUsd - estPurchaseUsd - realizedExpenseUsd);
+        points[idx].realizedCount += 1;
+      }
+    }
+  }
+
+  return points;
+}
