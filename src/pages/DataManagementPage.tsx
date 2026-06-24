@@ -15,6 +15,7 @@ import {
   fetchVesselMasterAndEnrichShipCache,
   FINANCING_PURCH_IDS_CACHE,
   FINANCING_SALES_IDS_CACHE,
+  getFinancingPurchIdSet,
   getFinancingSalesIdSet,
   listAllByInChunked,
   NON_INTERCOMPANY_FILTER,
@@ -733,6 +734,63 @@ export function DataManagementPage() {
             });
           }
           writeCache("salesAggregateByProject", {
+            fetchedAt: new Date().toISOString(),
+            value: reAggregated,
+          });
+        },
+      },
+      {
+        // Realized PURCHASE aggregate — exact mirror of "Satış
+        // Toplamları" on the vendor-invoice entity. MUST stay in sync
+        // with the identical step in `refreshAll.ts` (both refresh
+        // paths have to populate `purchaseAggregateByProject`, else the
+        // dashboard's realized K/Z drops the Alım side). FK is
+        // `mserp_purchtable_etgtryprojid`; financing-order rows stripped
+        // client-side via `mserp_purchid`.
+        label: "Satınalma Toplamları",
+        refetch: async () => {
+          const client = getDataverseClient();
+          const projids = readAllScopedProjids();
+          const result = await applyByInChunked<Record<string, unknown>>(
+            client,
+            "mserp_tryaivendinvoicetransentities",
+            "mserp_purchtable_etgtryprojid",
+            projids,
+            (inClause) =>
+              `filter((${inClause}) and (${NON_INTERCOMPANY_FILTER}))/groupby((mserp_purchtable_etgtryprojid,mserp_currencycode,mserp_purchid),aggregate(mserp_lineamount with sum as total,$count as cnt))`
+          );
+          const financingSet = getFinancingPurchIdSet();
+          const rolled = new Map<
+            string,
+            { projid: string; currency: string; total: number; cnt: number }
+          >();
+          for (const row of result.value) {
+            const purchid = String(row.mserp_purchid ?? "");
+            if (financingSet.has(purchid)) continue;
+            const projid = String(row.mserp_purchtable_etgtryprojid ?? "");
+            const currency = String(row.mserp_currencycode ?? "");
+            if (!projid) continue;
+            const key = `${projid}::${currency}`;
+            const total = Number(row.total) || 0;
+            const cnt = Number(row.cnt) || 0;
+            const existing = rolled.get(key);
+            if (existing) {
+              existing.total += total;
+              existing.cnt += cnt;
+            } else {
+              rolled.set(key, { projid, currency, total, cnt });
+            }
+          }
+          const reAggregated: Record<string, unknown>[] = [];
+          for (const r of rolled.values()) {
+            reAggregated.push({
+              mserp_purchtable_etgtryprojid: r.projid,
+              mserp_currencycode: r.currency,
+              total: r.total,
+              cnt: r.cnt,
+            });
+          }
+          writeCache("purchaseAggregateByProject", {
             fetchedAt: new Date().toISOString(),
             value: reAggregated,
           });
