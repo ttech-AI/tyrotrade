@@ -13,7 +13,6 @@ import { AnimatedNumber } from "../AnimatedNumber";
 import { useThemeAccent } from "@/components/layout/theme-accent";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { TONE_FORECAST } from "@/components/details/AccentIconBadge";
-import { aggregateEstimatedPL } from "@/lib/selectors/aggregate";
 import {
   selectExecutionDate,
   selectTotalTons,
@@ -27,6 +26,13 @@ interface PeriodPerformanceTileProps {
   span?: string;
   rowSpan?: string;
   onClick?: () => void;
+  /** Realized (gerçekleşen) net K/Z (USD) for the filtered set — null
+   *  until the scoped expense rollup has covered it. */
+  realizedPL?: number | null;
+  /** Realized margin % (pl / realized sales). null when uncovered. */
+  realizedMarginPct?: number | null;
+  /** Projects that fed the realized figures (for the tooltip). */
+  realizedContributingCount?: number;
 }
 
 interface SparkPoint {
@@ -51,6 +57,9 @@ export function PeriodPerformanceTile({
   span,
   rowSpan,
   onClick,
+  realizedPL = null,
+  realizedMarginPct = null,
+  realizedContributingCount = 0,
 }: PeriodPerformanceTileProps) {
   const accent = useThemeAccent();
   const t = useT();
@@ -60,7 +69,9 @@ export function PeriodPerformanceTile({
     () => projects.reduce((sum, p) => sum + selectTotalTons(p), 0),
     [projects]
   );
-  const pl = React.useMemo(() => aggregateEstimatedPL(projects), [projects]);
+  // Realized figures arrive via props (the page owns the expense rollup).
+  // `null` = not yet covered → render a muted placeholder.
+  const hasRealized = realizedPL !== null && realizedMarginPct !== null;
 
   // Financial-year-aligned 12-month sparkline: Jul (start of FY) → Jun
   // (end of FY). Anchored at the FY containing `now` so the timeline
@@ -89,16 +100,19 @@ export function PeriodPerformanceTile({
     return buckets;
   }, [projects, now]);
 
-  const marginColor =
-    pl.marginPct > 5
+  const mp = realizedMarginPct ?? 0;
+  const marginColor = !hasRealized
+    ? "rgb(100 116 139)"
+    : mp > 5
       ? "rgb(4 120 87)"
-      : pl.marginPct < -5
+      : mp < -5
         ? "rgb(159 18 57)"
         : "rgb(71 85 105)";
-  const marginBg =
-    pl.marginPct > 5
+  const marginBg = !hasRealized
+    ? "rgba(100,116,139,0.12)"
+    : mp > 5
       ? "rgba(16,185,129,0.12)"
-      : pl.marginPct < -5
+      : mp < -5
         ? "rgba(244,63,94,0.12)"
         : "rgba(100,116,139,0.12)";
 
@@ -134,30 +148,46 @@ export function PeriodPerformanceTile({
             }
           />
           <KPI
-            label={t("dash.tile.period.estPL")}
-            tooltip={t("dash.tile.period.estPLTip").replace(
+            label={t("dash.tile.period.realPL")}
+            tooltip={t("dash.tile.period.realPLTip").replace(
               "{count}",
-              String(pl.contributingCount)
+              String(realizedContributingCount)
             )}
             value={
-              <span
-                className="text-[22px] font-semibold leading-none tracking-tight"
-                style={{ color: marginColor }}
-              >
-                <AnimatedNumber value={pl.pl} preset="currency" currency="USD" />
-              </span>
+              hasRealized ? (
+                <span
+                  className="text-[22px] font-semibold leading-none tracking-tight"
+                  style={{ color: marginColor }}
+                >
+                  <AnimatedNumber
+                    value={realizedPL as number}
+                    preset="currency"
+                    currency="USD"
+                  />
+                </span>
+              ) : (
+                <span className="text-[22px] font-semibold leading-none tracking-tight text-muted-foreground/50">
+                  —
+                </span>
+              )
             }
           />
           <KPI
-            label={t("dash.tile.period.estMargin")}
-            tooltip={t("dash.tile.period.estMarginTip")}
+            label={t("dash.tile.period.realMargin")}
+            tooltip={t("dash.tile.period.realMarginTip")}
             value={
-              <span
-                className="inline-flex items-center mt-0.5 px-1.5 py-0.5 rounded text-[12px] font-bold tabular-nums"
-                style={{ color: marginColor, backgroundColor: marginBg }}
-              >
-                {pl.marginPct.toFixed(1)}%
-              </span>
+              hasRealized ? (
+                <span
+                  className="inline-flex items-center mt-0.5 px-1.5 py-0.5 rounded text-[12px] font-bold tabular-nums"
+                  style={{ color: marginColor, backgroundColor: marginBg }}
+                >
+                  {mp.toFixed(1)}%
+                </span>
+              ) : (
+                <span className="inline-flex items-center mt-0.5 text-[12px] font-bold text-muted-foreground/50">
+                  —
+                </span>
+              )
             }
           />
         </div>

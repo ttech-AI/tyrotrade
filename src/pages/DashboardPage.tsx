@@ -65,7 +65,7 @@ import {
   aggregatePipelineBuckets,
 } from "@/lib/selectors/aggregate";
 import { selectStage } from "@/lib/selectors/project";
-import { aggregateMonthlyPL } from "@/lib/selectors/monthlyPL";
+import { aggregateMonthlyPL, aggregateRealizedPL } from "@/lib/selectors/monthlyPL";
 import { useActualExpenseRollup } from "@/hooks/useActualExpenseRollup";
 import { useThemeAccent } from "@/components/layout/theme-accent";
 import {
@@ -95,7 +95,8 @@ export function DashboardPage() {
   const t = useT();
   const { accounts, instance } = useMsal();
   const account = accounts[0] ?? instance.getActiveAccount() ?? null;
-  const firstName = account?.name?.trim().split(/\s+/)[0] ?? null;
+  // Tam ad-soyad (sadece ad değil) — selamlama başlığında gösterilir.
+  const fullName = account?.name?.trim() || null;
   const [filters, setFilters] = React.useState<ProjectFilterState>(() => {
     // E.M Bakış varsayılanları: mevcut finansal dönem (FY) + ana trader
     // TRD-FTB. Bu sayfa Emerging Markets KPI ekranı — açılışta doğrudan
@@ -221,6 +222,13 @@ export function DashboardPage() {
     [projects, realizedExpenseByProject, realizedCoversFilter, filters.fyKey]
   );
 
+  // Realized headline K/Z + margin for the Dönem Performansı card —
+  // only meaningful once the rollup covers the filtered set.
+  const realizedAgg = React.useMemo(
+    () => aggregateRealizedPL(projects, realizedExpenseByProject),
+    [projects, realizedExpenseByProject]
+  );
+
   const fyShortLabel = React.useMemo(() => {
     const fy =
       (filters.fyKey && findFyByKey(filters.fyKey)) || getFinancialYear(now);
@@ -314,7 +322,7 @@ export function DashboardPage() {
                 }).format(now)}
               </div>
               <h2 className="text-xl font-semibold tracking-tight">
-                {greeting}{firstName ? `, ${firstName}` : ""}
+                {greeting}{fullName ? `, ${fullName}` : ""}
               </h2>
               {/* Subtitle: FY context + pipeline state breakdown (loading /
                   in-transit / at-discharge counts), active filter chip, and
@@ -406,6 +414,11 @@ export function DashboardPage() {
             projects={projects}
             now={now}
             onClick={() => setDrawerKpi("period")}
+            realizedPL={realizedCoversFilter ? realizedAgg.pl : null}
+            realizedMarginPct={
+              realizedCoversFilter ? realizedAgg.marginPct : null
+            }
+            realizedContributingCount={realizedAgg.contributingCount}
           />
           <MonthlyPLChart
             points={monthlyPL}

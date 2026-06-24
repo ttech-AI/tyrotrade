@@ -48,6 +48,51 @@ export interface MonthlyPLPoint {
 
 const KNOWN_CURRENCIES = new Set(["USD", "EUR", "TRY", "RUB", "GBP"]);
 
+export interface RealizedPLAggregate {
+  /** Σ realized K/Z (USD) across contributing projects. */
+  pl: number;
+  /** Σ realized invoiced sales (USD) — the margin denominator. */
+  salesUsd: number;
+  /** pl / salesUsd × 100; 0 when there are no realized sales. */
+  marginPct: number;
+  /** Projects that carried a realized signal and contributed. */
+  contributingCount: number;
+}
+
+/**
+ * Realized (gerçekleşen) net P&L rollup across a project set — the
+ * headline twin of `aggregateEstimatedPL`, sharing the monthly chart's
+ * realized model:
+ *   realizedSalesUsd − estPurchaseUsd (proxy) − realizedExpenseUsd
+ * A project contributes only when it has a realized signal (invoiced
+ * sales or a realized-expense row); the caller gates the whole figure on
+ * rollup coverage before showing it.
+ */
+export function aggregateRealizedPL(
+  projects: Project[],
+  realizedExpenseByProject: Map<string, number>
+): RealizedPLAggregate {
+  let pl = 0;
+  let salesUsd = 0;
+  let contributingCount = 0;
+  for (const p of projects) {
+    const realizedSalesUsd = p.salesActualUsd ?? 0;
+    const realizedExpenseUsd = realizedExpenseByProject.get(p.projectNo) ?? 0;
+    if (realizedSalesUsd === 0 && realizedExpenseUsd === 0) continue;
+    const lp = selectProjectPL(p);
+    const cur = (lp.currency ?? "USD").toUpperCase();
+    const fxDate = selectExecutionDate(p);
+    const estPurchaseUsd = KNOWN_CURRENCIES.has(cur)
+      ? toUsdAtDate(lp.purchaseTotal, cur, fxDate)
+      : lp.purchaseTotal;
+    pl += realizedSalesUsd - estPurchaseUsd - realizedExpenseUsd;
+    salesUsd += realizedSalesUsd;
+    contributingCount++;
+  }
+  const marginPct = salesUsd > 0 ? (pl / salesUsd) * 100 : 0;
+  return { pl, salesUsd, marginPct, contributingCount };
+}
+
 function monthKeyOf(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
