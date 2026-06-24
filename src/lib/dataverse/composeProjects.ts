@@ -59,6 +59,12 @@ export interface ComposeInput {
    *  One row per (projid, currency). When present, projects are enriched
    *  with `salesActualUsd` + `salesActualByCurrency`. */
   salesAggregateRows?: Record<string, unknown>[];
+  /** Optional — per-project per-currency realized PURCHASE totals from
+   *  the "Satınalma Toplamları" refresh step (mirror of
+   *  salesAggregateRows). One row per (projid, currency), keyed on
+   *  `mserp_purchtable_etgtryprojid`. Enriches projects with
+   *  `purchaseActualUsd` + `purchaseActualByCurrency`. */
+  purchaseAggregateRows?: Record<string, unknown>[];
   /** Optional — sub-project (alt-proje) header rows. When present, every
    *  parent project that has one or more sub-project rows is HIDDEN from
    *  the output and replaced by a synthetic `Project` per sub-project.
@@ -106,6 +112,7 @@ export function composeProjects(input: ComposeInput): ComposeResult {
     lineRows,
     expenseAggregateRows,
     salesAggregateRows,
+    purchaseAggregateRows,
     subProjectRows,
   } = input;
 
@@ -171,6 +178,30 @@ export function composeProjects(input: ComposeInput): ComposeResult {
     if (!entry) {
       entry = { byCurrency: {}, usd: 0, count: 0 };
       salesByProjid.set(pid, entry);
+    }
+    entry.byCurrency[cur] = (entry.byCurrency[cur] ?? 0) + total;
+    if (cur === "USD") entry.usd += total;
+    entry.count += cnt;
+  }
+
+  // Per-projid realized PURCHASE totals (mirror of sales). One entry per
+  // (projid, currency) keyed on `mserp_purchtable_etgtryprojid`. USD only
+  // flows into purchaseActualUsd so realized K/Z stays on the same axis
+  // as salesActualUsd.
+  const purchaseByProjid = new Map<
+    string,
+    { byCurrency: Record<string, number>; usd: number; count: number }
+  >();
+  for (const r of purchaseAggregateRows ?? []) {
+    const pid = readString(r, "mserp_purchtable_etgtryprojid");
+    if (!pid) continue;
+    const cur = readString(r, "mserp_currencycode") || "USD";
+    const total = num(r["total"]);
+    const cnt = num(r["cnt"]);
+    let entry = purchaseByProjid.get(pid);
+    if (!entry) {
+      entry = { byCurrency: {}, usd: 0, count: 0 };
+      purchaseByProjid.set(pid, entry);
     }
     entry.byCurrency[cur] = (entry.byCurrency[cur] ?? 0) + total;
     if (cur === "USD") entry.usd += total;
@@ -308,6 +339,22 @@ export function composeProjects(input: ComposeInput): ComposeResult {
       : undefined;
     const salesActualInvoiceCount = salesEntry?.count;
 
+    // Realized purchase enrichment — same entityId lookup as sales.
+    const purchaseEntry = entityId
+      ? purchaseByProjid.get(entityId)
+      : undefined;
+    const purchaseActualUsd = purchaseEntry
+      ? Math.round(purchaseEntry.usd)
+      : undefined;
+    const purchaseActualByCurrency = purchaseEntry
+      ? Object.fromEntries(
+          Object.entries(purchaseEntry.byCurrency).map(([k, v]) => [
+            k,
+            Math.round(v),
+          ])
+        )
+      : undefined;
+
     // segmentBudgets / segmentBudgetsByMonth — deliberately left
     // undefined. See the explanatory comment above the (removed)
     // budget rollup block for why these fields are no longer populated
@@ -406,6 +453,8 @@ export function composeProjects(input: ComposeInput): ComposeResult {
       salesActualUsd,
       salesActualByCurrency,
       salesActualInvoiceCount,
+      purchaseActualUsd,
+      purchaseActualByCurrency,
       segmentBudgets,
       segmentBudgetsByMonth,
     };

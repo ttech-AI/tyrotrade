@@ -951,6 +951,65 @@ export async function refreshAllEntities(
         });
       },
     },
+    {
+      label: "Satınalma Toplamları",
+      run: async () => {
+        // Realized PURCHASE aggregate — exact mirror of "Satış
+        // Toplamları" but on the vendor-invoice entity. Project FK is
+        // `mserp_purchtable_etgtryprojid` (flattened parent purchase
+        // table column). Financing-order rows can't be excluded
+        // server-side (F&O rejects `not In(...)`), so we include
+        // `mserp_purchid` in the groupby key, drop financing purchids
+        // client-side, then re-aggregate on (projid, currency) to match
+        // the salesAggregate cache shape the composer expects.
+        // USD-only flows into purchaseActualUsd downstream (same as the
+        // sales side) so realized K/Z reconciles with BudgetSalesCard.
+        const projids = readAllScopedProjids();
+        const result = await applyByInChunked<Record<string, unknown>>(
+          client,
+          ENTITY_SETS.purchase,
+          "mserp_purchtable_etgtryprojid",
+          projids,
+          (inClause) =>
+            `filter((${inClause}) and (${NON_INTERCOMPANY_FILTER}))/groupby((mserp_purchtable_etgtryprojid,mserp_currencycode,mserp_purchid),aggregate(mserp_lineamount with sum as total,$count as cnt))`
+        );
+        const financingSet = getFinancingPurchIdSet();
+        const rolled = new Map<
+          string,
+          { projid: string; currency: string; total: number; cnt: number }
+        >();
+        for (const row of result.value) {
+          const purchid = String(row.mserp_purchid ?? "");
+          if (financingSet.has(purchid)) continue;
+          const projid = String(row.mserp_purchtable_etgtryprojid ?? "");
+          const currency = String(row.mserp_currencycode ?? "");
+          if (!projid) continue;
+          const key = `${projid}::${currency}`;
+          const total = Number(row.total) || 0;
+          const cnt = Number(row.cnt) || 0;
+          const existing = rolled.get(key);
+          if (existing) {
+            existing.total += total;
+            existing.cnt += cnt;
+          } else {
+            rolled.set(key, { projid, currency, total, cnt });
+          }
+        }
+        const reAggregated: Record<string, unknown>[] = [];
+        for (const r of rolled.values()) {
+          reAggregated.push({
+            mserp_purchtable_etgtryprojid: r.projid,
+            mserp_currencycode: r.currency,
+            total: r.total,
+            cnt: r.cnt,
+          });
+        }
+        writeCache("purchaseAggregateByProject", {
+          fetchedAt: new Date().toISOString(),
+          value: reAggregated,
+        });
+      },
+    },
     // NOTE: "Proje × Ay Satış" intentionally REMOVED from the refresh
     // chain. The `salesByProjectMonth` cache it produced was written
     // every refresh but NEVER read by any consumer — pure dead weight

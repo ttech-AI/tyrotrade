@@ -650,18 +650,18 @@ export function PeriodPerformanceBreakdown({
     const list = projects
       .filter((p) => filterProject(p, query))
       .map((p) => {
-        const pl = selectProjectPL(p);
-        const cur = (pl.currency ?? "USD").toUpperCase();
-        const fxDate = selectExecutionDate(p);
+        // All three sides realized — matches BudgetSalesCard so the
+        // panel reconciles with the project-detail K/Z.
         const salesUsd = p.salesActualUsd ?? 0;
-        const purchaseUsd = toUsdAtDate(pl.purchaseTotal, cur, fxDate);
+        const purchaseUsd = p.purchaseActualUsd ?? 0;
         const expenseUsd = expMap.get(p.projectNo) ?? 0;
         const plUsd = salesUsd - purchaseUsd - expenseUsd;
         const marginPct = salesUsd > 0 ? (plUsd / salesUsd) * 100 : null;
         return { p, plUsd, salesUsd, purchaseUsd, expenseUsd, marginPct };
       })
-      // Realized signal only (invoiced sales or a realized-expense row).
-      .filter((r) => r.salesUsd !== 0 || r.expenseUsd !== 0)
+      // Realized signal only (invoiced sales, a vendor invoice, or a
+      // realized-expense row).
+      .filter((r) => r.salesUsd !== 0 || r.purchaseUsd !== 0 || r.expenseUsd !== 0)
       .sort((a, b) => b.plUsd - a.plUsd);
     return maybeReverse(list, sortReversed);
   }, [projects, query, sortReversed, expMap, hasRealizedCoverage]);

@@ -31,6 +31,10 @@ const ENTITY_SETS = {
    *  ranking and the BudgetVsActual card don't have to fetch raw invoices
    *  for all 320 active projects. */
   salesAggregate: "salesAggregateByProject",
+  /** Synthetic key — realized PURCHASE aggregate (mirror of salesAggregate)
+   *  produced by the "Satınalma Toplamları" refresh step. Enriches each
+   *  project with `purchaseActualUsd` for realized K/Z. */
+  purchaseAggregate: "purchaseAggregateByProject",
 } as const;
 
 export interface UseRealProjectsReturn {
@@ -77,6 +81,7 @@ export function useRealProjects(): UseRealProjectsReturn {
     ENTITY_SETS.estimatedExpenseAggregate
   );
   const fpSalesAgg = useCacheFingerprint(ENTITY_SETS.salesAggregate);
+  const fpPurchaseAgg = useCacheFingerprint(ENTITY_SETS.purchaseAggregate);
 
   return React.useMemo<UseRealProjectsReturn>(() => {
     const projC = readCache<Record<string, unknown>>(ENTITY_SETS.projects);
@@ -90,6 +95,9 @@ export function useRealProjects(): UseRealProjectsReturn {
     );
     const salesAggC = readCache<Record<string, unknown>>(
       ENTITY_SETS.salesAggregate
+    );
+    const purchaseAggC = readCache<Record<string, unknown>>(
+      ENTITY_SETS.purchaseAggregate
     );
 
     const fetchedAt = {
@@ -109,6 +117,7 @@ export function useRealProjects(): UseRealProjectsReturn {
       lineRows: linesC?.value ?? [],
       expenseAggregateRows: expAggC?.value ?? [],
       salesAggregateRows: salesAggC?.value ?? [],
+      purchaseAggregateRows: purchaseAggC?.value ?? [],
       // Sub-project rows lift parents to voyage-leg granularity.
       // Missing cache → composer falls back to parent-only output.
       subProjectRows: subProjC?.value ?? [],
@@ -137,7 +146,15 @@ export function useRealProjects(): UseRealProjectsReturn {
       warnings: composed.warnings,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fpProjects, fpSubProject, fpShip, fpLines, fpExpenseAgg, fpSalesAgg]);
+  }, [
+    fpProjects,
+    fpSubProject,
+    fpShip,
+    fpLines,
+    fpExpenseAgg,
+    fpSalesAgg,
+    fpPurchaseAgg,
+  ]);
 }
 
 /**

@@ -236,6 +236,15 @@ export interface Project {
   salesActualByCurrency?: Record<string, number>;
   /** Number of invoice rows aggregated for this project. */
   salesActualInvoiceCount?: number;
+  /** Total realized vendor-invoice purchase in USD (sum of
+   *  `mserp_lineamount` where currency=USD) — the realized "Alım" twin
+   *  of `salesActualUsd`. Server-side aggregation over
+   *  `mserp_tryaivendinvoicetransentities`, financing-order rows
+   *  stripped. Used for realized K/Z so the dashboard reconciles with
+   *  the project-detail BudgetSalesCard. */
+  purchaseActualUsd?: number;
+  /** Same purchase totals broken out by currency code (no FX). */
+  purchaseActualByCurrency?: Record<string, number>;
   /** Per-year aggregated budget for this project's segment (sum of
    *  `mserp_amount` / `mserp_qty` over all rows with the same segment). */
   segmentBudgets?: SegmentBudgetYearSummary[];

@@ -18,16 +18,15 @@ import { getFinancialYear, type FinancialYear } from "@/lib/dashboard/financialP
  * mirrors `aggregateEstimatedPL` exactly so the monthly bars sum back to
  * the Dönem Performansı headline.
  *
- * Realized K/Z (per project):
- *   realizedSalesUsd − estPurchaseUsd − realizedExpenseUsd
- * Purchase (alış) is contracted at signing, so the estimate is used as
- * the realized proxy — the volatility "realized" captures lives in the
- * sales (`salesActualUsd`, server-aggregated invoices) and the expense
- * side (the PBI-calibrated `actualExpenseRollup`). A project contributes
- * to the realized series only when it carries a realized signal
- * (invoiced sales or a realized-expense row); when the rollup hasn't run
- * for the filtered set at all (`hasRealizedCoverage = false`) the whole
- * realized series is null so the chart hides those bars.
+ * Realized K/Z (per project) — matches the project-detail BudgetSalesCard:
+ *   realizedSalesUsd − realizedPurchaseUsd − realizedExpenseUsd
+ * All three are realized figures: sales from `salesActualUsd`, purchase
+ * from `purchaseActualUsd` (both server-aggregated, USD-only), expense
+ * from the PBI-calibrated `actualExpenseRollup`. A project contributes to
+ * the realized series only when it carries a realized signal (invoiced
+ * sales, a vendor invoice, or a realized-expense row); when the rollup
+ * hasn't run for the filtered set (`hasRealizedCoverage = false`) the
+ * whole realized series is null so the chart hides those bars.
  */
 
 export interface MonthlyPLPoint {
@@ -61,12 +60,11 @@ export interface RealizedPLAggregate {
 
 /**
  * Realized (gerçekleşen) net P&L rollup across a project set — the
- * headline twin of `aggregateEstimatedPL`, sharing the monthly chart's
- * realized model:
- *   realizedSalesUsd − estPurchaseUsd (proxy) − realizedExpenseUsd
+ * headline twin of `aggregateEstimatedPL`, matching BudgetSalesCard:
+ *   realizedSalesUsd − realizedPurchaseUsd − realizedExpenseUsd
  * A project contributes only when it has a realized signal (invoiced
- * sales or a realized-expense row); the caller gates the whole figure on
- * rollup coverage before showing it.
+ * sales, a vendor invoice, or a realized-expense row); the caller gates
+ * the whole figure on rollup coverage before showing it.
  */
 export function aggregateRealizedPL(
   projects: Project[],
@@ -77,15 +75,15 @@ export function aggregateRealizedPL(
   let contributingCount = 0;
   for (const p of projects) {
     const realizedSalesUsd = p.salesActualUsd ?? 0;
+    const realizedPurchaseUsd = p.purchaseActualUsd ?? 0;
     const realizedExpenseUsd = realizedExpenseByProject.get(p.projectNo) ?? 0;
-    if (realizedSalesUsd === 0 && realizedExpenseUsd === 0) continue;
-    const lp = selectProjectPL(p);
-    const cur = (lp.currency ?? "USD").toUpperCase();
-    const fxDate = selectExecutionDate(p);
-    const estPurchaseUsd = KNOWN_CURRENCIES.has(cur)
-      ? toUsdAtDate(lp.purchaseTotal, cur, fxDate)
-      : lp.purchaseTotal;
-    pl += realizedSalesUsd - estPurchaseUsd - realizedExpenseUsd;
+    if (
+      realizedSalesUsd === 0 &&
+      realizedPurchaseUsd === 0 &&
+      realizedExpenseUsd === 0
+    )
+      continue;
+    pl += realizedSalesUsd - realizedPurchaseUsd - realizedExpenseUsd;
     salesUsd += realizedSalesUsd;
     contributingCount++;
   }
@@ -156,14 +154,20 @@ export function aggregateMonthlyPL(
       points[idx].estPL += estSalesUsd - estPurchaseUsd - pl.expenseTotal;
     }
 
-    // Realized K/Z — needs a realized signal.
+    // Realized K/Z — realized sales − realized purchase − realized
+    // expense (mirrors BudgetSalesCard). Needs a realized signal.
     if (hasRealizedCoverage) {
       const realizedSalesUsd = p.salesActualUsd ?? 0;
+      const realizedPurchaseUsd = p.purchaseActualUsd ?? 0;
       const realizedExpenseUsd = realizedExpenseByProject.get(p.projectNo) ?? 0;
-      if (realizedSalesUsd !== 0 || realizedExpenseUsd !== 0) {
+      if (
+        realizedSalesUsd !== 0 ||
+        realizedPurchaseUsd !== 0 ||
+        realizedExpenseUsd !== 0
+      ) {
         points[idx].realizedPL =
           (points[idx].realizedPL ?? 0) +
-          (realizedSalesUsd - estPurchaseUsd - realizedExpenseUsd);
+          (realizedSalesUsd - realizedPurchaseUsd - realizedExpenseUsd);
         points[idx].realizedCount += 1;
       }
     }
