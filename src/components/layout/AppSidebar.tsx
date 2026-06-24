@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
-  Home01Icon,
+  GlobalIcon,
   BadgeDollarSignIcon,
   PieChartIcon,
   ChartLineData01Icon,
@@ -40,9 +40,13 @@ import {
  *  (Linear / Notion / Vercel) where icons read as "navigation hints",
  *  not headline glyphs. Heavier stroke (2+) competes with the label
  *  text and tires the eye over long sessions. */
-function HomeLineIcon({ className }: { className?: string }) {
+/** E.M Bakış (Emerging Markets) — globe glyph, deliberately NOT a home
+ *  icon: this page is the emerging-markets KPI/metrics screen, not a
+ *  landing/home. Distinct from the PieChart (overview) + ChartLine
+ *  (price) + Dollar (trade cost) icons in the same sidebar. */
+function EMOverviewIcon({ className }: { className?: string }) {
   return (
-    <HugeiconsIcon icon={Home01Icon} className={className} strokeWidth={1.75} />
+    <HugeiconsIcon icon={GlobalIcon} className={className} strokeWidth={1.75} />
   );
 }
 
@@ -105,9 +109,9 @@ const NAV_GROUPS: NavGroup[] = [
       // Genel Bakış = uygulamanın açılış sayfası, kısıtlı DEĞİL —
       // Anasayfa'yı göremeyen kullanıcıların da gördüğü grup/segment özeti.
       { to: "/overview", labelKey: "nav.overview", icon: OverviewIcon },
-      // Dashboard "/"'tan /dashboard'a taşındı ("/" artık /overview'a
-      // yönlenen landing); e-posta allowlist kısıtı sürüyor.
-      { to: "/dashboard", labelKey: "nav.dashboard", icon: HomeLineIcon },
+      // E.M Bakış (Emerging Markets KPI ekranı) — /dashboard rotasında;
+      // e-posta allowlist kısıtı sürüyor (RestrictedRoute).
+      { to: "/dashboard", labelKey: "nav.dashboard", icon: EMOverviewIcon },
       { to: "/projects", labelKey: "nav.projects", icon: Ship },
     ],
   },

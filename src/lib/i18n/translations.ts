@@ -29,7 +29,7 @@ const tr: StringMap = {
 
   /* nav items */
   "nav.overview": "Genel Bakış",
-  "nav.dashboard": "Yönetici Paneli",
+  "nav.dashboard": "E.M Bakış",
   "nav.projects": "Sefer Takibi",
   "nav.tradeCost": "Trade Cost",
   "nav.priceTracking": "Fiyat Takibi",
@@ -53,7 +53,7 @@ const tr: StringMap = {
   "eyebrow.settings": "Ayarlar",
 
   /* topbar — H1 headline + document/fallback titles */
-  "title.dashboard": "Yönetici Paneli",
+  "title.dashboard": "E.M Bakış",
   "title.overview": "Gemi Projeleri Özeti",
   "title.projects": "Sefer Takibi",
   "title.tradeCost": "Tahmini × Gerçekleşen Maliyet",
@@ -1216,7 +1216,7 @@ const en: StringMap = {
   "navGroup.system": "System",
 
   "nav.overview": "Overview",
-  "nav.dashboard": "Executive Panel",
+  "nav.dashboard": "E.M Overview",
   "nav.projects": "Vessel Ops",
   "nav.tradeCost": "Trade Cost",
   "nav.priceTracking": "Price Analysis",
@@ -1237,7 +1237,7 @@ const en: StringMap = {
   "eyebrow.dataManagement": "Data Management",
   "eyebrow.settings": "Settings",
 
-  "title.dashboard": "Executive Panel",
+  "title.dashboard": "E.M Overview",
   "title.overview": "Vessel Projects Overview",
   "title.projects": "Vessel Ops",
   "title.tradeCost": "Estimated × Realized Cost",
