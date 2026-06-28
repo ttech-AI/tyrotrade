@@ -236,24 +236,39 @@ export function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.fyKey]);
 
-  // Auto-compute the realized series once per filtered set (non-blocking):
+  // Auto-compute the realized series once per "coverage gap" (non-blocking):
   // estimated bars render immediately; realized fills in when the scoped
-  // rollup completes. A signature ref guards against re-triggering a
-  // failed/partial run into a loop.
-  const requestedSigRef = React.useRef<string>("");
+  // rollup completes.
+  //
+  // Guard design (learned the hard way): fire exactly ONCE each time
+  // coverage is lost, and reset the latch the moment coverage returns OR
+  // the filtered set changes. This recomputes after a data refresh wiped
+  // the rollup cache (coverage flips back to false — see the
+  // `computedProjids` note in useActualExpenseRollup) WITHOUT looping on a
+  // failed fetch (a failure leaves coverage false but the latch stays set,
+  // so we don't hammer the API).
+  const didRequestRef = React.useRef(false);
+  const lastSigRef = React.useRef("");
   React.useEffect(() => {
-    if (filteredProjids.length === 0) return;
-    if (rollup.isFetching || realizedCoversFilter) return;
     const sig = [...filteredProjids].sort().join("|");
-    if (requestedSigRef.current === sig) return;
-    requestedSigRef.current = sig;
+    if (lastSigRef.current !== sig) {
+      lastSigRef.current = sig;
+      didRequestRef.current = false; // new set → allow one fetch
+    }
+    if (realizedCoversFilter) {
+      didRequestRef.current = false; // covered → re-arm for the next gap
+      return;
+    }
+    if (filteredProjids.length === 0 || rollup.isFetching) return;
+    if (didRequestRef.current) return; // already attempted this gap
+    didRequestRef.current = true;
     rollup.refresh(filteredProjids);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredProjids, realizedCoversFilter, rollup.isFetching]);
 
   const handleRealizedRefresh = React.useCallback(() => {
     if (rollup.isFetching) return;
-    requestedSigRef.current = [...filteredProjids].sort().join("|");
+    didRequestRef.current = true;
     rollup.refresh(filteredProjids);
   }, [rollup, filteredProjids]);
 

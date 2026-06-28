@@ -103,9 +103,18 @@ export function useActualExpenseRollup(): UseActualExpenseRollupReturn {
       ACTUAL_EXPENSE_ROLLUP_CACHE
     );
     const scope = readCache<string>(ROLLUP_SCOPE_CACHE);
+    const rows = cached?.value ?? [];
     return {
-      rows: cached?.value ?? [],
-      computedProjids: scope?.value ?? [],
+      rows,
+      // Coverage is meaningful ONLY when rows exist. The scope cache
+      // (ROLLUP_SCOPE_CACHE) outlives the rows cache — a data refresh
+      // (`refreshAllEntities`) clears the rows via
+      // `clearCache(ACTUAL_EXPENSE_ROLLUP_CACHE)` but NOT the scope. If we
+      // returned the stale scope here, consumers would think the set is
+      // "covered" while every `rows`-derived lookup returns 0 (realized
+      // expense silently reads as zero) AND the auto-refetch would be
+      // skipped. Reporting [] when rows are empty forces a recompute.
+      computedProjids: rows.length > 0 ? (scope?.value ?? []) : [],
       fetchedAt: cached?.fetchedAt ?? null,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
