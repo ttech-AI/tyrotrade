@@ -71,11 +71,7 @@ import { useSegmentBudgetMap } from "@/hooks/useSegmentBudgetMap";
 import { RealizedPLTable } from "@/components/dashboard/RealizedPLTable";
 import { RealizedPLDetailSheet } from "@/components/dashboard/RealizedPLDetailSheet";
 import { PendingPaymentsCard } from "@/components/overview/PendingPaymentsCard";
-import { LongestWaitingCard } from "@/components/overview/LongestWaitingCard";
-import {
-  selectPendingPayments,
-  selectWaitingVessels,
-} from "@/lib/selectors/overview";
+import { selectPendingPayments } from "@/lib/selectors/overview";
 import {
   buildRealizedPLTable,
   buildMonthDetail,
@@ -304,12 +300,8 @@ export function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [projects, realizedExpenseByProject, budgetMap, filters.fyKey, t]
   );
-  // Genel Bakış'tan kopyalanan iki kart — aynı selektörler, filtrelenmiş
-  // proje setiyle (E.M Bakış'ın sağ rayında üstlü-altlı).
-  const waiting = React.useMemo(
-    () => selectWaitingVessels(projects, now),
-    [projects, now]
-  );
+  // Genel Bakış'tan kopyalanan "Ödeme Bekleyen Gemiler" kartı — aynı
+  // selektör, filtrelenmiş proje setiyle (E.M Bakış'ın sağ rayında).
   const pending = React.useMemo(
     () => selectPendingPayments(projects, now, 200),
     [projects, now]
@@ -485,9 +477,10 @@ export function DashboardPage() {
             kartları ve liderlik panelleri kaldırıldı — bu sayfa artık
             Emerging Markets KPI ekranı. */}
         {/* Ana içerik solda (Dönem Performansı + Aylık K/Z grafiği, altında
-            aylık tablo); sağda dar rayda Genel Bakış'tan kopyalanan iki
-            kart üstlü-altlı: üstte Ödeme Bekleyen, altta En Uzun Bekleyen. */}
-        <div className="grid grid-cols-12 gap-3 items-start">
+            aylık tablo); sağda dar rayda Ödeme Bekleyen Gemiler. Sağ ray
+            mutlak konumlu kart ile sol kolonun yüksekliğine sabitlenir —
+            kart içeride kayar, alt hizası sol kolonla aynı kalır (taşmaz). */}
+        <div className="grid grid-cols-12 gap-3 items-stretch">
           <div className="col-span-12 xl:col-span-9 space-y-3 min-w-0">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
               <PeriodPerformanceTile
@@ -521,9 +514,12 @@ export function DashboardPage() {
             />
           </div>
 
-          <div className="col-span-12 xl:col-span-3 space-y-3 min-w-0">
-            <PendingPaymentsCard pending={pending} />
-            <LongestWaitingCard waiting={waiting} />
+          <div className="col-span-12 xl:col-span-3 min-w-0 relative">
+            {/* xl: absolute → kart sol kolonun yüksekliğini aşmaz, içeride
+                kayar; mobilde normal akışta tam yükseklik. */}
+            <div className="xl:absolute xl:inset-0">
+              <PendingPaymentsCard pending={pending} />
+            </div>
           </div>
         </div>
       </div>
