@@ -18,13 +18,22 @@ import { formatCompactCurrency, formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { MonthlyPLPoint } from "@/lib/selectors/monthlyPL";
 
-/** Estimated (tahmini) = sky · Realized (gerçekleşen) = emerald.
- *  Fixed semantic colours (theme-independent) — forecast reads blue,
- *  profit/realized reads green across every sidebar theme. */
-const COLOR_EST = "#0ea5e9"; // sky-500
+/** Estimated (tahmini) = brand blue · Realized (gerçekleşen) = emerald.
+ *  Fixed semantic colours (theme-independent). Blue tracks the tyrotrade
+ *  wordmark/logo (sky-navy `#2563eb`); profit reads green. A NEGATIVE
+ *  K/Z (zarar) overrides the hue with red/bordo so loss months pop —
+ *  estimated-loss = red, realized-loss = bordo, keeping the
+ *  tahmini-lighter / gerçekleşen-darker pairing intact below zero too. */
+const COLOR_EST = "#2563eb"; // blue-600 — tyrotrade brand
 const COLOR_REAL = "#10b981"; // emerald-500
+const COLOR_EST_NEG = "#f43f5e"; // rose-500 — estimated loss
+const COLOR_REAL_NEG = "#be123c"; // rose-700 (bordo) — realized loss
 const FUTURE_OPACITY = 0.22;
 const SOLID_OPACITY = 0.92;
+
+const estColor = (v: number | null) => ((v ?? 0) < 0 ? COLOR_EST_NEG : COLOR_EST);
+const realColor = (v: number | null) =>
+  (v ?? 0) < 0 ? COLOR_REAL_NEG : COLOR_REAL;
 
 interface MonthlyPLChartProps {
   points: MonthlyPLPoint[];
@@ -139,29 +148,35 @@ export function MonthlyPLChart({
                 content={<MonthlyTooltip />}
               />
               <Bar dataKey="estPL" maxBarSize={16} radius={[3, 3, 0, 0]}>
-                {points.map((p, i) => (
-                  <Cell
-                    key={`est-${i}`}
-                    fill={COLOR_EST}
-                    fillOpacity={p.isFuture ? FUTURE_OPACITY : SOLID_OPACITY}
-                    stroke={p.isFuture ? COLOR_EST : "none"}
-                    strokeOpacity={p.isFuture ? 0.6 : 0}
-                    strokeDasharray={p.isFuture ? "3 2" : undefined}
-                  />
-                ))}
-              </Bar>
-              {hasRealizedCoverage && (
-                <Bar dataKey="realizedPL" maxBarSize={16} radius={[3, 3, 0, 0]}>
-                  {points.map((p, i) => (
+                {points.map((p, i) => {
+                  const c = estColor(p.estPL);
+                  return (
                     <Cell
-                      key={`real-${i}`}
-                      fill={COLOR_REAL}
+                      key={`est-${i}`}
+                      fill={c}
                       fillOpacity={p.isFuture ? FUTURE_OPACITY : SOLID_OPACITY}
-                      stroke={p.isFuture ? COLOR_REAL : "none"}
+                      stroke={p.isFuture ? c : "none"}
                       strokeOpacity={p.isFuture ? 0.6 : 0}
                       strokeDasharray={p.isFuture ? "3 2" : undefined}
                     />
-                  ))}
+                  );
+                })}
+              </Bar>
+              {hasRealizedCoverage && (
+                <Bar dataKey="realizedPL" maxBarSize={16} radius={[3, 3, 0, 0]}>
+                  {points.map((p, i) => {
+                    const c = realColor(p.realizedPL);
+                    return (
+                      <Cell
+                        key={`real-${i}`}
+                        fill={c}
+                        fillOpacity={p.isFuture ? FUTURE_OPACITY : SOLID_OPACITY}
+                        stroke={p.isFuture ? c : "none"}
+                        strokeOpacity={p.isFuture ? 0.6 : 0}
+                        strokeDasharray={p.isFuture ? "3 2" : undefined}
+                      />
+                    );
+                  })}
                 </Bar>
               )}
             </BarChart>
@@ -208,13 +223,13 @@ function MonthlyTooltip({ active, payload }: TooltipProps) {
         )}
       </div>
       <Row
-        color={COLOR_EST}
+        color={estColor(point.estPL)}
         label={t("dash.monthly.estimated")}
         value={formatCurrency(point.estPL)}
       />
       {point.realizedPL !== null && (
         <Row
-          color={COLOR_REAL}
+          color={realColor(point.realizedPL)}
           label={t("dash.monthly.realized")}
           value={formatCurrency(point.realizedPL)}
           sub={
