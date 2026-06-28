@@ -70,6 +70,12 @@ import { useActualExpenseRollup } from "@/hooks/useActualExpenseRollup";
 import { useSegmentBudgetMap } from "@/hooks/useSegmentBudgetMap";
 import { RealizedPLTable } from "@/components/dashboard/RealizedPLTable";
 import { RealizedPLDetailSheet } from "@/components/dashboard/RealizedPLDetailSheet";
+import { PendingPaymentsCard } from "@/components/overview/PendingPaymentsCard";
+import { LongestWaitingCard } from "@/components/overview/LongestWaitingCard";
+import {
+  selectPendingPayments,
+  selectWaitingVessels,
+} from "@/lib/selectors/overview";
 import {
   buildRealizedPLTable,
   buildMonthDetail,
@@ -298,6 +304,17 @@ export function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [projects, realizedExpenseByProject, budgetMap, filters.fyKey, t]
   );
+  // Genel Bakış'tan kopyalanan iki kart — aynı selektörler, filtrelenmiş
+  // proje setiyle (E.M Bakış'ın sağ rayında üstlü-altlı).
+  const waiting = React.useMemo(
+    () => selectWaitingVessels(projects, now),
+    [projects, now]
+  );
+  const pending = React.useMemo(
+    () => selectPendingPayments(projects, now, 200),
+    [projects, now]
+  );
+
   const [detailMonth, setDetailMonth] =
     React.useState<RealizedPLMonthDetail | null>(null);
   const openMonthDetail = React.useCallback(
@@ -467,36 +484,48 @@ export function DashboardPage() {
             sağda aylık Tahmini × Gerçekleşen K/Z grafiği. Eski bento
             kartları ve liderlik panelleri kaldırıldı — bu sayfa artık
             Emerging Markets KPI ekranı. */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-stretch">
-          <PeriodPerformanceTile
-            projects={projects}
-            now={now}
-            onClick={() => setDrawerKpi("period")}
-            realizedPL={realizedCoversFilter ? realizedAgg.pl : null}
-            realizedMarginPct={
-              realizedCoversFilter ? realizedAgg.marginPct : null
-            }
-            realizedContributingCount={realizedAgg.contributingCount}
-          />
-          <MonthlyPLChart
-            points={monthlyPL}
-            hasRealizedCoverage={realizedCoversFilter}
-            isFetching={rollup.isFetching}
-            onRefresh={handleRealizedRefresh}
-            fyLabel={fyShortLabel}
-          />
-        </div>
+        {/* Ana içerik solda (Dönem Performansı + Aylık K/Z grafiği, altında
+            aylık tablo); sağda dar rayda Genel Bakış'tan kopyalanan iki
+            kart üstlü-altlı: üstte Ödeme Bekleyen, altta En Uzun Bekleyen. */}
+        <div className="grid grid-cols-12 gap-3 items-start">
+          <div className="col-span-12 xl:col-span-9 space-y-3 min-w-0">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
+              <PeriodPerformanceTile
+                projects={projects}
+                now={now}
+                onClick={() => setDrawerKpi("period")}
+                realizedPL={realizedCoversFilter ? realizedAgg.pl : null}
+                realizedMarginPct={
+                  realizedCoversFilter ? realizedAgg.marginPct : null
+                }
+                realizedContributingCount={realizedAgg.contributingCount}
+              />
+              <MonthlyPLChart
+                points={monthlyPL}
+                hasRealizedCoverage={realizedCoversFilter}
+                isFetching={rollup.isFetching}
+                onRefresh={handleRealizedRefresh}
+                fyLabel={fyShortLabel}
+              />
+            </div>
 
-        {/* Aylık Tahmini × Gerçekleşen K/Z tablosu (BI replica) — ay
-            satırına tıklayınca proje kırılımı sağ panelde açılır. */}
-        <RealizedPLTable
-          data={realizedTable}
-          hasRealizedCoverage={realizedCoversFilter}
-          isFetching={rollup.isFetching}
-          onRefresh={handleRealizedRefresh}
-          onSelectMonth={openMonthDetail}
-          fyLabel={fyShortLabel}
-        />
+            {/* Aylık Tahmini × Gerçekleşen K/Z tablosu (BI replica) — ay
+                satırına tıklayınca proje kırılımı sağ panelde açılır. */}
+            <RealizedPLTable
+              data={realizedTable}
+              hasRealizedCoverage={realizedCoversFilter}
+              isFetching={rollup.isFetching}
+              onRefresh={handleRealizedRefresh}
+              onSelectMonth={openMonthDetail}
+              fyLabel={fyShortLabel}
+            />
+          </div>
+
+          <div className="col-span-12 xl:col-span-3 space-y-3 min-w-0">
+            <PendingPaymentsCard pending={pending} />
+            <LongestWaitingCard waiting={waiting} />
+          </div>
+        </div>
       </div>
 
       <RealizedPLDetailSheet
