@@ -19,9 +19,22 @@ import type {
   RealizedPLProjectRow,
 } from "@/lib/selectors/realizedPLTable";
 
-/* Fixed semantic tones — projected = blue (brand), realized = green. */
-const EST = { solid: "#2563eb", band: "rgba(37,99,235,0.08)", border: "rgba(37,99,235,0.22)" };
-const REAL = { solid: "#059669", band: "rgba(5,150,105,0.08)", border: "rgba(5,150,105,0.22)" };
+/* Fixed semantic tones. Projected = the tyrotrade sky→navy brand blue
+ * (logo/wordmark gradient `#38bdf8 → #2563eb → #1e3a8a`); realized =
+ * emerald. `grad` drives the section header strips (logo identity);
+ * `solid` is the readable text/chip accent (a real logo stop). */
+const EST = {
+  solid: "#2563eb",
+  grad: "linear-gradient(90deg, #38bdf8 0%, #2563eb 60%, #1e3a8a 100%)",
+  band: "rgba(37,99,235,0.08)",
+  border: "rgba(37,99,235,0.22)",
+};
+const REAL = {
+  solid: "#059669",
+  grad: "linear-gradient(90deg, #34d399 0%, #10b981 55%, #059669 100%)",
+  band: "rgba(5,150,105,0.08)",
+  border: "rgba(5,150,105,0.22)",
+};
 const POS = "#047857";
 const NEG = "#be123c";
 const NEUTRAL = "#475569";
@@ -187,7 +200,7 @@ function Section({
   totals,
   children,
 }: {
-  tone: { solid: string; band: string; border: string };
+  tone: { solid: string; grad: string; band: string; border: string };
   title: string;
   count: number;
   totals: { qty: number; revenue: number; pl: number };
@@ -199,31 +212,24 @@ function Section({
       className="rounded-2xl overflow-hidden border"
       style={{ borderColor: tone.border }}
     >
-      {/* Band header — title + count + total K/Z */}
+      {/* Band header — brand-gradient strip (logo identity), white text */}
       <div
-        className="flex items-center justify-between gap-2 px-3.5 py-2.5"
-        style={{ background: tone.band }}
+        className="flex items-center justify-between gap-2 px-3.5 py-2.5 text-white"
+        style={{ background: tone.grad }}
       >
         <div className="flex items-center gap-2 min-w-0">
           <span
             aria-hidden
-            className="size-2 rounded-full shrink-0"
-            style={{ background: tone.solid }}
+            className="size-2 rounded-full shrink-0 bg-white/90"
           />
-          <span
-            className="text-[11.5px] font-bold uppercase tracking-wider truncate"
-            style={{ color: tone.solid }}
-          >
+          <span className="text-[11.5px] font-bold uppercase tracking-wider truncate">
             {title}
           </span>
-          <span className="text-[10px] font-semibold text-muted-foreground tabular-nums">
+          <span className="text-[10px] font-semibold text-white/75 tabular-nums">
             · {count}
           </span>
         </div>
-        <span
-          className="text-[14px] font-bold tabular-nums shrink-0"
-          style={{ color: plColor(totals.pl) }}
-        >
+        <span className="text-[14px] font-bold tabular-nums shrink-0">
           {usd(totals.pl)}
         </span>
       </div>
