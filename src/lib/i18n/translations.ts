@@ -883,6 +883,9 @@ const tr: StringMap = {
   "dash.rpl.segment": "Segment",
   "dash.rpl.projBudget": "Tahmini Bütçe",
   "dash.rpl.realBudget": "Gerçekleşen Bütçe",
+  "dash.rpl.qtyShort": "Miktar",
+  "dash.rpl.revenueShort": "Ciro",
+  "dash.rpl.plShort": "K/Z",
   /* Tiles — Estimated P&L */
   "dash.tile.pl.title": "Tahmini K&Z",
   "dash.tile.pl.subtitleFx": "USD eşdeğeri · {count} proje · {fx} FX",
@@ -2105,6 +2108,9 @@ const en: StringMap = {
   "dash.rpl.segment": "Segment Name",
   "dash.rpl.projBudget": "Projected Budget",
   "dash.rpl.realBudget": "Live Realized Budget",
+  "dash.rpl.qtyShort": "Qty",
+  "dash.rpl.revenueShort": "Revenue",
+  "dash.rpl.plShort": "P&L",
   /* Tiles — Estimated P&L */
   "dash.tile.pl.title": "Estimated P&L",
   "dash.tile.pl.subtitleFx": "USD equivalent · {count} projects · {fx} FX",
