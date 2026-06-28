@@ -67,6 +67,15 @@ import {
 import { selectStage } from "@/lib/selectors/project";
 import { aggregateMonthlyPL, aggregateRealizedPL } from "@/lib/selectors/monthlyPL";
 import { useActualExpenseRollup } from "@/hooks/useActualExpenseRollup";
+import { useSegmentBudgetMap } from "@/hooks/useSegmentBudgetMap";
+import { RealizedPLTable } from "@/components/dashboard/RealizedPLTable";
+import { RealizedPLDetailSheet } from "@/components/dashboard/RealizedPLDetailSheet";
+import {
+  buildRealizedPLTable,
+  buildMonthDetail,
+  type RealizedPLMonthRow,
+  type RealizedPLMonthDetail,
+} from "@/lib/selectors/realizedPLTable";
 import { useThemeAccent } from "@/components/layout/theme-accent";
 import {
   findFyByKey,
@@ -272,6 +281,40 @@ export function DashboardPage() {
     rollup.refresh(filteredProjids);
   }, [rollup, filteredProjids]);
 
+  // Realized × Projected P&L monthly table (BI replica) — segment×month
+  // budget from the dedicated cache, everything else from the same
+  // selectors the chart/card use.
+  const budgetMap = useSegmentBudgetMap();
+  const realizedTable = React.useMemo(
+    () =>
+      buildRealizedPLTable(
+        projects,
+        realizedExpenseByProject,
+        budgetMap,
+        now,
+        (filters.fyKey && findFyByKey(filters.fyKey)) || getFinancialYear(now),
+        t("dash.rpl.total")
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [projects, realizedExpenseByProject, budgetMap, filters.fyKey, t]
+  );
+  const [detailMonth, setDetailMonth] =
+    React.useState<RealizedPLMonthDetail | null>(null);
+  const openMonthDetail = React.useCallback(
+    (row: RealizedPLMonthRow) => {
+      setDetailMonth(
+        buildMonthDetail(
+          projects,
+          row.monthKey,
+          row.monthLabel,
+          realizedExpenseByProject,
+          budgetMap
+        )
+      );
+    },
+    [projects, realizedExpenseByProject, budgetMap]
+  );
+
   // Approximate "rows visible after search" — counts projects passing
   // the toolbar's free-text query. Matches the per-breakdown filter so
   // the toolbar's `12/437` counter is honest. Specific breakdowns may
@@ -443,7 +486,24 @@ export function DashboardPage() {
             fyLabel={fyShortLabel}
           />
         </div>
+
+        {/* Aylık Tahmini × Gerçekleşen K/Z tablosu (BI replica) — ay
+            satırına tıklayınca proje kırılımı sağ panelde açılır. */}
+        <RealizedPLTable
+          data={realizedTable}
+          hasRealizedCoverage={realizedCoversFilter}
+          isFetching={rollup.isFetching}
+          onRefresh={handleRealizedRefresh}
+          onSelectMonth={openMonthDetail}
+          fyLabel={fyShortLabel}
+        />
       </div>
+
+      <RealizedPLDetailSheet
+        open={detailMonth !== null}
+        onOpenChange={(o) => !o && setDetailMonth(null)}
+        detail={detailMonth}
+      />
 
       {/* KPI detail drawer — renders the breakdown component matching
           the active tile id. Toolbar (search + sort) lives inside the

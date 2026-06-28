@@ -236,6 +236,10 @@ export interface Project {
   salesActualByCurrency?: Record<string, number>;
   /** Number of invoice rows aggregated for this project. */
   salesActualInvoiceCount?: number;
+  /** Realized invoiced quantity in TONS (Σ `mserp_qty` kg ÷ 1000) from
+   *  customer invoices — the "Live Realized Quantity" column on the E.M
+   *  Bakış realized-vs-projected table. */
+  salesActualQtyTons?: number;
   /** Total realized vendor-invoice purchase in USD (sum of
    *  `mserp_lineamount` where currency=USD) — the realized "Alım" twin
    *  of `salesActualUsd`. Server-side aggregation over

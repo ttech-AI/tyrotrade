@@ -166,7 +166,13 @@ export function composeProjects(input: ComposeInput): ComposeResult {
   // are kept in salesActualByCurrency for the budget-vs-actual card.
   const salesByProjid = new Map<
     string,
-    { byCurrency: Record<string, number>; usd: number; count: number }
+    {
+      byCurrency: Record<string, number>;
+      usd: number;
+      count: number;
+      /** Σ invoiced quantity (kg) across all currencies. */
+      qtyKg: number;
+    }
   >();
   for (const r of salesAggregateRows ?? []) {
     const pid = readString(r, "mserp_etgtryprojid");
@@ -174,14 +180,16 @@ export function composeProjects(input: ComposeInput): ComposeResult {
     const cur = readString(r, "mserp_currencycode") || "USD";
     const total = num(r["total"]);
     const cnt = num(r["cnt"]);
+    const qty = num(r["qty"]);
     let entry = salesByProjid.get(pid);
     if (!entry) {
-      entry = { byCurrency: {}, usd: 0, count: 0 };
+      entry = { byCurrency: {}, usd: 0, count: 0, qtyKg: 0 };
       salesByProjid.set(pid, entry);
     }
     entry.byCurrency[cur] = (entry.byCurrency[cur] ?? 0) + total;
     if (cur === "USD") entry.usd += total;
     entry.count += cnt;
+    entry.qtyKg += qty;
   }
 
   // Per-projid realized PURCHASE totals (mirror of sales). One entry per
@@ -338,6 +346,10 @@ export function composeProjects(input: ComposeInput): ComposeResult {
         )
       : undefined;
     const salesActualInvoiceCount = salesEntry?.count;
+    // Realized invoiced tonnage (kg → t) — "Live Realized Quantity".
+    const salesActualQtyTons = salesEntry
+      ? Math.round(salesEntry.qtyKg / 1000)
+      : undefined;
 
     // Realized purchase enrichment — same entityId lookup as sales.
     const purchaseEntry = entityId
@@ -453,6 +465,7 @@ export function composeProjects(input: ComposeInput): ComposeResult {
       salesActualUsd,
       salesActualByCurrency,
       salesActualInvoiceCount,
+      salesActualQtyTons,
       purchaseActualUsd,
       purchaseActualByCurrency,
       segmentBudgets,

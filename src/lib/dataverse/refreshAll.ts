@@ -12,14 +12,19 @@ import {
   SUB_PROJECT_DETAIL_COLUMNS,
   SHIP_COLUMNS,
   EXPENSE_COLUMNS,
-  // PURCHASE_COLUMNS + ACTUAL_EXPENSE_COLUMNS + BUDGET_COLUMNS
-  // intentionally not imported — all three are fetched per-selected-
-  // project on-demand from `useProjectPurchases`,
-  // `useProjectExpenseLines`, and `useSegmentBudget(segment)`
-  // respectively. The bulk refresh chain skips them to keep the
-  // localStorage cache under quota.
+  // PURCHASE_COLUMNS + ACTUAL_EXPENSE_COLUMNS intentionally not imported
+  // — both are fetched per-selected-project on-demand from
+  // `useProjectPurchases` / `useProjectExpenseLines`. BUDGET_COLUMNS IS
+  // imported: the budget entity is small (~1.3k rows) and the E.M Bakış
+  // realized-vs-projected table needs a tenant-wide segment×month budget
+  // rollup, so it now rides the bulk refresh (aggregated, not raw rows).
+  BUDGET_COLUMNS,
   VESSEL_TABLE_COLUMNS,
 } from "@/lib/dataverse/columnOrder";
+import {
+  SEGMENT_BUDGET_BY_MONTH_CACHE,
+  aggregateSegmentBudgetByMonth,
+} from "@/lib/dataverse/segmentBudget";
 
 /**
  * Standalone Dataverse refresh — fetches the 6 cached entity sets +
@@ -910,14 +915,21 @@ export async function refreshAllEntities(
           "mserp_etgtryprojid",
           projids,
           (inClause) =>
-            `filter((${inClause}) and (${NON_INTERCOMPANY_FILTER}))/groupby((mserp_etgtryprojid,mserp_currencycode,mserp_salesid),aggregate(mserp_lineamount with sum as total,$count as cnt))`
+            `filter((${inClause}) and (${NON_INTERCOMPANY_FILTER}))/groupby((mserp_etgtryprojid,mserp_currencycode,mserp_salesid),aggregate(mserp_lineamount with sum as total,mserp_qty with sum as qty,$count as cnt))`
         );
         const financingSet = getFinancingSalesIdSet();
         // Re-aggregate on (projid, currency), dropping financing
-        // salesids. Map key: `${projid}::${currency}`.
+        // salesids. Map key: `${projid}::${currency}`. `qty` (invoiced
+        // kg) rides along so the composer can derive realized tonnage.
         const rolled = new Map<
           string,
-          { projid: string; currency: string; total: number; cnt: number }
+          {
+            projid: string;
+            currency: string;
+            total: number;
+            qty: number;
+            cnt: number;
+          }
         >();
         for (const row of result.value) {
           const salesid = String(row.mserp_salesid ?? "");
@@ -927,13 +939,15 @@ export async function refreshAllEntities(
           if (!projid) continue;
           const key = `${projid}::${currency}`;
           const total = Number(row.total) || 0;
+          const qty = Number(row.qty) || 0;
           const cnt = Number(row.cnt) || 0;
           const existing = rolled.get(key);
           if (existing) {
             existing.total += total;
+            existing.qty += qty;
             existing.cnt += cnt;
           } else {
-            rolled.set(key, { projid, currency, total, cnt });
+            rolled.set(key, { projid, currency, total, qty, cnt });
           }
         }
         const reAggregated: Record<string, unknown>[] = [];
@@ -942,6 +956,7 @@ export async function refreshAllEntities(
             mserp_etgtryprojid: r.projid,
             mserp_currencycode: r.currency,
             total: r.total,
+            qty: r.qty,
             cnt: r.cnt,
           });
         }
@@ -1007,6 +1022,27 @@ export async function refreshAllEntities(
         writeCache("purchaseAggregateByProject", {
           fetchedAt: new Date().toISOString(),
           value: reAggregated,
+        });
+      },
+    },
+    {
+      label: "Bütçe Toplamları",
+      run: async () => {
+        // Segment × month budget for the E.M Bakış realized-vs-projected
+        // table. The entity is small (~1.3k rows) and has no project FK,
+        // so we pull it raw and fold to per-(segment, month) net P&L
+        // client-side (Dataverse rejects groupby on the datetime
+        // `mserp_year`). See `segmentBudget.ts`.
+        const result = await client.listAll<Record<string, unknown>>(
+          "mserp_tryaiprojectbudgetlineentities",
+          {
+            $select: BUDGET_COLUMNS.join(","),
+            $count: true,
+          }
+        );
+        writeCache(SEGMENT_BUDGET_BY_MONTH_CACHE, {
+          fetchedAt: new Date().toISOString(),
+          value: aggregateSegmentBudgetByMonth(result.value),
         });
       },
     },

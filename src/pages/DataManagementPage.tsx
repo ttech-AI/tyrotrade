@@ -50,6 +50,10 @@ import {
   SALES_COLUMNS,
   BUDGET_COLUMNS,
 } from "@/lib/dataverse/columnOrder";
+import {
+  SEGMENT_BUDGET_BY_MONTH_CACHE,
+  aggregateSegmentBudgetByMonth,
+} from "@/lib/dataverse/segmentBudget";
 import { useProjectExpenseLines } from "@/hooks/useProjectExpenseLines";
 import { useProjectEstimatedExpense } from "@/hooks/useProjectEstimatedExpense";
 import { useProjectPurchases } from "@/hooks/useProjectPurchases";
@@ -700,12 +704,18 @@ export function DataManagementPage() {
             "mserp_etgtryprojid",
             projids,
             (inClause) =>
-              `filter((${inClause}) and (${NON_INTERCOMPANY_FILTER}))/groupby((mserp_etgtryprojid,mserp_currencycode,mserp_salesid),aggregate(mserp_lineamount with sum as total,$count as cnt))`
+              `filter((${inClause}) and (${NON_INTERCOMPANY_FILTER}))/groupby((mserp_etgtryprojid,mserp_currencycode,mserp_salesid),aggregate(mserp_lineamount with sum as total,mserp_qty with sum as qty,$count as cnt))`
           );
           const financingSet = getFinancingSalesIdSet();
           const rolled = new Map<
             string,
-            { projid: string; currency: string; total: number; cnt: number }
+            {
+              projid: string;
+              currency: string;
+              total: number;
+              qty: number;
+              cnt: number;
+            }
           >();
           for (const row of result.value) {
             const salesid = String(row.mserp_salesid ?? "");
@@ -715,13 +725,15 @@ export function DataManagementPage() {
             if (!projid) continue;
             const key = `${projid}::${currency}`;
             const total = Number(row.total) || 0;
+            const qty = Number(row.qty) || 0;
             const cnt = Number(row.cnt) || 0;
             const existing = rolled.get(key);
             if (existing) {
               existing.total += total;
+              existing.qty += qty;
               existing.cnt += cnt;
             } else {
-              rolled.set(key, { projid, currency, total, cnt });
+              rolled.set(key, { projid, currency, total, qty, cnt });
             }
           }
           const reAggregated: Record<string, unknown>[] = [];
@@ -730,6 +742,7 @@ export function DataManagementPage() {
               mserp_etgtryprojid: r.projid,
               mserp_currencycode: r.currency,
               total: r.total,
+              qty: r.qty,
               cnt: r.cnt,
             });
           }
@@ -793,6 +806,23 @@ export function DataManagementPage() {
           writeCache("purchaseAggregateByProject", {
             fetchedAt: new Date().toISOString(),
             value: reAggregated,
+          });
+        },
+      },
+      {
+        // Segment × month budget for the E.M Bakış realized-vs-projected
+        // table. MUST stay in sync with refreshAll.ts. Small entity
+        // pulled raw + folded to per-(segment, month) net P&L.
+        label: "Bütçe Toplamları",
+        refetch: async () => {
+          const client = getDataverseClient();
+          const result = await client.listAll<Record<string, unknown>>(
+            "mserp_tryaiprojectbudgetlineentities",
+            { $select: BUDGET_COLUMNS.join(","), $count: true }
+          );
+          writeCache(SEGMENT_BUDGET_BY_MONTH_CACHE, {
+            fetchedAt: new Date().toISOString(),
+            value: aggregateSegmentBudgetByMonth(result.value),
           });
         },
       },
