@@ -32,6 +32,9 @@ export interface BentoTileProps extends BentoTileSpan {
   interactive?: boolean;
   /** Click handler */
   onClick?: () => void;
+  /** Optional right-aligned header slot (e.g. a "Yenile" button) — sits
+   *  where the icon used to, now that the icon leads on the left. */
+  headerAction?: React.ReactNode;
   className?: string;
   children?: React.ReactNode;
 }
@@ -68,6 +71,7 @@ export function BentoTile({
   tone = "default",
   interactive = true,
   onClick,
+  headerAction,
   className,
   children,
 }: BentoTileProps) {
@@ -111,12 +115,24 @@ export function BentoTile({
         }
       >
         <div className="p-4 flex flex-col gap-2 h-full min-w-0">
-          {(title || icon) && (
-            <header className="flex items-center justify-between gap-2 min-w-0">
+          {(title || icon || headerAction) && (
+            <header className="flex items-center gap-2.5 min-w-0">
+              {icon && (
+                // Leading stroke icon (left of the title) — mirrors the
+                // "Ödeme Bekleyen Gemiler" card. Semantic tone reads
+                // through the stroke; no pill so the headline numbers
+                // still lead.
+                <HugeiconsIcon
+                  icon={icon}
+                  size={18}
+                  strokeWidth={1.75}
+                  style={{ color: effectiveTone.solid }}
+                  className="shrink-0"
+                />
+              )}
               <div className="min-w-0 flex-1">
                 {title && (
-                  // Dark navy ink (`text-slate-900`) instead of the
-                  // earlier muted `text-foreground/75` — gives KPI tile
+                  // Dark navy ink (`text-slate-900`) gives KPI tile
                   // titles a deliberate weight that lifts them off the
                   // glass surface without competing with the headline
                   // numbers below.
@@ -130,20 +146,7 @@ export function BentoTile({
                   </div>
                 )}
               </div>
-              {icon && (
-                // Minimal stroke icon — no pill, no shadow. The semantic
-                // tone still reads through the stroke colour but the
-                // visual weight drops dramatically so the headline
-                // numbers can lead. 1.5 stroke + 18px keeps it crisp at
-                // both 1× and 2× DPR without competing with the title.
-                <HugeiconsIcon
-                  icon={icon}
-                  size={18}
-                  strokeWidth={1.5}
-                  style={{ color: effectiveTone.solid }}
-                  className="shrink-0 opacity-90"
-                />
-              )}
+              {headerAction && <div className="shrink-0">{headerAction}</div>}
             </header>
           )}
           <div className="relative flex-1 min-w-0">{children}</div>

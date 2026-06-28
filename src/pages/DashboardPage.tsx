@@ -529,6 +529,7 @@ export function DashboardPage() {
       <KpiDetailDrawer
         open={drawerKpi !== null}
         onOpenChange={(open) => !open && closeDrawer()}
+        widthClass="sm:max-w-[640px]"
         title={drawerKpi ? t(KPI_META[drawerKpi].titleKey) : ""}
         subtitle={
           drawerKpi

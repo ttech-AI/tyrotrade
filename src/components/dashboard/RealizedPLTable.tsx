@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
-import { RefreshCw, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { TableIcon } from "@hugeicons/core-free-icons";
 import { BentoTile } from "./BentoTile";
+import { RefreshButton } from "./RefreshButton";
 import { TONE_PL } from "@/components/details/AccentIconBadge";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { formatNumber, formatCompactCurrency } from "@/lib/format";
@@ -59,32 +60,15 @@ export function RealizedPLTable({
       icon={TableIcon}
       iconTone={TONE_PL}
       interactive={false}
+      headerAction={
+        <RefreshButton
+          isFetching={isFetching}
+          hasRealizedCoverage={hasRealizedCoverage}
+          onRefresh={onRefresh}
+        />
+      }
     >
       <div className="flex flex-col gap-2">
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={isFetching}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold",
-              "border border-border/60 bg-foreground/[0.03] hover:bg-foreground/[0.06]",
-              "transition-colors disabled:opacity-60 disabled:cursor-default"
-            )}
-            style={{ color: GREEN }}
-          >
-            <RefreshCw
-              className={cn("size-3.5", isFetching && "animate-spin")}
-              strokeWidth={2.25}
-            />
-            {isFetching
-              ? t("dash.monthly.computing")
-              : hasRealizedCoverage
-                ? t("dash.monthly.refresh")
-                : t("dash.monthly.compute")}
-          </button>
-        </div>
-
         <div className="overflow-x-auto -mx-1 px-1">
           <table className="w-full min-w-[860px] border-collapse text-[12px]">
             <thead>

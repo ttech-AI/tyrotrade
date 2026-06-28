@@ -9,13 +9,12 @@ import {
   ReferenceLine,
   Tooltip,
 } from "recharts";
-import { RefreshCw } from "lucide-react";
 import { ChartBarBigIcon } from "@hugeicons/core-free-icons";
 import { BentoTile } from "./BentoTile";
+import { RefreshButton } from "./RefreshButton";
 import { TONE_FORECAST } from "@/components/details/AccentIconBadge";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { formatCompactCurrency, formatCurrency } from "@/lib/format";
-import { cn } from "@/lib/utils";
 import type { MonthlyPLPoint } from "@/lib/selectors/monthlyPL";
 
 /** Estimated (tahmini) = brand blue · Realized (gerçekleşen) = emerald.
@@ -74,46 +73,27 @@ export function MonthlyPLChart({
       iconTone={TONE_FORECAST}
       interactive={false}
       span={span}
+      headerAction={
+        <RefreshButton
+          isFetching={isFetching}
+          hasRealizedCoverage={hasRealizedCoverage}
+          onRefresh={onRefresh}
+        />
+      }
     >
       <div className="flex flex-col gap-2 h-full min-h-[260px]">
-        {/* Legend + controls */}
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3.5 text-[11px]">
-            <LegendSwatch color={COLOR_EST} label={t("dash.monthly.estimated")} />
-            <LegendSwatch
-              color={COLOR_REAL}
-              label={t("dash.monthly.realized")}
+        {/* Legend */}
+        <div className="flex items-center gap-3.5 text-[11px] flex-wrap">
+          <LegendSwatch color={COLOR_EST} label={t("dash.monthly.estimated")} />
+          <LegendSwatch color={COLOR_REAL} label={t("dash.monthly.realized")} />
+          <span className="inline-flex items-center gap-1.5 text-muted-foreground/80">
+            <span
+              aria-hidden
+              className="size-2.5 rounded-[3px] border border-dashed"
+              style={{ borderColor: COLOR_EST, opacity: 0.7 }}
             />
-            <span className="inline-flex items-center gap-1.5 text-muted-foreground/80">
-              <span
-                aria-hidden
-                className="size-2.5 rounded-[3px] border border-dashed"
-                style={{ borderColor: COLOR_EST, opacity: 0.7 }}
-              />
-              {t("dash.monthly.future")}
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={isFetching}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold",
-              "border border-border/60 bg-foreground/[0.03] hover:bg-foreground/[0.06]",
-              "transition-colors disabled:opacity-60 disabled:cursor-default"
-            )}
-            style={{ color: COLOR_REAL }}
-          >
-            <RefreshCw
-              className={cn("size-3.5", isFetching && "animate-spin")}
-              strokeWidth={2.25}
-            />
-            {isFetching
-              ? t("dash.monthly.computing")
-              : hasRealizedCoverage
-                ? t("dash.monthly.refresh")
-                : t("dash.monthly.compute")}
-          </button>
+            {t("dash.monthly.future")}
+          </span>
         </div>
 
         {/* Chart */}

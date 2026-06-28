@@ -671,10 +671,45 @@ export function PeriodPerformanceBreakdown({
   if (rows.length === 0)
     return <KpiEmptyState message={t("dash.bk.period.empty")} />;
 
-  const totalPL = rows.reduce((s, r) => s + r.plUsd, 0);
+  const tot = rows.reduce(
+    (a, r) => ({
+      sales: a.sales + r.salesUsd,
+      purchase: a.purchase + r.purchaseUsd,
+      expense: a.expense + r.expenseUsd,
+      pl: a.pl + r.plUsd,
+    }),
+    { sales: 0, purchase: 0, expense: 0, pl: 0 }
+  );
+  const totalMargin = tot.sales > 0 ? (tot.pl / tot.sales) * 100 : null;
 
   return (
     <div className="flex flex-col">
+      {/* Summary strip — aggregate Satış / Alış / Gider / K&Z so the
+          headline reads at a glance before scanning the rows. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 px-1 pt-1 pb-2">
+        <PSummary
+          label={t("dash.bk.period.sales")}
+          value={formatCompactCurrency(tot.sales, "USD")}
+          color="#0284c7"
+        />
+        <PSummary
+          label={t("dash.bk.period.purchase")}
+          value={formatCompactCurrency(tot.purchase, "USD")}
+          color="#475569"
+        />
+        <PSummary
+          label={t("dash.bk.period.expense")}
+          value={formatCompactCurrency(tot.expense, "USD")}
+          color="#d97706"
+        />
+        <PSummary
+          label={t("dash.tile.period.realPL")}
+          value={signedCompact(tot.pl)}
+          color={plColor(tot.pl)}
+          sub={totalMargin != null ? `%${totalMargin.toFixed(1)}` : undefined}
+        />
+      </div>
+
       <KpiGroupHeader
         label={
           sortReversed
@@ -683,19 +718,51 @@ export function PeriodPerformanceBreakdown({
         }
         count={rows.length}
         icon={ChartLineData01Icon}
-        valueChip={
-          <span
-            className="text-[12px] font-bold tabular-nums"
-            style={{ color: plColor(totalPL) }}
-          >
-            {signedCompact(totalPL)}
-          </span>
-        }
       />
       <div className="flex flex-col gap-1">
         {rows.map((r) => (
           <RealizedPLRow key={r.p.projectNo} row={r} onClose={onClose} t={t} />
         ))}
+      </div>
+    </div>
+  );
+}
+
+function PSummary({
+  label,
+  value,
+  color,
+  sub,
+}: {
+  label: string;
+  value: string;
+  color: string;
+  sub?: string;
+}) {
+  return (
+    <div
+      className="rounded-xl bg-foreground/[0.025] px-3 py-2.5 min-w-0 border-l-[3px]"
+      style={{ borderLeftColor: color }}
+    >
+      <div className="text-[9.5px] uppercase tracking-wider text-muted-foreground truncate">
+        {label}
+      </div>
+      <div className="flex items-baseline gap-1.5 mt-1">
+        <span
+          className="text-[14px] font-bold tabular-nums leading-tight truncate"
+          style={{ color }}
+          title={value}
+        >
+          {value}
+        </span>
+        {sub && (
+          <span
+            className="text-[10px] font-bold tabular-nums shrink-0"
+            style={{ color }}
+          >
+            {sub}
+          </span>
+        )}
       </div>
     </div>
   );

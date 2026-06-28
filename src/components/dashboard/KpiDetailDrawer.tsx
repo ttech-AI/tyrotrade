@@ -47,6 +47,10 @@ interface KpiDetailDrawerProps {
    *  it. Pass a `<KpiDrawerToolbar />` element here — drawer doesn't own
    *  the search/sort state because it changes per-KPI. */
   toolbar?: React.ReactNode;
+  /** Tailwind max-width class for the drawer panel. Defaults to a
+   *  narrow 480px; pass a wider one (e.g. the realized-K/Z breakdown)
+   *  for content that needs room to breathe. */
+  widthClass?: string;
   children?: React.ReactNode;
 }
 
@@ -64,6 +68,7 @@ export function KpiDetailDrawer({
   icon,
   iconTone,
   toolbar,
+  widthClass = "sm:max-w-[480px]",
   children,
 }: KpiDetailDrawerProps) {
   const accent = useThemeAccent();
@@ -85,7 +90,8 @@ export function KpiDetailDrawer({
           // (first child) honours the parent's `rounded-l-3xl` —
           // without it the strip cuts straight across the rounded
           // top-left corner instead of curving into it.
-          "w-full sm:max-w-[480px] p-0 flex flex-col gap-0 overflow-hidden",
+          "w-full p-0 flex flex-col gap-0 overflow-hidden",
+          widthClass,
           "bg-white/95 backdrop-blur-2xl backdrop-saturate-150",
           "border-l border-border/60",
           "shadow-[0_30px_80px_-16px_rgba(15,23,42,0.45)]"
