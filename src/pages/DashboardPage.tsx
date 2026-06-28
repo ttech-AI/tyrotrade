@@ -472,38 +472,33 @@ export function DashboardPage() {
           </div>
         </GlassPanel>
 
-        {/* E.M Bakış ana satırı: solda Dönem Performansı (KPI özeti),
-            sağda aylık Tahmini × Gerçekleşen K/Z grafiği. Eski bento
-            kartları ve liderlik panelleri kaldırıldı — bu sayfa artık
-            Emerging Markets KPI ekranı. */}
-        {/* Ana içerik solda (Dönem Performansı + Aylık K/Z grafiği, altında
-            aylık tablo); sağda dar rayda Ödeme Bekleyen Gemiler. Sağ ray
-            mutlak konumlu kart ile sol kolonun yüksekliğine sabitlenir —
-            kart içeride kayar, alt hizası sol kolonla aynı kalır (taşmaz). */}
-        <div className="grid grid-cols-12 gap-3 items-stretch">
-          <div className="col-span-12 xl:col-span-9 space-y-3 min-w-0">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
-              <PeriodPerformanceTile
-                projects={projects}
-                now={now}
-                onClick={() => setDrawerKpi("period")}
-                realizedPL={realizedCoversFilter ? realizedAgg.pl : null}
-                realizedMarginPct={
-                  realizedCoversFilter ? realizedAgg.marginPct : null
-                }
-                realizedContributingCount={realizedAgg.contributingCount}
-              />
-              <MonthlyPLChart
-                points={monthlyPL}
-                hasRealizedCoverage={realizedCoversFilter}
-                isFetching={rollup.isFetching}
-                onRefresh={handleRealizedRefresh}
-                fyLabel={fyShortLabel}
-              />
-            </div>
+        {/* 1. satır — sadece iki kart: Dönem Performansı + Aylık K/Z. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
+          <PeriodPerformanceTile
+            projects={projects}
+            now={now}
+            onClick={() => setDrawerKpi("period")}
+            realizedPL={realizedCoversFilter ? realizedAgg.pl : null}
+            realizedMarginPct={
+              realizedCoversFilter ? realizedAgg.marginPct : null
+            }
+            realizedContributingCount={realizedAgg.contributingCount}
+          />
+          <MonthlyPLChart
+            points={monthlyPL}
+            hasRealizedCoverage={realizedCoversFilter}
+            isFetching={rollup.isFetching}
+            onRefresh={handleRealizedRefresh}
+            fyLabel={fyShortLabel}
+          />
+        </div>
 
-            {/* Aylık Tahmini × Gerçekleşen K/Z tablosu (BI replica) — ay
-                satırına tıklayınca proje kırılımı sağ panelde açılır. */}
+        {/* 2. satır — aylık Tahmini × Gerçekleşen K/Z tablosu (geniş, ay
+            satırına tıklayınca proje kırılımı sağ panelde) + sağda Ödeme
+            Bekleyen Gemiler. Sağ ray mutlak konumlu kart ile tablonun
+            yüksekliğine sabitlenir — alt hizası tabloyla aynı (taşmaz). */}
+        <div className="grid grid-cols-12 gap-3 items-stretch">
+          <div className="col-span-12 xl:col-span-9 min-w-0">
             <RealizedPLTable
               data={realizedTable}
               hasRealizedCoverage={realizedCoversFilter}
@@ -513,10 +508,7 @@ export function DashboardPage() {
               fyLabel={fyShortLabel}
             />
           </div>
-
           <div className="col-span-12 xl:col-span-3 min-w-0 relative">
-            {/* xl: absolute → kart sol kolonun yüksekliğini aşmaz, içeride
-                kayar; mobilde normal akışta tam yükseklik. */}
             <div className="xl:absolute xl:inset-0">
               <PendingPaymentsCard pending={pending} />
             </div>
