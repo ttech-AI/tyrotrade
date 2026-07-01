@@ -32,6 +32,18 @@ function readLang(): Lang {
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = React.useState<Lang>(() => readLang());
 
+  // Keep <html lang> in sync with the active language. This is what drives
+  // CSS `text-transform: uppercase` to pick the correct locale casing rules
+  // app-wide: under lang="tr" the browser maps "i" → "İ" (dotted capital),
+  // so English labels rendered uppercase came out as "PRİCE" etc. Setting
+  // lang="en" makes "i" → "I" everywhere at once — the systematic fix that
+  // replaces the per-element `lang="en"` overrides scattered across pages.
+  React.useLayoutEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.lang = lang;
+    }
+  }, [lang]);
+
   const setLang = React.useCallback((l: Lang) => {
     setLangState(l);
     if (typeof window !== "undefined") localStorage.setItem(STORAGE_KEY, l);
