@@ -240,12 +240,15 @@ export function DashboardPage() {
     [projects, realizedExpenseByProject]
   );
 
-  const fyShortLabel = React.useMemo(() => {
-    const fy =
-      (filters.fyKey && findFyByKey(filters.fyKey)) || getFinancialYear(now);
-    return fy.label;
+  // FY the dashboard is scoped to — the period filter's fyKey, or the FY of
+  // `now` when unset. Shared by the sparkline tile, the FY label, etc. so the
+  // whole page reads one selected year (not the calendar-current one).
+  const selectedFy = React.useMemo(
+    () => (filters.fyKey && findFyByKey(filters.fyKey)) || getFinancialYear(now),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters.fyKey]);
+    [filters.fyKey]
+  );
+  const fyShortLabel = selectedFy.label;
 
   // Auto-compute the realized series once per "coverage gap" (non-blocking):
   // estimated bars render immediately; realized fills in when the scoped
@@ -477,6 +480,7 @@ export function DashboardPage() {
           <PeriodPerformanceTile
             projects={projects}
             now={now}
+            fy={selectedFy}
             onClick={() => setDrawerKpi("period")}
             realizedPL={realizedCoversFilter ? realizedAgg.pl : null}
             realizedMarginPct={

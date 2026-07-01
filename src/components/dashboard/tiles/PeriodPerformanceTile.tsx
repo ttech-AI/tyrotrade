@@ -17,12 +17,19 @@ import {
   selectExecutionDate,
   selectTotalTons,
 } from "@/lib/selectors/project";
-import { getFinancialYear } from "@/lib/dashboard/financialPeriod";
+import { getFinancialYear, type FinancialYear } from "@/lib/dashboard/financialPeriod";
 import type { Project } from "@/lib/dataverse/entities";
 
 interface PeriodPerformanceTileProps {
   projects: Project[];
   now?: Date;
+  /** Financial year the dashboard is currently scoped to (from the period
+   *  filter's fyKey). The sparkline buckets align to THIS year, not the
+   *  calendar-current FY — otherwise, once `now` rolls into a new FY with no
+   *  data yet, the sparkline anchors to an empty range while the filtered
+   *  projects (a past FY) all fall outside it → a flat/blank chart. Defaults
+   *  to the FY of `now` when omitted. */
+  fy?: FinancialYear;
   span?: string;
   rowSpan?: string;
   onClick?: () => void;
@@ -54,6 +61,7 @@ interface SparkPoint {
 export function PeriodPerformanceTile({
   projects,
   now = new Date(),
+  fy,
   span,
   rowSpan,
   onClick,
@@ -74,14 +82,15 @@ export function PeriodPerformanceTile({
   const hasRealized = realizedPL !== null && realizedMarginPct !== null;
 
   // Financial-year-aligned 12-month sparkline: Jul (start of FY) → Jun
-  // (end of FY). Anchored at the FY containing `now` so the timeline
-  // always reads in Tiryaki convention regardless of when the user
-  // opens the dashboard.
+  // (end of FY). Anchored at the SELECTED FY (the period filter's fyKey),
+  // falling back to the FY containing `now`. Anchoring on `now` would blank
+  // the chart the moment the calendar rolls into a fresh, data-less FY while
+  // the user is still viewing a past year's projects.
   const sparkline = React.useMemo<SparkPoint[]>(() => {
-    const fy = getFinancialYear(now);
+    const activeFy = fy ?? getFinancialYear(now);
     const buckets: SparkPoint[] = [];
     for (let i = 0; i < 12; i++) {
-      const d = new Date(fy.startYear, 6 + i, 1); // Jul = month 6
+      const d = new Date(activeFy.startYear, 6 + i, 1); // Jul = month 6
       const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       const monthLabel = new Intl.DateTimeFormat("tr-TR", {
         month: "short",
@@ -98,7 +107,7 @@ export function PeriodPerformanceTile({
       if (idx !== undefined) buckets[idx].value++;
     }
     return buckets;
-  }, [projects, now]);
+  }, [projects, now, fy]);
 
   const mp = realizedMarginPct ?? 0;
   const marginColor = !hasRealized
