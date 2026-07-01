@@ -204,12 +204,14 @@ export function PeriodPerformanceTile({
                 // Rollup hesaplanırken — Sefer Takibi gider kartındaki
                 // "veri geliyor" ipucuyla aynı: dönen spinner + kısa etiket.
                 // Gerçekleşen taraf uygulama genelinde emerald kodlu.
-                <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                // `self-center` — üst KPI kutusu `items-baseline` hizaladığı
+                // için spinner başlığa yapışmasın; dikeyde ortalanır.
+                <span className="inline-flex items-center gap-2 whitespace-nowrap self-center">
                   <Loader2
-                    className="size-4 animate-spin"
+                    className="size-5 animate-spin"
                     style={{ color: "#10b981" }}
                   />
-                  <span className="text-[11px] font-medium text-muted-foreground">
+                  <span className="text-[11.5px] font-medium text-muted-foreground">
                     {t("dash.monthly.computing")}
                   </span>
                 </span>
