@@ -4,7 +4,8 @@ import { translations, type Lang } from "./translations";
 /**
  * App language context — TR/EN. Persisted under `tyro:lang` (own key,
  * mirroring the sidebar theme pattern in sidebar-context.tsx). Default is
- * Turkish; the sidebar LanguageToggle flips it.
+ * ENGLISH for first-time visitors; the sidebar LanguageToggle flips it and
+ * an explicit "tr" choice persists.
  *
  * `t(key)` resolves against the active language, falling back to Turkish,
  * then to the raw key (so an untranslated string is still readable).
@@ -21,8 +22,11 @@ interface LanguageContextValue {
 const LanguageContext = React.createContext<LanguageContextValue | null>(null);
 
 function readLang(): Lang {
-  if (typeof window === "undefined") return "tr";
-  return localStorage.getItem(STORAGE_KEY) === "en" ? "en" : "tr";
+  // Default language is ENGLISH for first-time visitors. The stored
+  // preference wins: only an explicit "tr" flips to Turkish, so once a
+  // user picks Türkçe (LanguageToggle → setLang("tr")) it persists.
+  if (typeof window === "undefined") return "en";
+  return localStorage.getItem(STORAGE_KEY) === "tr" ? "tr" : "en";
 }
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
