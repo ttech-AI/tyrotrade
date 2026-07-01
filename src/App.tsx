@@ -83,15 +83,16 @@ export default function App() {
       <Route element={<AppShell />}>
         {/* İlk giriş Genel Bakış'a iner — login redirect'i ve çıplak
             domain "/"'a düşer, oradan herkese açık özet sayfasına
-            yönlenir. Dashboard /dashboard altında yaşamaya devam eder
-            (hâlâ kısıtlı). */}
+            yönlenir. */}
         <Route index element={<Navigate to="/overview" replace />} />
+        {/* E.M Bakış — 2026-07 itibarıyla herkese açık (RestrictedRoute
+            kaldırıldı); tüm giriş yapan kullanıcılar görür. */}
         <Route
           path="dashboard"
           element={
-            <RestrictedRoute>
-              <S><DashboardPage /></S>
-            </RestrictedRoute>
+            <S>
+              <DashboardPage />
+            </S>
           }
         />
         {/* Genel Bakış — herkese açık gemi projesi grup/segment özeti

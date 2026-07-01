@@ -4,10 +4,11 @@ import { shouldUseMock } from "@/lib/dataverse";
 /**
  * Email-bazlı görünürlük kuralı — tek kaynak.
  *
- * Anasayfa (`/dashboard`) ve Trade Cost (`/pl-cost`) yalnızca bu
- * maillerle giriş yapan kullanıcılarda görünür: hem sidebar linki
- * (AppSidebar) hem de route guard (App.tsx) bu seti okur. Karşılaştırma
- * küçük harfe normalize edilerek yapılır.
+ * Trade Cost (`/pl-cost`) yalnızca bu maillerle giriş yapan
+ * kullanıcılarda görünür: hem sidebar linki (AppSidebar) hem de route
+ * guard (App.tsx) bu seti okur. Karşılaştırma küçük harfe normalize
+ * edilerek yapılır. (E.M Bakış `/dashboard` artık herkese açık — bkz.
+ * RESTRICTED_NAV_ROUTES.)
  */
 export const RESTRICTED_NAV_EMAILS = new Set([
   "ceyda.degerli@tiryaki.com.tr",
@@ -15,10 +16,10 @@ export const RESTRICTED_NAV_EMAILS = new Set([
   "pinar.kurtunluoglu@tiryaki.com.tr",
 ]);
 
-/** Yalnızca izinli maillerin görebildiği rotalar. (Dashboard `/`'tan
- *  `/dashboard`'a taşındı — `/` artık herkese açık Genel Bakış'a
- *  yönlenen landing redirect'i.) */
-export const RESTRICTED_NAV_ROUTES = new Set(["/dashboard", "/pl-cost"]);
+/** Yalnızca izinli maillerin görebildiği rotalar. E.M Bakış
+ *  (`/dashboard`) 2026-07 itibarıyla tüm giriş yapan kullanıcılara
+ *  açıldı; yalnızca Trade Cost kısıtlı kaldı. */
+export const RESTRICTED_NAV_ROUTES = new Set(["/pl-cost"]);
 
 /**
  * İzinli olmayan kullanıcıların düşeceği varsayılan rota — Genel Bakış
