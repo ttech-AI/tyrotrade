@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Loader2 } from "lucide-react";
 import { ChartLineData01Icon } from "@hugeicons/core-free-icons";
 import {
   ResponsiveContainer,
@@ -41,6 +42,11 @@ interface PeriodPerformanceTileProps {
   realizedMarginPct?: number | null;
   /** Projects that fed the realized figures (for the tooltip). */
   realizedContributingCount?: number;
+  /** Scoped realized-expense rollup fetch in flight. While true AND the
+   *  realized P&L hasn't landed yet, the Gerçekleşen K/Z value slot shows
+   *  a spinner (same "veri geliyor" cue as the Sefer Takibi expense card)
+   *  instead of the static "—" placeholder. */
+  realizedFetching?: boolean;
 }
 
 interface SparkPoint {
@@ -68,6 +74,7 @@ export function PeriodPerformanceTile({
   onClick,
   realizedPL = null,
   realizedContributingCount = 0,
+  realizedFetching = false,
 }: PeriodPerformanceTileProps) {
   const accent = useThemeAccent();
   const t = useT();
@@ -192,6 +199,19 @@ export function PeriodPerformanceTile({
                     preset="currency"
                     currency="USD"
                   />
+                </span>
+              ) : realizedFetching ? (
+                // Rollup hesaplanırken — Sefer Takibi gider kartındaki
+                // "veri geliyor" ipucuyla aynı: dönen spinner + kısa etiket.
+                // Gerçekleşen taraf uygulama genelinde emerald kodlu.
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                  <Loader2
+                    className="size-4 animate-spin"
+                    style={{ color: "#10b981" }}
+                  />
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    {t("dash.monthly.computing")}
+                  </span>
                 </span>
               ) : (
                 <span className="text-[21px] font-semibold leading-none tracking-tight text-muted-foreground/50">

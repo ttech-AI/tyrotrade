@@ -487,6 +487,7 @@ export function DashboardPage() {
               realizedCoversFilter ? realizedAgg.marginPct : null
             }
             realizedContributingCount={realizedAgg.contributingCount}
+            realizedFetching={rollup.isFetching}
           />
           <MonthlyPLChart
             points={monthlyPL}
