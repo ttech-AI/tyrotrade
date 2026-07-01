@@ -328,7 +328,7 @@ function ProjectWebChatCore({ projectContext, userContext }: ProjectWebChatProps
     const ctx = contextRef.current;
     const userLine = uCtx ? `[Kullanıcı: ${uCtx.name} <${uCtx.email}>]\n` : "";
     const projectLine = ctx
-      ? `[Aktif Proje: ${ctx.projectId} - ${ctx.projectName}]\n`
+      ? `[Aktif Proje: ${ctx.projectName} - ${ctx.projectId}]\n`
       : "[Aktif Proje: yok]\n";
     const enrichedText = `${userLine}${projectLine}${text}`;
 
@@ -420,7 +420,7 @@ function ProjectWebChatCore({ projectContext, userContext }: ProjectWebChatProps
     const ctx = contextRef.current;
     const userLine = uCtx ? `[Kullanıcı: ${uCtx.name} <${uCtx.email}>]\n` : "";
     const projectLine = ctx
-      ? `[Aktif Proje: ${ctx.projectId} - ${ctx.projectName}]\n`
+      ? `[Aktif Proje: ${ctx.projectName} - ${ctx.projectId}]\n`
       : "[Aktif Proje: yok]\n";
     const enrichedText = `${userLine}${projectLine}${text}`;
     try {
