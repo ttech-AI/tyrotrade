@@ -71,11 +71,33 @@ function ShellInner() {
     return false;
   });
 
-  // Open chat when a quick-ask is fired from project right-click.
+  // Whether the OPEN chat session is scoped to the active project.
+  // Only the left-rail quick-ask (`tyro:askInChat`) opens in project scope;
+  // the topbar TYRO Chat button always opens a GENERAL chat (like every
+  // other page), even while a project detail page is on screen. Seeded from
+  // a pending quick-ask so a re-auth redirect mid-quick-ask stays scoped.
+  const [chatProjectScoped, setChatProjectScoped] = React.useState(
+    () => !!sessionStorage.getItem("tyro:chat:pendingAsk")
+  );
+
+  // Open chat when a quick-ask is fired from project right-click — this is
+  // the ONLY entry point that binds the chat to the current project.
   React.useEffect(() => {
-    function handler() { setChatOpen(true); }
+    function handler() {
+      setChatProjectScoped(true);
+      setChatOpen(true);
+    }
     window.addEventListener("tyro:askInChat", handler);
     return () => window.removeEventListener("tyro:askInChat", handler);
+  }, []);
+
+  // Topbar button toggle: opening from here is always a general chat, so
+  // drop project scope on open. Closing leaves scope untouched.
+  const toggleChatFromTopbar = React.useCallback(() => {
+    setChatOpen((wasOpen) => {
+      if (!wasOpen) setChatProjectScoped(false);
+      return !wasOpen;
+    });
   }, []);
 
   // Project context resolved here so both desktop panel and mobile drawer share it.
@@ -91,6 +113,11 @@ function ShellInner() {
         projectName: activeProject?.projectName ?? activeProjectId,
       }
     : undefined;
+
+  // The chat only receives project context when it was opened project-scoped
+  // (left-rail quick-ask). Opened from the topbar it's general, even on a
+  // project page — so it behaves the same as on every other page.
+  const effectiveProjectContext = chatProjectScoped ? projectContext : undefined;
 
   return (
     <div className="h-screen w-screen flex overflow-hidden">
@@ -117,7 +144,7 @@ function ShellInner() {
           title={title}
           pathname={location.pathname}
           chatOpen={chatOpen}
-          onOpenChat={() => setChatOpen((o) => !o)}
+          onOpenChat={toggleChatFromTopbar}
         />
         <div className="flex-1 overflow-hidden p-3 pt-0">
           <Outlet />
@@ -129,7 +156,7 @@ function ShellInner() {
         <DesktopChatSlot
           open={chatOpen}
           onClose={() => setChatOpen(false)}
-          projectContext={projectContext}
+          projectContext={effectiveProjectContext}
           userContext={userContext}
         />
       )}
@@ -139,7 +166,7 @@ function ShellInner() {
         <TyroChatDrawer
           open={chatOpen}
           onOpenChange={setChatOpen}
-          projectContext={projectContext}
+          projectContext={effectiveProjectContext}
           userContext={userContext}
         />
       )}
