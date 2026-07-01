@@ -17,6 +17,7 @@ import {
   selectExecutionDate,
   selectTotalTons,
 } from "@/lib/selectors/project";
+import { aggregateEstimatedPL } from "@/lib/selectors/aggregate";
 import { getFinancialYear, type FinancialYear } from "@/lib/dashboard/financialPeriod";
 import type { Project } from "@/lib/dataverse/entities";
 
@@ -66,20 +67,29 @@ export function PeriodPerformanceTile({
   rowSpan,
   onClick,
   realizedPL = null,
-  realizedMarginPct = null,
   realizedContributingCount = 0,
 }: PeriodPerformanceTileProps) {
   const accent = useThemeAccent();
   const t = useT();
 
   const totalProjects = projects.length;
-  const totalTons = React.useMemo(
+  // Estimated tonnage — Σ line quantity (kg → MT).
+  const estTonnage = React.useMemo(
     () => projects.reduce((sum, p) => sum + selectTotalTons(p), 0),
     [projects]
   );
-  // Realized figures arrive via props (the page owns the expense rollup).
-  // `null` = not yet covered → render a muted placeholder.
-  const hasRealized = realizedPL !== null && realizedMarginPct !== null;
+  // Realized tonnage — invoiced quantity (tons) from customer invoices. Comes
+  // from the main refresh (sales), so it's available without the expense rollup.
+  const realizedTonnage = React.useMemo(
+    () => projects.reduce((sum, p) => sum + (p.salesActualQtyTons ?? 0), 0),
+    [projects]
+  );
+  // Estimated net P&L (USD) — same rollup the K&Z tile / monthly chart use.
+  const estPL = React.useMemo(() => aggregateEstimatedPL(projects).pl, [projects]);
+  // Realized P&L arrives via props (the page owns the expense rollup). `null` =
+  // rollup hasn't covered the filter yet → muted placeholder. (Realized tonnage
+  // above is NOT gated — it comes from sales, not the expense rollup.)
+  const hasRealizedPL = realizedPL !== null;
 
   // Financial-year-aligned 12-month sparkline: Jul (start of FY) → Jun
   // (end of FY). Anchored at the SELECTED FY (the period filter's fyKey),
@@ -109,21 +119,9 @@ export function PeriodPerformanceTile({
     return buckets;
   }, [projects, now, fy]);
 
-  const mp = realizedMarginPct ?? 0;
-  const marginColor = !hasRealized
-    ? "rgb(100 116 139)"
-    : mp > 5
-      ? "rgb(4 120 87)"
-      : mp < -5
-        ? "rgb(159 18 57)"
-        : "rgb(71 85 105)";
-  const marginBg = !hasRealized
-    ? "rgba(100,116,139,0.12)"
-    : mp > 5
-      ? "rgba(16,185,129,0.12)"
-      : mp < -5
-        ? "rgba(244,63,94,0.12)"
-        : "rgba(100,116,139,0.12)";
+  // Profit → emerald, loss → rose, flat → slate (theme-independent semantics).
+  const plColor = (v: number) =>
+    v > 0 ? "rgb(4 120 87)" : v < 0 ? "rgb(159 18 57)" : "rgb(71 85 105)";
 
   return (
     <BentoTile
@@ -136,37 +134,58 @@ export function PeriodPerformanceTile({
       onClick={onClick}
     >
       <div className="flex flex-col gap-2 h-full">
-        {/* 4-up KPI row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        {/* 5-up KPI row: proje sayısı · tahmini/gerçekleşen tonaj · tahmini/gerçekleşen PnL */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
           <KPI
             label={t("dash.tile.period.projectCount")}
             tooltip={t("dash.tile.period.projectCountTip")}
             value={
-              <span className="text-[22px] font-semibold leading-none tracking-tight">
+              <span className="text-[21px] font-semibold leading-none tracking-tight">
                 <AnimatedNumber value={totalProjects} preset="count" />
               </span>
             }
           />
           <KPI
-            label={t("dash.tile.period.tonnage")}
-            tooltip={t("dash.tile.period.tonnageTip")}
+            label={t("dash.tile.period.estTonnage")}
+            tooltip={t("dash.tile.period.estTonnageTip")}
             value={
-              <span className="text-[22px] font-semibold leading-none tracking-tight">
-                <AnimatedNumber value={totalTons} preset="tons" />
+              <span className="text-[21px] font-semibold leading-none tracking-tight">
+                <AnimatedNumber value={estTonnage} preset="tons" />
               </span>
             }
           />
           <KPI
-            label={t("dash.tile.period.realPL")}
-            tooltip={t("dash.tile.period.realPLTip").replace(
+            label={t("dash.tile.period.realTonnage")}
+            tooltip={t("dash.tile.period.realTonnageTip")}
+            value={
+              <span className="text-[21px] font-semibold leading-none tracking-tight">
+                <AnimatedNumber value={realizedTonnage} preset="tons" />
+              </span>
+            }
+          />
+          <KPI
+            label={t("dash.tile.period.estPnl")}
+            tooltip={t("dash.tile.period.estPnlTip")}
+            value={
+              <span
+                className="text-[21px] font-semibold leading-none tracking-tight"
+                style={{ color: plColor(estPL) }}
+              >
+                <AnimatedNumber value={estPL} preset="currency" currency="USD" />
+              </span>
+            }
+          />
+          <KPI
+            label={t("dash.tile.period.realPnl")}
+            tooltip={t("dash.tile.period.realPnlTip").replace(
               "{count}",
               String(realizedContributingCount)
             )}
             value={
-              hasRealized ? (
+              hasRealizedPL ? (
                 <span
-                  className="text-[22px] font-semibold leading-none tracking-tight"
-                  style={{ color: marginColor }}
+                  className="text-[21px] font-semibold leading-none tracking-tight"
+                  style={{ color: plColor(realizedPL as number) }}
                 >
                   <AnimatedNumber
                     value={realizedPL as number}
@@ -175,25 +194,7 @@ export function PeriodPerformanceTile({
                   />
                 </span>
               ) : (
-                <span className="text-[22px] font-semibold leading-none tracking-tight text-muted-foreground/50">
-                  —
-                </span>
-              )
-            }
-          />
-          <KPI
-            label={t("dash.tile.period.realMargin")}
-            tooltip={t("dash.tile.period.realMarginTip")}
-            value={
-              hasRealized ? (
-                <span
-                  className="inline-flex items-center mt-0.5 px-1.5 py-0.5 rounded text-[12px] font-bold tabular-nums"
-                  style={{ color: marginColor, backgroundColor: marginBg }}
-                >
-                  {mp.toFixed(1)}%
-                </span>
-              ) : (
-                <span className="inline-flex items-center mt-0.5 text-[12px] font-bold text-muted-foreground/50">
+                <span className="text-[21px] font-semibold leading-none tracking-tight text-muted-foreground/50">
                   —
                 </span>
               )
@@ -285,7 +286,7 @@ function KPI({
 }) {
   return (
     <div className="flex flex-col gap-1 min-w-0" title={tooltip}>
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground/85 truncate">
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground/85 leading-tight">
         {label}
       </div>
       <div className="min-h-[26px] flex items-baseline">{value}</div>
