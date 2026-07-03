@@ -36,6 +36,7 @@ import {
   getUnresolvedPorts,
 } from "@/lib/routing/portCoordinates";
 import { selectCorridor } from "@/lib/routing/corridors";
+import { toUsdAtDate } from "@/lib/finance/fxRates";
 
 export interface ComposeInput {
   projectRows: Record<string, unknown>[];
@@ -330,12 +331,41 @@ export function composeProjects(input: ComposeInput): ComposeResult {
     // different attribute).
     const segment = readString(parent, "mserp_tryprojectsegment") || null;
 
+    // Dates first — the realized sales/purchase USD conversion below needs
+    // the execution date as its FX anchor.
+    //
+    // projectDate (contract / signing date): parents read
+    // `mserp_contractdate`. Sub-projects don't have a contract date —
+    // use the sub-project's startdate (operation window start) as a
+    // proxy; fall back to the parent's contract date.
+    const projectDate = sub
+      ? isoDate(sub["mserp_startdate"]) ??
+        isoDate(parent["mserp_contractdate"]) ??
+        ""
+      : isoDate(parent["mserp_contractdate"]) ?? "";
+
+    // operationPeriod (execution period): parents read
+    // `mserp_executionperiod`. Sub-projects use enddate (operation
+    // window close) as a closer-to-reality "execution" marker; fall
+    // back to the parent's executionperiod.
+    const operationPeriod = sub
+      ? isoDate(sub["mserp_enddate"]) ?? isoDate(parent["mserp_executionperiod"])
+      : isoDate(parent["mserp_executionperiod"]);
+
+    // FX anchor for realized-figure conversion — same execution-date
+    // precedence `selectExecutionDate` uses, so estimated and realized
+    // sit on one FX axis.
+    const fxAnchorDate = operationPeriod || projectDate || "";
+
     // Sales actual enrichment from aggregate cache, keyed by the active
     // entityId — sub-projects look up their own salesAggregate row;
-    // parents look up theirs.
+    // parents look up theirs. `salesActualUsd` FX-converts EVERY currency
+    // bucket at the execution date (not just USD invoices) — see
+    // `sumCurrencyMapToUsd`. `salesActualByCurrency` stays native for the
+    // multi-currency breakdown card.
     const salesEntry = entityId ? salesByProjid.get(entityId) : undefined;
     const salesActualUsd = salesEntry
-      ? Math.round(salesEntry.usd)
+      ? Math.round(sumCurrencyMapToUsd(salesEntry.byCurrency, fxAnchorDate))
       : undefined;
     const salesActualByCurrency = salesEntry
       ? Object.fromEntries(
@@ -351,12 +381,13 @@ export function composeProjects(input: ComposeInput): ComposeResult {
       ? Math.round(salesEntry.qtyKg / 1000)
       : undefined;
 
-    // Realized purchase enrichment — same entityId lookup as sales.
+    // Realized purchase enrichment — same entityId lookup + same
+    // all-currency FX conversion at the execution date as sales.
     const purchaseEntry = entityId
       ? purchaseByProjid.get(entityId)
       : undefined;
     const purchaseActualUsd = purchaseEntry
-      ? Math.round(purchaseEntry.usd)
+      ? Math.round(sumCurrencyMapToUsd(purchaseEntry.byCurrency, fxAnchorDate))
       : undefined;
     const purchaseActualByCurrency = purchaseEntry
       ? Object.fromEntries(
@@ -399,23 +430,9 @@ export function composeProjects(input: ComposeInput): ComposeResult {
       ? normaliseIncotermFromSub(sub) || normaliseIncoterm(parent)
       : normaliseIncoterm(parent);
 
-    // projectDate (contract / signing date): parents read
-    // `mserp_contractdate`. Sub-projects don't have a contract date —
-    // use the sub-project's startdate (operation window start) as a
-    // proxy; fall back to the parent's contract date.
-    const projectDate = sub
-      ? isoDate(sub["mserp_startdate"]) ??
-        isoDate(parent["mserp_contractdate"]) ??
-        ""
-      : isoDate(parent["mserp_contractdate"]) ?? "";
-
-    // operationPeriod (execution period): parents read
-    // `mserp_executionperiod`. Sub-projects use enddate (operation
-    // window close) as a closer-to-reality "execution" marker; fall
-    // back to the parent's executionperiod.
-    const operationPeriod = sub
-      ? isoDate(sub["mserp_enddate"]) ?? isoDate(parent["mserp_executionperiod"])
-      : isoDate(parent["mserp_executionperiod"]);
+    // projectDate / operationPeriod are computed above (before the
+    // realized sales/purchase enrichment, which needs the execution date
+    // as its FX anchor).
 
     const project: Project = {
       projectNo: entityId || `unknown-${Math.random().toString(36).slice(2, 8)}`,
@@ -977,6 +994,27 @@ function num(v: unknown): number {
     return Number.isFinite(n) ? n : 0;
   }
   return 0;
+}
+
+/**
+ * Σ over a currency→amount map, each bucket FX-converted to USD at
+ * `fxDate`. Realized sales/purchase must include EVERY currency (a
+ * EUR-invoiced voyage's realized sales are real revenue) — summing only
+ * the USD bucket collapsed non-USD sales to ~0 and dragged realized K/Z
+ * down to ≈ −(purchase). Uses the project's execution date as the FX
+ * anchor (the aggregate cache doesn't carry per-invoice dates), matching
+ * the estimated side; the per-project BudgetSalesCard converts each
+ * invoice at its own date, so the two agree in magnitude, not to the cent.
+ */
+function sumCurrencyMapToUsd(
+  byCurrency: Record<string, number>,
+  fxDate: string
+): number {
+  let usd = 0;
+  for (const [cur, amount] of Object.entries(byCurrency)) {
+    usd += toUsdAtDate(amount, cur, fxDate);
+  }
+  return usd;
 }
 
 /** Treat a 0 / non-finite numeric as "not set". Used by the duration
