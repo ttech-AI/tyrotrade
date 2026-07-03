@@ -4,7 +4,6 @@ import { ArrowUpRight, ChevronDown, ChevronUp } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Invoice03Icon } from "@hugeicons/core-free-icons";
 import { GlassPanel } from "@/components/glass/GlassPanel";
-import { formatCurrency } from "@/lib/format";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import {
   voyageDisplayLabel,
@@ -14,11 +13,9 @@ import {
 /**
  * "Ödeme Bekleyen Gemiler" — voyages whose ship plan carries a pending
  * payment status (`mserp_trypaymentstatus` reads "Beklemede" / pending).
- * Amount column = `mserp_netfreightamount`, whose F&O label is "Ürün
- * Bedeli ($)" — the voyage's cargo value in USD (NOT freight, despite
- * the column's technical name); the summary strip totals it. "Bekleme
- * süresi" = days since the voyage's most recent populated milestone.
- * Rows deep-link into Sefer Takibi.
+ * Rows are sorted by "bekleme süresi" (waiting days) — the longest
+ * waiting first — where waiting = days since the voyage's most recent
+ * populated milestone. Rows deep-link into Sefer Takibi.
  */
 /** Rows shown before the user expands the list. */
 const COLLAPSED_ROWS = 5;
@@ -65,25 +62,13 @@ export function PendingPaymentsCard({
       ) : (
         <>
           {/* Summary strip */}
-          <div className="mx-3 rounded-xl bg-rose-500/[0.07] border border-rose-500/15 px-3.5 py-2.5 flex items-center justify-between gap-3">
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-[22px] font-bold tabular-nums leading-none text-rose-600">
-                {pending.count}
-              </span>
-              <span className="text-[11px] font-semibold text-rose-700/80">
-                {t("ov.common.voyage")}
-              </span>
-            </div>
-            <div className="text-right">
-              <div className="text-[10px] uppercase tracking-wider text-rose-700/70 font-semibold">
-                {t("ov.pending.totalPending")}
-              </div>
-              <div className="text-[15px] font-bold tabular-nums text-rose-600 leading-tight">
-                {formatCurrency(pending.totalUsd, "USD", {
-                  maximumFractionDigits: 0,
-                })}
-              </div>
-            </div>
+          <div className="mx-3 rounded-xl bg-rose-500/[0.07] border border-rose-500/15 px-3.5 py-2.5 flex items-center gap-1.5">
+            <span className="text-[22px] font-bold tabular-nums leading-none text-rose-600">
+              {pending.count}
+            </span>
+            <span className="text-[11px] font-semibold text-rose-700/80">
+              {t("ov.common.voyage")}
+            </span>
           </div>
 
           {/* Rows */}
@@ -104,13 +89,6 @@ export function PendingPaymentsCard({
                     {r.project.projectNo}
                   </div>
                 </div>
-                <span className="text-[12.5px] font-bold tabular-nums text-foreground shrink-0">
-                  {r.amountUsd > 0
-                    ? formatCurrency(r.amountUsd, "USD", {
-                        maximumFractionDigits: 0,
-                      })
-                    : "—"}
-                </span>
                 <span className="text-[11px] font-semibold tabular-nums text-muted-foreground w-[52px] text-right shrink-0">
                   {r.days} {t("common.days")}
                 </span>

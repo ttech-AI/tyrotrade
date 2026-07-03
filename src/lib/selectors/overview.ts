@@ -519,7 +519,7 @@ export function selectPendingPayments(
       : 0;
     all.push({ project: p, amountUsd, days });
   }
-  all.sort((a, b) => b.amountUsd - a.amountUsd || b.days - a.days);
+  all.sort((a, b) => b.days - a.days);
   return {
     rows: all.slice(0, maxRows),
     totalUsd: all.reduce((s, r) => s + r.amountUsd, 0),
