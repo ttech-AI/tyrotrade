@@ -694,21 +694,23 @@ export async function fetchActualExpenseRollupForAllProjects(
         // → fall through to the distribution check.
         if (linePid && linePid !== projid && !isFixingProject(linePid))
           continue;
-        // Distribution-wins for empty / fixing-project lines: the (expensenum,
-        // expenseid) PAIR distributed to THIS project attributes a cost booked
-        // under a fixing project to the real voyage project (PRJ000002026
-        // NAVLUN). The pair (not just the expensenum) keeps a sibling line on
-        // a shared voucher from leaking in (PRJ000002291). Else require the
-        // project in the financial-dimension string.
+        // Belonging: a distributed (expensenum,expenseid) PAIR attributes the
+        // line to THIS project regardless of stamp/dimension — a cost booked
+        // under a fixing project (PRJ000002026 NAVLUN); the pair (not just the
+        // expensenum) also keeps a shared-voucher sibling from leaking in
+        // (PRJ000002291). Otherwise the project MUST appear in the financial-
+        // dimension string — the `mserp_projectnum` stamp ALONE is not trusted,
+        // even when it equals this project. PRJ000002464 carries twelve 720089
+        // "DİĞER İŞLEMLER" financing lines stamped to the project but dimensioned
+        // elsewhere (TFZ|<vessel>, MUHASEBE…), which inflated realised expense by
+        // $8.45M. Requiring the dimension match drops exactly those; verified
+        // PRJ000002000/2026/2291 totals unchanged, PRJ000002464 → $240,580.
         const pairDistributed = dimDerivedPairs.has(`${en}|${expenseId}`);
         if (!pairDistributed) {
-          if (linePid && linePid !== projid) continue;
-          if (linePid !== projid) {
-            const ddv = String(exr.mserp_defaultdimensiondisplayvalue ?? "");
-            if (!ddv.includes(projid)) {
-              droppedDimMismatchCount += 1;
-              continue;
-            }
+          const ddv = String(exr.mserp_defaultdimensiondisplayvalue ?? "");
+          if (!ddv.includes(projid)) {
+            droppedDimMismatchCount += 1;
+            continue;
           }
         }
         const description = String(exr.mserp_description ?? "").trim();

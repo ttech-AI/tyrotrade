@@ -471,23 +471,27 @@ async function runExpenseChain(
       droppedForeignProjectCount += 1;
       continue;
     }
-    // Distribution-wins for empty / fixing-project lines. The line belongs
-    // here when its (expensenum, expenseid) PAIR was distributed to this
-    // project via the dist entity — that's how a cost booked under a fixing
-    // project (FFIX…, out of scope) is attributed to the real voyage project,
-    // exactly as Power BI does (PRJ000002026 NAVLUN). The PAIR (not just the
-    // expensenum) also stops a sibling line on a shared voucher carrying a
+    // Belonging: a distributed (expensenum, expenseid) PAIR attributes the line
+    // to this project regardless of its stamp/dimension — that's how a cost
+    // booked under a fixing project (FFIX…, out of scope) reaches the real
+    // voyage project, exactly as Power BI does (PRJ000002026 NAVLUN). The PAIR
+    // (not just the expensenum) also stops a shared-voucher sibling carrying a
     // different, non-distributed code from leaking in (PRJ000002291's stray
-    // 720089). Otherwise require the project in the financial-dimension string.
-    if (linePid !== projectNo) {
-      const pairDistributed =
-        !!expensenum && !!code && distPairSet.has(`${expensenum}|${code}`);
-      if (!pairDistributed) {
-        const ddv = String(r.mserp_defaultdimensiondisplayvalue ?? "");
-        if (!ddv.includes(projectNo)) {
-          droppedDimMismatchCount += 1;
-          continue;
-        }
+    // 720089). Otherwise the project MUST appear in the financial-dimension
+    // string — the `mserp_projectnum` stamp ALONE is not trusted, EVEN when it
+    // equals this project: PRJ000002464 carries twelve 720089 "DİĞER İŞLEMLER"
+    // financing lines stamped to the project but dimensioned elsewhere
+    // (TFZ|<vessel>, MUHASEBE…), which inflated realised expense by $8.45M.
+    // Requiring the dimension match drops exactly those, while distributed
+    // costs and correctly-dimensioned lines are untouched (verified:
+    // PRJ000002000/2026/2291 unchanged, PRJ000002464 → $240,580).
+    const pairDistributed =
+      !!expensenum && !!code && distPairSet.has(`${expensenum}|${code}`);
+    if (!pairDistributed) {
+      const ddv = String(r.mserp_defaultdimensiondisplayvalue ?? "");
+      if (!ddv.includes(projectNo)) {
+        droppedDimMismatchCount += 1;
+        continue;
       }
     }
     const header = expensenum ? headerByExpensenum.get(expensenum) : undefined;
