@@ -73,31 +73,33 @@ const COST_ACCOUNT_TYPES = new Set<number>([
  *  itself is strictly numeric, so a label rename in F&O won't
  *  re-admit the row.
  *
- *  Excluded set — pass-through TAXES / treasury transfers + price-
- *  difference codes. Power BI's realised-expense report leaves ALL of
- *  these out (verified on PRJ000002000 + PRJ000002026 — Power BI shows
- *  no 710041 / 710017 / 712207 rows for either):
+ *  Excluded set — pass-through TAXES / treasury transfers + the futures-
+ *  broker commission family. Power BI's realised-expense report leaves ALL
+ *  of these out:
  *    - "730030" — ITHALAT BULK KDV (vergi)
  *    - "731016" — ITHALAT - DAMGA VERGISI (vergi)
  *    - "790051" — ITHALAT - HAZINE FIYAT FARKI (hazine transferi)
  *    - "790052" — IHRACAT - HAZINE FIYAT FARKI (hazine transferi)
- *    - "710017" — FIYAT FARKLARI (fiyat farkı — Power BI saymıyor)
- *    - "710041" — SATIS FIYAT FARKLARI (fiyat farkı — Power BI saymıyor)
- *    - "712207" — (Power BI saymıyor)
+ *    - "712207" — ULUSLARARASI BORSA KOMİSYON (CBOT / borsa komisyonu)
+ *    - "712502" — ULUSLARARASI BORSA KOMİSYON GİDERİ (712207 family)
  *
- *  NOTE: 710017 / 710041 were briefly removed from this set on the
- *  belief Power BI counts them; the user's Power BI exports for both
- *  PRJ000002000 and PRJ000002026 show they do NOT, so they are excluded.
- *  Extend this set as new pass-through / tax / price-diff codes surface;
- *  the same constant lives in `actualExpenseRollup.ts` so the per-project
- *  drill-down and the Trade Cost aggregate stay in sync. */
+ *  NOTE: 710017 (FIYAT FARKLARI) and 710041 (SATIS FIYAT FARKLARI) are NOT
+ *  excluded — Power BI's realised report DOES count them, with the normal
+ *  account-type sign (Customer −, cost-side +, isReturned flips) + FX.
+ *  Verified against a live Power BI screenshot on PRJ000002004 (1.160.392 to
+ *  the dollar). The earlier "PBI drops price differences" belief was wrong:
+ *  it zeroed a +1.012.384 price-diff (710041) while still counting its
+ *  matching 720089 "MASRAF YANSITMA" reflection (−1.012.384) — an asymmetric
+ *  wash that understated 2004 by that whole amount. Recalibrated totals:
+ *  2000=56.355, 2026=254.506, 2291=846.076, 2106=−247.643. Extend this set as
+ *  new tax / pass-through codes surface; the same constant lives in
+ *  `actualExpenseRollup.ts` so the per-project drill-down and the Trade Cost
+ *  aggregate stay in sync. */
 const EXCLUDED_EXPENSE_IDS = new Set<string>([
   "730030",
   "731016",
   "790051",
   "790052",
-  "710017",
-  "710041",
   "712207",
   // "712502" — ULUSLARARASI BORSA KOMİSYON GİDERİ (CBOT / futures broker
   // commission). Power BI leaves it out of realised expense (PRJ000002106

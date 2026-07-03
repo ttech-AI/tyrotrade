@@ -85,24 +85,24 @@ const REFMAP_ENTITY = "mserp_tryaiotherexpenseprojectlineentities";
 /** F&O `mserp_expenseid` codes excluded from realised operational
  *  P&L. Same set + names that live in `useProjectExpenseLines.ts`
  *  so the per-project drill-down and the Trade Cost aggregate agree.
- *  Pass-through TAXES / treasury transfers + price-difference codes —
- *  Power BI's realised report shows none of these (verified on
- *  PRJ000002000 + PRJ000002026):
+ *  Pass-through TAXES / treasury transfers + the futures-broker commission
+ *  family — Power BI's realised report shows none of these:
  *    - "730030" — ITHALAT BULK KDV (vergi)
  *    - "731016" — ITHALAT - DAMGA VERGISI (vergi)
  *    - "790051" — ITHALAT - HAZINE FIYAT FARKI (hazine transferi)
  *    - "790052" — IHRACAT - HAZINE FIYAT FARKI (hazine transferi)
- *    - "710017" — FIYAT FARKLARI (fiyat farkı)
- *    - "710041" — SATIS FIYAT FARKLARI (fiyat farkı)
- *    - "712207" — (Power BI saymıyor)
+ *    - "712207" — ULUSLARARASI BORSA KOMİSYON (CBOT / borsa komisyonu)
+ *    - "712502" — ULUSLARARASI BORSA KOMİSYON GİDERİ (712207 family)
+ *  NOTE: 710017 / 710041 (price differences) are NOT excluded — Power BI
+ *  DOES count them with the normal account-type sign (verified against a
+ *  live PBI screenshot on PRJ000002004 = 1.160.392). Recalibrated totals:
+ *  2000=56.355, 2026=254.506, 2291=846.076, 2106=−247.643.
  *  Extend in both files together. */
 const EXCLUDED_EXPENSE_IDS = new Set<string>([
   "730030",
   "731016",
   "790051",
   "790052",
-  "710017",
-  "710041",
   "712207",
   // "712502" — ULUSLARARASI BORSA KOMİSYON GİDERİ (CBOT / futures broker
   // commission). Power BI doesn't count it (PRJ000002106 = 0).
