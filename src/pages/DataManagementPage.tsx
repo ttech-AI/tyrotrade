@@ -11,6 +11,7 @@ import { readCache, writeCache } from "@/lib/storage/entityCache";
 import {
   applyByInChunked,
   ESTIMATED_EXPENSE_AGGREGATE_CACHE,
+  reconcileEstimatedExpense,
   fetchFinancingOrderIds,
   fetchVesselMasterAndEnrichShipCache,
   FINANCING_PURCH_IDS_CACHE,
@@ -565,54 +566,26 @@ export function DataManagementPage() {
         refetch: async () => {
           const client = getDataverseClient();
           const projids = readAllScopedProjids();
-          const result = await listAllByInChunked<Record<string, unknown>>(
-            client,
-            ENTITY_SETS.expense,
-            // Plan-detail FK (not etgtryprojid header — can be stale).
-            // Mirror of refreshAll.ts; key below reads the same field.
-            "mserp_tryplanprojectid",
-            projids,
-            { $select: EXPENSE_COLUMNS.join(","), $count: true }
-          );
-          const agg = new Map<
-            string,
-            {
-              projectNo: string;
-              expenseTypeCode: string;
-              expenseTypeLabel: string;
-              totalUnitUsd: number;
-              rowCount: number;
-            }
-          >();
-          for (const row of result.value) {
-            const projectNo = String(row.mserp_tryplanprojectid ?? "").trim();
-            if (!projectNo) continue;
-            const expenseTypeCode = String(
-              row.mserp_tryexpensetype ?? ""
-            ).trim();
-            const expenseTypeLabel = String(
-              row[
-                "mserp_tryexpensetype@OData.Community.Display.V1.FormattedValue"
-              ] ?? expenseTypeCode ?? ""
-            ).trim();
-            const unitUsd = Number(row.mserp_expamountusdd);
-            if (!Number.isFinite(unitUsd)) continue;
-            const key = `${projectNo}::${expenseTypeCode}`;
-            const existing = agg.get(key);
-            if (existing) {
-              existing.totalUnitUsd += unitUsd;
-              existing.rowCount += 1;
-            } else {
-              agg.set(key, {
-                projectNo,
-                expenseTypeCode,
-                expenseTypeLabel,
-                totalUnitUsd: unitUsd,
-                rowCount: 1,
-              });
-            }
-          }
-          const rows = [...agg.values()];
+          // Fetch BOTH FK views (plan-detail + header) and keep whichever
+          // is fuller per project — see reconcileEstimatedExpense in
+          // refreshAll.ts. MUST stay in sync with that step.
+          const [planRes, headerRes] = await Promise.all([
+            listAllByInChunked<Record<string, unknown>>(
+              client,
+              ENTITY_SETS.expense,
+              "mserp_tryplanprojectid",
+              projids,
+              { $select: EXPENSE_COLUMNS.join(","), $count: true }
+            ),
+            listAllByInChunked<Record<string, unknown>>(
+              client,
+              ENTITY_SETS.expense,
+              "mserp_etgtryprojid",
+              projids,
+              { $select: EXPENSE_COLUMNS.join(","), $count: true }
+            ),
+          ]);
+          const rows = reconcileEstimatedExpense(planRes.value, headerRes.value);
           writeCache(ESTIMATED_EXPENSE_AGGREGATE_CACHE, {
             fetchedAt: new Date().toISOString(),
             value: rows,

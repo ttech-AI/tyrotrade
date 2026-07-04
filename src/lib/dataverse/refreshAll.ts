@@ -171,6 +171,98 @@ export interface EstimatedExpenseAggregateRow {
   rowCount: number;
 }
 
+/**
+ * Reconcile the two estimate FK views into one per-(projectNo, expenseType)
+ * aggregate. Estimate rows land on EITHER `mserp_tryplanprojectid` (plan
+ * detail) OR `mserp_etgtryprojid` (header) — mutually exclusive per row,
+ * and neither view is universally complete. Per project we keep whichever
+ * view has the HIGHER unit-total (the fuller estimate); ties keep plan.
+ *
+ * Verified across segments: Eritrea/Iran payment → header (matches Power
+ * BI, adds Broker/Banka komisyonu); ORGANIK01 → plan (header empty);
+ * PRJ000002632 → plan (5.5 > header 4.0); Iraq → identical. Shared by the
+ * bulk refresh, the Veri Yönetimi refresh, and `useProjectEstimatedExpense`
+ * so all three agree.
+ */
+export function reconcileEstimatedExpense(
+  planRows: Record<string, unknown>[],
+  headerRows: Record<string, unknown>[]
+): EstimatedExpenseAggregateRow[] {
+  interface PerType {
+    expenseTypeCode: string;
+    expenseTypeLabel: string;
+    totalUnitUsd: number;
+    rowCount: number;
+  }
+  interface Agg {
+    total: number;
+    types: Map<string, PerType>;
+  }
+  const build = (
+    rows: Record<string, unknown>[],
+    fk: string
+  ): Map<string, Agg> => {
+    const m = new Map<string, Agg>();
+    for (const row of rows) {
+      const projectNo = String(row[fk] ?? "").trim();
+      if (!projectNo) continue;
+      const code = String(row.mserp_tryexpensetype ?? "").trim();
+      const label = String(
+        row["mserp_tryexpensetype@OData.Community.Display.V1.FormattedValue"] ??
+          code ??
+          ""
+      ).trim();
+      const unit = Number(row.mserp_expamountusdd);
+      if (!Number.isFinite(unit)) continue;
+      let entry = m.get(projectNo);
+      if (!entry) {
+        entry = { total: 0, types: new Map() };
+        m.set(projectNo, entry);
+      }
+      entry.total += unit;
+      const t = entry.types.get(code);
+      if (t) {
+        t.totalUnitUsd += unit;
+        t.rowCount += 1;
+      } else {
+        entry.types.set(code, {
+          expenseTypeCode: code,
+          expenseTypeLabel: label,
+          totalUnitUsd: unit,
+          rowCount: 1,
+        });
+      }
+    }
+    return m;
+  };
+  const planMap = build(planRows, "mserp_tryplanprojectid");
+  const headerMap = build(headerRows, "mserp_etgtryprojid");
+  const out: EstimatedExpenseAggregateRow[] = [];
+  const allProjids = new Set<string>([
+    ...planMap.keys(),
+    ...headerMap.keys(),
+  ]);
+  for (const projectNo of allProjids) {
+    const plan = planMap.get(projectNo);
+    const header = headerMap.get(projectNo);
+    // Header strictly greater → header (fuller; = PBI for EM). Otherwise
+    // plan — covers organic (header empty), 2632 (plan fuller) and ties.
+    const chosen =
+      (header?.total ?? 0) > (plan?.total ?? 0) ? header : plan;
+    if (!chosen) continue;
+    for (const t of chosen.types.values()) {
+      out.push({
+        projectNo,
+        expenseTypeCode: t.expenseTypeCode,
+        expenseTypeLabel: t.expenseTypeLabel,
+        totalUnitUsd: t.totalUnitUsd,
+        rowCount: t.rowCount,
+      });
+    }
+  }
+  return out;
+}
+
 export interface RefreshProgress {
   /** 1-based step index. */
   step: number;
@@ -756,62 +848,38 @@ export async function refreshAllEntities(
         //
         // Scope: parent + sub-project IDs — sub-projects book their
         // own expense rows under the same FK.
+        //
+        // FK reconciliation (calibrated to Power BI + verified across
+        // segments): estimate rows land on EITHER `mserp_tryplanprojectid`
+        // (plan-detail) OR `mserp_etgtryprojid` (header) — mutually
+        // exclusive per row, and NEITHER is universally complete:
+        //   • Eritrea / Iran payment → header fuller (adds Broker/Banka
+        //     komisyonu) and matches PBI to the cent.
+        //   • ORGANIK01 → header EMPTY, plan carries the estimate.
+        //   • PRJ000002632 → plan fuller (5.5 vs header 4.0).
+        //   • Iraq / most → identical.
+        // So per project we take the FK whose unit-total is HIGHER (the
+        // fuller estimate); ties keep plan (historical default). This
+        // matches PBI for EM without breaking organic / tahıl / 2632.
         const projids = readAllScopedProjids();
-        const result = await listAllByInChunked<Record<string, unknown>>(
-          client,
-          ENTITY_SETS.expense,
-          // Plan-detail FK, NOT mserp_etgtryprojid: estimate rows are
-          // stamped on tryplanprojectid (etgtryprojid header rows can be
-          // stale — PRJ000002632 had header 4.0 vs plan 5.5). Aggregation
-          // key below reads the same field.
-          "mserp_tryplanprojectid",
-          projids,
-          {
-            $select: EXPENSE_COLUMNS.join(","),
-            $count: true,
-          }
-        );
-        // Aggregate client-side: Map<`${projid}::${typeCode}`, agg>
-        const agg = new Map<
-          string,
-          {
-            projectNo: string;
-            expenseTypeCode: string;
-            expenseTypeLabel: string;
-            totalUnitUsd: number;
-            rowCount: number;
-          }
-        >();
-        for (const row of result.value) {
-          // Key by the plan-detail FK (matches the filter above).
-          const projectNo = String(row.mserp_tryplanprojectid ?? "").trim();
-          if (!projectNo) continue;
-          const expenseTypeCode = String(
-            row.mserp_tryexpensetype ?? ""
-          ).trim();
-          const expenseTypeLabel = String(
-            row["mserp_tryexpensetype@OData.Community.Display.V1.FormattedValue"] ??
-              expenseTypeCode ??
-              ""
-          ).trim();
-          const unitUsd = Number(row.mserp_expamountusdd);
-          if (!Number.isFinite(unitUsd)) continue;
-          const key = `${projectNo}::${expenseTypeCode}`;
-          const existing = agg.get(key);
-          if (existing) {
-            existing.totalUnitUsd += unitUsd;
-            existing.rowCount += 1;
-          } else {
-            agg.set(key, {
-              projectNo,
-              expenseTypeCode,
-              expenseTypeLabel,
-              totalUnitUsd: unitUsd,
-              rowCount: 1,
-            });
-          }
-        }
-        const rows: EstimatedExpenseAggregateRow[] = [...agg.values()];
+        const [planRes, headerRes] = await Promise.all([
+          listAllByInChunked<Record<string, unknown>>(
+            client,
+            ENTITY_SETS.expense,
+            "mserp_tryplanprojectid",
+            projids,
+            { $select: EXPENSE_COLUMNS.join(","), $count: true }
+          ),
+          listAllByInChunked<Record<string, unknown>>(
+            client,
+            ENTITY_SETS.expense,
+            "mserp_etgtryprojid",
+            projids,
+            { $select: EXPENSE_COLUMNS.join(","), $count: true }
+          ),
+        ]);
+        const rows: EstimatedExpenseAggregateRow[] =
+          reconcileEstimatedExpense(planRes.value, headerRes.value);
         writeCache(ESTIMATED_EXPENSE_AGGREGATE_CACHE, {
           fetchedAt: new Date().toISOString(),
           value: rows,

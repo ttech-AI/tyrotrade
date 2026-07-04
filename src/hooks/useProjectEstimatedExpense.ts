@@ -54,22 +54,35 @@ export function useProjectEstimatedExpense(
     (async () => {
       try {
         const client = getDataverseClient();
-        const result = await client.listAll<Record<string, unknown>>(
-          ENTITY_SET,
-          {
-            // Plan-detail FK (estimate rows live on tryplanprojectid;
-            // etgtryprojid header rows can be stale). Matches the refresh
-            // aggregate + the comparison card's "Tahmini" total.
+        // Estimate rows land on EITHER FK; neither view is universally
+        // complete. Fetch both and keep the FULLER one (higher unit
+        // total) — same rule as the tenant aggregate
+        // (reconcileEstimatedExpense) so the card matches the table:
+        // header for Eritrea/Iran payment (= PBI), plan for organic /
+        // PRJ2632. See refreshAll.ts.
+        const [planRes, headerRes] = await Promise.all([
+          client.listAll<Record<string, unknown>>(ENTITY_SET, {
             $filter: `mserp_tryplanprojectid eq '${projectNo}'`,
             $select: EXPENSE_COLUMNS.join(","),
             $count: true,
-          }
-        );
+          }),
+          client.listAll<Record<string, unknown>>(ENTITY_SET, {
+            $filter: `mserp_etgtryprojid eq '${projectNo}'`,
+            $select: EXPENSE_COLUMNS.join(","),
+            $count: true,
+          }),
+        ]);
         if (cancelled) return;
+        const unitSum = (rows: Record<string, unknown>[]) =>
+          rows.reduce((s, r) => s + (Number(r.mserp_expamountusdd) || 0), 0);
+        const chosen =
+          unitSum(headerRes.value) > unitSum(planRes.value)
+            ? headerRes.value
+            : planRes.value;
         writeCache(ENTITY_SET, {
           fetchedAt: new Date().toISOString(),
-          value: result.value,
-          totalCount: result.totalCount,
+          value: chosen,
+          totalCount: chosen.length,
         });
         setRefreshTick((n) => n + 1);
       } catch (err) {
@@ -100,8 +113,11 @@ export function useProjectEstimatedExpense(
         error,
       };
     }
+    // Chosen rows carry EITHER FK (plan or header) = this project.
     const projectRows = all.filter(
-      (r) => r["mserp_tryplanprojectid"] === projectNo
+      (r) =>
+        r["mserp_tryplanprojectid"] === projectNo ||
+        r["mserp_etgtryprojid"] === projectNo
     );
     return {
       rows: projectRows,
