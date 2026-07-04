@@ -97,6 +97,10 @@ const DASHBOARD_SHIP_PLAN_DEFAULT = true;
 // E.M Bakış (Emerging Markets) default lead trader — the page opens
 // pre-filtered to this main trader's current-FY book.
 const EM_DEFAULT_MAIN_TRADER = "TRD-FTB";
+// …and only OPEN projects. Verified live: the tenant returns the
+// mserp_status FormattedValue as "Open" (English) — NOT "Açık" — so the
+// default must match that exact value or it would filter to nothing.
+const EM_DEFAULT_STATUS = "Open";
 
 export function DashboardPage() {
   // Stable `now` reference for the lifetime of the page mount. Time-based
@@ -119,6 +123,8 @@ export function DashboardPage() {
     });
     base.fyKey = getCurrentFyKey();
     base.mainTraders = new Set([EM_DEFAULT_MAIN_TRADER]);
+    // Yalnızca açık projeler (kapalı/iptal hariç) — TRD-FTB'ye ek varsayılan.
+    base.statuses = new Set([EM_DEFAULT_STATUS]);
     return base;
   });
   // Active KPI drawer — `null` when no tile is open. Each click on a

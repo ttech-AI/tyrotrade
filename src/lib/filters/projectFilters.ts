@@ -38,6 +38,10 @@ export interface ProjectFilterState {
   incoterms: Set<string>;
   segments: Set<string>;
   voyageStatuses: Set<string>;
+  /** İşlem Yönü — `vesselPlan.voyageType` (`mserp_tryexpenseprojecttype`):
+   *  Satış / Satınalma / Transit / İthalat / İhracat … The trade-direction
+   *  pill shown top-right of the hero vessel image in Sefer Takibi. */
+  voyageTypes: Set<string>;
   /** Operational trader assigned to the project (`mserp_traderid`). */
   traders: Set<string>;
   /** Lead/master trader (`mserp_maintraderid`) — the senior trader who
@@ -96,6 +100,7 @@ export function makeEmptyFilters(
     incoterms: new Set(),
     segments: new Set(),
     voyageStatuses: new Set(),
+    voyageTypes: new Set(),
     traders: new Set(),
     mainTraders: new Set(),
     companies: new Set(),
@@ -132,6 +137,7 @@ export function applyProjectFilter(
     incoterms: fInput.incoterms ?? EMPTY,
     segments: fInput.segments ?? EMPTY,
     voyageStatuses: fInput.voyageStatuses ?? EMPTY,
+    voyageTypes: fInput.voyageTypes ?? EMPTY,
     traders: fInput.traders ?? EMPTY,
     mainTraders: fInput.mainTraders ?? EMPTY,
     companies: fInput.companies ?? EMPTY,
@@ -183,6 +189,10 @@ export function applyProjectFilter(
     if (f.voyageStatuses.size > 0) {
       const vs = p.vesselPlan?.vesselStatus ?? "";
       if (!f.voyageStatuses.has(vs)) return false;
+    }
+    if (f.voyageTypes.size > 0) {
+      const vt = (p.vesselPlan?.voyageType ?? "").trim();
+      if (!f.voyageTypes.has(vt)) return false;
     }
     if (f.statuses.size > 0 && !f.statuses.has(p.status)) return false;
     if (f.groups.size > 0 && !f.groups.has(p.projectGroup)) return false;
@@ -245,6 +255,7 @@ export function projectFilterCount(
     (f.incoterms?.size ?? 0) +
     (f.segments?.size ?? 0) +
     (f.voyageStatuses?.size ?? 0) +
+    (f.voyageTypes?.size ?? 0) +
     (f.traders?.size ?? 0) +
     (f.mainTraders?.size ?? 0) +
     (f.companies?.size ?? 0) +
@@ -267,6 +278,7 @@ export interface AvailableOptions {
   incoterms: string[];
   segments: string[];
   voyageStatuses: string[];
+  voyageTypes: string[];
   traders: string[];
   mainTraders: string[];
   companies: string[];
@@ -306,6 +318,7 @@ export function extractAvailableOptions(
   const i = new Set<string>();
   const seg = new Set<string>();
   const vs = new Set<string>();
+  const vt = new Set<string>();
   const tr = new Set<string>();
   const mtr = new Set<string>();
   const co = new Set<string>();
@@ -323,6 +336,8 @@ export function extractAvailableOptions(
     if (p.incoterm) i.add(p.incoterm);
     if (p.segment) seg.add(p.segment);
     if (p.vesselPlan?.vesselStatus) vs.add(p.vesselPlan.vesselStatus);
+    const vType = p.vesselPlan?.voyageType?.trim();
+    if (vType) vt.add(vType);
     if (p.traderNo) tr.add(p.traderNo);
     if (p.mainTraderNo) mtr.add(p.mainTraderNo);
     if (p.vesselPlan?.companyId) co.add(p.vesselPlan.companyId);
@@ -375,6 +390,7 @@ export function extractAvailableOptions(
     incoterms: [...i].sort(),
     segments: [...seg].sort(),
     voyageStatuses,
+    voyageTypes: [...vt].sort(),
     traders: [...tr].sort(),
     mainTraders: [...mtr].sort(),
     companies: [...co].sort(),

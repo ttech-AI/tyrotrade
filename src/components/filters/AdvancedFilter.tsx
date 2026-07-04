@@ -164,6 +164,7 @@ export function AdvancedFilter({
       incoterms: new Set(),
       segments: new Set(),
       voyageStatuses: new Set(),
+      voyageTypes: new Set(),
       traders: new Set(),
       mainTraders: new Set(),
       companies: new Set(),
@@ -478,6 +479,19 @@ export function AdvancedFilter({
                 onChange({ ...filters, voyageStatuses: next })
               }
               placeholder={t("filter.voyageStatus.placeholder")}
+              accent={accent}
+            />
+          )}
+
+          {/* 2b. İşlem Yönü — Satış / Satınalma / Transit (voyageType) */}
+          {options.voyageTypes.length > 0 && (
+            <ComboboxSection
+              title={t("filter.voyageType")}
+              count={filters.voyageTypes.size}
+              options={options.voyageTypes}
+              selected={filters.voyageTypes}
+              onChange={(next) => onChange({ ...filters, voyageTypes: next })}
+              placeholder={t("filter.voyageType.placeholder")}
               accent={accent}
             />
           )}
