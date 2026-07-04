@@ -232,10 +232,12 @@ export function buildMonthDetail(
     return !Number.isNaN(exec.getTime()) && monthKeyOf(exec) === monthKey;
   });
 
-  // Budget = sum of the distinct segments belonging to THIS month's
-  // projects only (matches the table + Power BI's per-month scope).
+  // Budget MUST equal the clicked table row's "Project Budget" — i.e. the
+  // sum of EVERY filtered-set segment's budget for this month (all
+  // segments, not just the month's projects). Keeps the drill-down's
+  // headline consistent with the row the user opened (Jul-25 = 6,264,198).
   const segments = new Set<string>();
-  for (const p of inMonth) {
+  for (const p of projects) {
     const s = (p.segment ?? "").trim();
     if (s) segments.add(s);
   }
