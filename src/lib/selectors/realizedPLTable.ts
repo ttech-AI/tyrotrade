@@ -112,25 +112,26 @@ export function buildRealizedPLTable(
   // Distinct segments across the WHOLE filtered set drive the budget —
   // a segment's monthly budget is counted once regardless of how many
   // filtered projects share it.
-  const segments = new Set<string>();
-  for (const p of projects) {
-    const s = (p.segment ?? "").trim();
-    if (s) segments.add(s);
-  }
-
   const rows: RealizedPLMonthRow[] = [];
   const indexByKey = new Map<string, number>();
+  // Per-month distinct segment sets — the "Project Budget" for a month is
+  // the sum of the budget ONLY of the segments whose projects fall in THAT
+  // month (Power BI behaviour). Summing every filtered-FY segment into
+  // every month over-counts (Jul showed ~2× PBI). Each segment still
+  // counts once per month via budgetForMonth's own de-dup.
+  const monthSegments: Set<string>[] = [];
   for (let i = 0; i < 12; i++) {
     const d = new Date(fy.startYear, 6 + i, 1);
     const monthKey = monthKeyOf(d);
     indexByKey.set(monthKey, i);
+    monthSegments.push(new Set<string>());
     rows.push({
       monthKey,
       monthLabel: fyMonthLabel(d),
       projQtyTons: 0,
       projRevenueUsd: 0,
       projPLUsd: 0,
-      budgetUsd: budgetForMonth(budgetMap, segments, monthKey),
+      budgetUsd: 0, // filled after we know each month's segments
       realQtyTons: 0,
       realRevenueUsd: 0,
       realPLUsd: 0,
@@ -154,11 +155,20 @@ export function buildRealizedPLTable(
     row.realRevenueUsd += m.realRevenueUsd;
     row.realPLUsd += m.realPLUsd;
     row.projectCount += 1;
+    const seg = (p.segment ?? "").trim();
+    if (seg) monthSegments[idx].add(seg);
   }
 
-  for (const row of rows) {
-    row.plToBudgetPct =
-      row.budgetUsd !== 0 ? (row.realPLUsd / row.budgetUsd) * 100 : null;
+  for (let i = 0; i < rows.length; i++) {
+    rows[i].budgetUsd = budgetForMonth(
+      budgetMap,
+      monthSegments[i],
+      rows[i].monthKey
+    );
+    rows[i].plToBudgetPct =
+      rows[i].budgetUsd !== 0
+        ? (rows[i].realPLUsd / rows[i].budgetUsd) * 100
+        : null;
   }
 
   const total: RealizedPLMonthRow = {
@@ -223,17 +233,19 @@ export function buildMonthDetail(
   realizedExpenseByProject: Map<string, number>,
   budgetMap: Map<string, Map<string, number>>
 ): RealizedPLMonthDetail {
-  const segments = new Set<string>();
-  for (const p of projects) {
-    const s = (p.segment ?? "").trim();
-    if (s) segments.add(s);
-  }
-  const monthBudgetUsd = budgetForMonth(budgetMap, segments, monthKey);
-
   const inMonth = projects.filter((p) => {
     const exec = new Date(selectExecutionDate(p));
     return !Number.isNaN(exec.getTime()) && monthKeyOf(exec) === monthKey;
   });
+
+  // Budget = sum of the distinct segments belonging to THIS month's
+  // projects only (matches the table + Power BI's per-month scope).
+  const segments = new Set<string>();
+  for (const p of inMonth) {
+    const s = (p.segment ?? "").trim();
+    if (s) segments.add(s);
+  }
+  const monthBudgetUsd = budgetForMonth(budgetMap, segments, monthKey);
 
   const projected: RealizedPLProjectRow[] = [];
   const realized: RealizedPLProjectRow[] = [];
