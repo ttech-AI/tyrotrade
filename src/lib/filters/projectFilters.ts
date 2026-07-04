@@ -74,7 +74,19 @@ export interface ProjectFilterState {
    *  varies per page — the dashboard wants inclusive (true), the
    *  Vessel Projects list wants operationally-scoped (false). */
   includeWithoutShipPlan: boolean;
+
+  /** "Arasa Satınalma Seferleri" checkbox. When FALSE, Arasa-Trabzon
+   *  segment projects whose İşlem Yönü (voyageType) is "Satınalma" are
+   *  excluded — mirrors Power BI's `ArasaPurchaseFlag = 0`. Default true
+   *  (include) so non-E.M pages are unaffected; E.M Bakış seeds it false
+   *  so the exclusion is visible + user-toggleable. */
+  includeArasaPurchase: boolean;
 }
+
+/** Segment + direction whose combination the "Arasa Satınalma Seferleri"
+ *  toggle governs. */
+export const ARASA_SEGMENT = "Arasa-Trabzon";
+export const ARASA_PURCHASE_DIRECTION = "Satınalma";
 
 interface MakeEmptyOptions {
   /** Per-page default for the ship-plan toggle. */
@@ -87,6 +99,9 @@ interface MakeEmptyOptions {
   /** Companion override for the FY chip when `period === "fy"`.
    *  Ignored otherwise; defaults to the current FY key. */
   fyKey?: string | null;
+  /** Seed for the "Arasa Satınalma Seferleri" toggle. Default true
+   *  (include); E.M Bakış passes false to exclude by default. */
+  includeArasaPurchase?: boolean;
 }
 
 export function makeEmptyFilters(
@@ -117,6 +132,7 @@ export function makeEmptyFilters(
     dischargePorts: new Set(),
     projectNos: new Set(),
     includeWithoutShipPlan: opts.includeWithoutShipPlan ?? true,
+    includeArasaPurchase: opts.includeArasaPurchase ?? true,
   };
 }
 
@@ -153,6 +169,7 @@ export function applyProjectFilter(
     loadingPorts: fInput.loadingPorts ?? EMPTY,
     dischargePorts: fInput.dischargePorts ?? EMPTY,
     projectNos: fInput.projectNos ?? EMPTY,
+    includeArasaPurchase: fInput.includeArasaPurchase ?? true,
   };
 
   // Period filter — applied to NON-exception projects only. Exception
@@ -237,6 +254,14 @@ export function applyProjectFilter(
       if (!f.dischargePorts.has(dp)) return false;
     }
     if (f.projectNos.size > 0 && !f.projectNos.has(p.projectNo)) return false;
+    // "Arasa Satınalma Seferleri" — unchecked (false) drops Arasa-Trabzon
+    // purchase-direction voyages (PBI ArasaPurchaseFlag=0).
+    if (
+      !f.includeArasaPurchase &&
+      p.segment === ARASA_SEGMENT &&
+      (p.vesselPlan?.voyageType ?? "").trim() === ARASA_PURCHASE_DIRECTION
+    )
+      return false;
     return true;
   });
 }
@@ -249,7 +274,8 @@ export function applyProjectFilter(
 export function projectFilterCount(
   f: ProjectFilterState,
   shipPlanDefault: boolean = true,
-  periodDefault: PeriodKey = DEFAULT_PERIOD
+  periodDefault: PeriodKey = DEFAULT_PERIOD,
+  arasaDefault: boolean = true
 ): number {
   const periodActive =
     f.period !== periodDefault ||
@@ -274,6 +300,7 @@ export function projectFilterCount(
     (f.dischargePorts?.size ?? 0) +
     (f.projectNos?.size ?? 0) +
     (f.includeWithoutShipPlan === shipPlanDefault ? 0 : 1) +
+    ((f.includeArasaPurchase ?? true) === arasaDefault ? 0 : 1) +
     (periodActive ? 1 : 0)
   );
 }

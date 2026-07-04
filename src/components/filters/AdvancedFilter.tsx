@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Check } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import {
   FilterIcon,
@@ -53,6 +54,10 @@ interface AdvancedFilterProps {
   /** Per-page default for the includeWithoutShipPlan toggle —
    *  determines what counts as "active filter" for the badge. */
   shipPlanDefault?: boolean;
+  /** Per-page default for the "Arasa Satınalma Seferleri" toggle —
+   *  E.M Bakış passes `false` (exclude by default). Determines the
+   *  active-filter baseline + clearAll reset value. */
+  arasaDefault?: boolean;
   /** Per-page default for the period chip — used to decide whether
    *  the current period selection counts toward the active-filter
    *  badge. Trade Cost ships with `"all"` so its default doesn't
@@ -130,6 +135,7 @@ export function AdvancedFilter({
   filters,
   onChange,
   shipPlanDefault = true,
+  arasaDefault = true,
   periodDefault,
   resultCount,
   totalCount,
@@ -144,7 +150,8 @@ export function AdvancedFilter({
   const activeCount = projectFilterCount(
     filters,
     shipPlanDefault,
-    periodDefault
+    periodDefault,
+    arasaDefault
   );
   const hasFilters = activeCount > 0;
   // Local hover state used by the collapsible variant — mirrors the
@@ -175,6 +182,7 @@ export function AdvancedFilter({
       dischargePorts: new Set(),
       projectNos: new Set(),
       includeWithoutShipPlan: shipPlanDefault,
+      includeArasaPurchase: arasaDefault,
     });
   }
 
@@ -661,6 +669,48 @@ export function AdvancedFilter({
               accent={accent}
             />
           )}
+
+          {/* 8. Arasa Satınalma Seferleri — visible toggle for the
+              Arasa-Trabzon purchase-voyage exclusion. Checked = include,
+              unchecked = exclude (PBI ArasaPurchaseFlag=0). */}
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={filters.includeArasaPurchase ? "true" : "false"}
+            onClick={() =>
+              onChange({
+                ...filters,
+                includeArasaPurchase: !filters.includeArasaPurchase,
+              })
+            }
+            className="mt-1 w-full flex items-start gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-foreground/[0.04] transition-colors"
+          >
+            <span
+              className={cn(
+                "mt-px size-[18px] rounded-[5px] border shrink-0 grid place-items-center transition-colors",
+                filters.includeArasaPurchase
+                  ? "border-transparent text-white"
+                  : "border-foreground/30"
+              )}
+              style={
+                filters.includeArasaPurchase
+                  ? { background: accent.solid, borderColor: accent.solid }
+                  : undefined
+              }
+            >
+              {filters.includeArasaPurchase && (
+                <Check className="size-3" strokeWidth={3.5} />
+              )}
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[12px] font-semibold text-foreground">
+                {t("filter.arasaPurchase")}
+              </span>
+              <span className="block text-[10.5px] text-muted-foreground leading-snug mt-0.5">
+                {t("filter.arasaPurchase.hint")}
+              </span>
+            </span>
+          </button>
         </div>
 
         {/* Sticky footer */}

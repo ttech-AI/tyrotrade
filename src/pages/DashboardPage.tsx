@@ -102,11 +102,6 @@ const EM_DEFAULT_MAIN_TRADER = "TRD-FTB";
 // default must match that exact value or it would filter to nothing.
 const EM_DEFAULT_STATUS = "Open";
 
-// Fixed E.M Bakış exclusion mirroring PBI's `ArasaPurchaseFlag = 0`:
-// Arasa-Trabzon segment projects whose İşlem Yönü (voyageType) is
-// "Satınalma" are dropped (purchase-leg rows, not the sales voyage).
-const EM_ARASA_SEGMENT = "Arasa-Trabzon";
-const EM_ARASA_EXCLUDED_DIRECTION = "Satınalma";
 
 export function DashboardPage() {
   // Stable `now` reference for the lifetime of the page mount. Time-based
@@ -126,6 +121,9 @@ export function DashboardPage() {
     const base = makeEmptyFilters({
       includeWithoutShipPlan: DASHBOARD_SHIP_PLAN_DEFAULT,
       period: "fy",
+      // Arasa-Trabzon/Satınalma seferleri varsayılan HARİÇ (PBI gibi);
+      // kullanıcı gelişmiş filtredeki checkbox ile dahil edebilir.
+      includeArasaPurchase: false,
     });
     base.fyKey = getCurrentFyKey();
     base.mainTraders = new Set([EM_DEFAULT_MAIN_TRADER]);
@@ -156,17 +154,9 @@ export function DashboardPage() {
   const allProjects = rawProjects;
 
   const projects = React.useMemo(
-    () =>
-      applyProjectFilter(allProjects, filters, now).filter(
-        // E.M Bakış sabit kuralı — PBI ile hizalı: Arasa-Trabzon
-        // segmentinde İşlem Yönü "Satınalma" olan projeler hariç
-        // (PBI'daki ArasaPurchaseFlag=0 filtresinin karşılığı).
-        (p) =>
-          !(
-            p.segment === EM_ARASA_SEGMENT &&
-            (p.vesselPlan?.voyageType ?? "").trim() === EM_ARASA_EXCLUDED_DIRECTION
-          )
-      ),
+    // Arasa-Trabzon/Satınalma exclusion now lives in applyProjectFilter,
+    // gated by the `includeArasaPurchase` toggle (default false here).
+    () => applyProjectFilter(allProjects, filters, now),
     // `now` recomputed every render but stable string-equal so we leave it
     // out of deps to avoid a render thrash.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -491,6 +481,7 @@ export function DashboardPage() {
               filters={filters}
               onChange={setFilters}
               shipPlanDefault={DASHBOARD_SHIP_PLAN_DEFAULT}
+              arasaDefault={false}
               periodDefault="fy"
               resultCount={projects.length}
               totalCount={totalAvailable}
