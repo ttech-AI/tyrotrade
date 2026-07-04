@@ -100,27 +100,39 @@ function monthKeyOf(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+/** Segments the budget should be summed over: the explicit segment
+ *  filter when the user set one, otherwise EVERY segment the budget
+ *  entity knows about (the full Emerging-Markets set). */
+function budgetScopeSegments(
+  budgetMap: Map<string, Map<string, number>>,
+  scopeSegments?: Set<string>
+): Set<string> {
+  if (scopeSegments && scopeSegments.size > 0) return scopeSegments;
+  return new Set(budgetMap.keys());
+}
+
 export function buildRealizedPLTable(
   projects: Project[],
   realizedExpenseByProject: Map<string, number>,
   budgetMap: Map<string, Map<string, number>>,
   now: Date = new Date(),
   fy: FinancialYear = getFinancialYear(now),
-  totalLabel = "Toplam"
+  totalLabel = "Toplam",
+  /** Explicit segment selection from the page filter. When non-empty the
+   *  budget sums only these segments; when empty it sums the FULL budget
+   *  segment set (all Emerging-Markets segments). */
+  scopeSegments?: Set<string>
 ): RealizedPLTableData {
   const nowKey = monthKeyOf(now);
-  // The main table's "Project Budget" for a month is the sum of EVERY
-  // filtered-set segment's budget for that month — the same behaviour as
-  // Power BI's table/matrix, which shows a segment's monthly budget even
-  // when that segment has no project in the month (e.g. Central America
-  // appears in Jul with budget but no Jul voyage). Verified: Jul-25 total
-  // = 6,264,198 to the dollar. (The per-month drill-down uses the tighter
-  // in-month segment set instead — see buildMonthDetail.)
-  const segments = new Set<string>();
-  for (const p of projects) {
-    const s = (p.segment ?? "").trim();
-    if (s) segments.add(s);
-  }
+  // "Project Budget" is a segment × month planned figure that exists
+  // INDEPENDENTLY of whether a project runs that month/trader — exactly
+  // like Power BI (which shows e.g. CBOT Hedge's 225,294 budget with zero
+  // P&L / no project). So the budget scope is the segment DIMENSION, NOT
+  // the filtered projects' segments: an explicit segment filter narrows
+  // it, otherwise ALL budget segments are summed. (Tying it to project
+  // segments dropped project-less segments like CBOT Hedge → 6,038,904
+  // instead of the true 6,264,198.)
+  const segments = budgetScopeSegments(budgetMap, scopeSegments);
 
   const rows: RealizedPLMonthRow[] = [];
   const indexByKey = new Map<string, number>();
@@ -225,23 +237,22 @@ export function buildMonthDetail(
   monthKey: string,
   monthLabel: string,
   realizedExpenseByProject: Map<string, number>,
-  budgetMap: Map<string, Map<string, number>>
+  budgetMap: Map<string, Map<string, number>>,
+  scopeSegments?: Set<string>
 ): RealizedPLMonthDetail {
   const inMonth = projects.filter((p) => {
     const exec = new Date(selectExecutionDate(p));
     return !Number.isNaN(exec.getTime()) && monthKeyOf(exec) === monthKey;
   });
 
-  // Budget MUST equal the clicked table row's "Project Budget" — i.e. the
-  // sum of EVERY filtered-set segment's budget for this month (all
-  // segments, not just the month's projects). Keeps the drill-down's
-  // headline consistent with the row the user opened (Jul-25 = 6,264,198).
-  const segments = new Set<string>();
-  for (const p of projects) {
-    const s = (p.segment ?? "").trim();
-    if (s) segments.add(s);
-  }
-  const monthBudgetUsd = budgetForMonth(budgetMap, segments, monthKey);
+  // Budget MUST equal the clicked table row's "Project Budget" — same
+  // segment scope as buildRealizedPLTable (all budget segments, or the
+  // explicit segment filter). Jul-25 = 6,264,198.
+  const monthBudgetUsd = budgetForMonth(
+    budgetMap,
+    budgetScopeSegments(budgetMap, scopeSegments),
+    monthKey
+  );
 
   const projected: RealizedPLProjectRow[] = [];
   const realized: RealizedPLProjectRow[] = [];

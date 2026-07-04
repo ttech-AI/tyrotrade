@@ -298,10 +298,11 @@ export function DashboardPage() {
         budgetMap,
         now,
         (filters.fyKey && findFyByKey(filters.fyKey)) || getFinancialYear(now),
-        t("dash.rpl.total")
+        t("dash.rpl.total"),
+        filters.segments
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [projects, realizedExpenseByProject, budgetMap, filters.fyKey, t]
+    [projects, realizedExpenseByProject, budgetMap, filters.fyKey, filters.segments, t]
   );
   // Genel Bakış'tan kopyalanan "Ödeme Bekleyen Gemiler" kartı — aynı
   // selektör, filtrelenmiş proje setiyle (E.M Bakış'ın sağ rayında).
@@ -320,11 +321,12 @@ export function DashboardPage() {
           row.monthKey,
           row.monthLabel,
           realizedExpenseByProject,
-          budgetMap
+          budgetMap,
+          filters.segments
         )
       );
     },
-    [projects, realizedExpenseByProject, budgetMap]
+    [projects, realizedExpenseByProject, budgetMap, filters.segments]
   );
 
   // Approximate "rows visible after search" — counts projects passing
