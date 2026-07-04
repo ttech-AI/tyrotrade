@@ -109,29 +109,32 @@ export function buildRealizedPLTable(
   totalLabel = "Toplam"
 ): RealizedPLTableData {
   const nowKey = monthKeyOf(now);
-  // Distinct segments across the WHOLE filtered set drive the budget —
-  // a segment's monthly budget is counted once regardless of how many
-  // filtered projects share it.
+  // The main table's "Project Budget" for a month is the sum of EVERY
+  // filtered-set segment's budget for that month — the same behaviour as
+  // Power BI's table/matrix, which shows a segment's monthly budget even
+  // when that segment has no project in the month (e.g. Central America
+  // appears in Jul with budget but no Jul voyage). Verified: Jul-25 total
+  // = 6,264,198 to the dollar. (The per-month drill-down uses the tighter
+  // in-month segment set instead — see buildMonthDetail.)
+  const segments = new Set<string>();
+  for (const p of projects) {
+    const s = (p.segment ?? "").trim();
+    if (s) segments.add(s);
+  }
+
   const rows: RealizedPLMonthRow[] = [];
   const indexByKey = new Map<string, number>();
-  // Per-month distinct segment sets — the "Project Budget" for a month is
-  // the sum of the budget ONLY of the segments whose projects fall in THAT
-  // month (Power BI behaviour). Summing every filtered-FY segment into
-  // every month over-counts (Jul showed ~2× PBI). Each segment still
-  // counts once per month via budgetForMonth's own de-dup.
-  const monthSegments: Set<string>[] = [];
   for (let i = 0; i < 12; i++) {
     const d = new Date(fy.startYear, 6 + i, 1);
     const monthKey = monthKeyOf(d);
     indexByKey.set(monthKey, i);
-    monthSegments.push(new Set<string>());
     rows.push({
       monthKey,
       monthLabel: fyMonthLabel(d),
       projQtyTons: 0,
       projRevenueUsd: 0,
       projPLUsd: 0,
-      budgetUsd: 0, // filled after we know each month's segments
+      budgetUsd: budgetForMonth(budgetMap, segments, monthKey),
       realQtyTons: 0,
       realRevenueUsd: 0,
       realPLUsd: 0,
@@ -155,20 +158,11 @@ export function buildRealizedPLTable(
     row.realRevenueUsd += m.realRevenueUsd;
     row.realPLUsd += m.realPLUsd;
     row.projectCount += 1;
-    const seg = (p.segment ?? "").trim();
-    if (seg) monthSegments[idx].add(seg);
   }
 
-  for (let i = 0; i < rows.length; i++) {
-    rows[i].budgetUsd = budgetForMonth(
-      budgetMap,
-      monthSegments[i],
-      rows[i].monthKey
-    );
-    rows[i].plToBudgetPct =
-      rows[i].budgetUsd !== 0
-        ? (rows[i].realPLUsd / rows[i].budgetUsd) * 100
-        : null;
+  for (const row of rows) {
+    row.plToBudgetPct =
+      row.budgetUsd !== 0 ? (row.realPLUsd / row.budgetUsd) * 100 : null;
   }
 
   const total: RealizedPLMonthRow = {

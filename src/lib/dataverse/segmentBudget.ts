@@ -8,11 +8,16 @@
  * end-of-month date (e.g. "2025-07-31T00:00:00Z").
  *
  * "Project Budget" = budgeted NET P&L per segment × month, calibrated to
- * the Power BI report:
- *   Sales − Purchase − Other Fixed Costs − Depreciation + Finance Income
- * ("Trade" and anything unrecognised are excluded.) Category labels are
- * matched by prefix because the F&O `mserp_projectexpenseid` string can
- * arrive truncated (e.g. "Finance Income/(Expe").
+ * the Power BI report **to the dollar** (July 2025 = 6,264,198):
+ *   Sales − Purchase − Trade − Other Fixed Costs − Finance − Depreciation
+ * i.e. Sales Budget is the ONLY positive; every other category (Purchase,
+ * Trade, Other Fixed Costs, Finance Income/(Expense), Depreciation) is
+ * SUBTRACTED. Verified against the PBI segment matrix: Central America
+ * 2,159,945 · Iraq 2,990,000 · Eritrea 572,000 · International −199,041 …
+ * (An earlier "+Finance, Trade excluded" reading was wrong — it inflated
+ * Jul-25 to 11.4M vs the true 6.26M.) Category labels are matched by
+ * prefix because `mserp_projectexpenseid` can arrive truncated
+ * (e.g. "Finance Income/(Expe"). "CF" / unknown categories don't count.
  */
 
 export const SEGMENT_BUDGET_BY_MONTH_CACHE = "segmentBudgetByMonth";
@@ -30,12 +35,17 @@ export interface SegmentBudgetMonthRow {
  *  prefix (case-insensitive) for resilience against truncated labels. */
 function categorySign(rawCategory: string): number {
   const c = rawCategory.trim().toLowerCase();
-  if (c.startsWith("sales")) return +1;
-  if (c.startsWith("purchase")) return -1;
-  if (c.startsWith("other fixed")) return -1;
-  if (c.startsWith("depreciation")) return -1;
-  if (c.startsWith("finance")) return +1;
-  // "Trade" and unknown categories don't feed the net P&L budget.
+  if (c.startsWith("sales")) return +1; // the only positive
+  if (
+    c.startsWith("purchase") ||
+    c.startsWith("trade") ||
+    c.startsWith("other fixed") ||
+    c.startsWith("finance") ||
+    c.startsWith("depreciation")
+  ) {
+    return -1;
+  }
+  // "CF" / unknown categories don't feed the net P&L budget.
   return 0;
 }
 
