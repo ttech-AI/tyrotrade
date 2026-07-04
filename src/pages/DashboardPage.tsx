@@ -102,6 +102,12 @@ const EM_DEFAULT_MAIN_TRADER = "TRD-FTB";
 // default must match that exact value or it would filter to nothing.
 const EM_DEFAULT_STATUS = "Open";
 
+// Fixed E.M Bakış exclusion mirroring PBI's `ArasaPurchaseFlag = 0`:
+// Arasa-Trabzon segment projects whose İşlem Yönü (voyageType) is
+// "Satınalma" are dropped (purchase-leg rows, not the sales voyage).
+const EM_ARASA_SEGMENT = "Arasa-Trabzon";
+const EM_ARASA_EXCLUDED_DIRECTION = "Satınalma";
+
 export function DashboardPage() {
   // Stable `now` reference for the lifetime of the page mount. Time-based
   // selectors (stage classification, period filters) all read this; freezing
@@ -150,7 +156,17 @@ export function DashboardPage() {
   const allProjects = rawProjects;
 
   const projects = React.useMemo(
-    () => applyProjectFilter(allProjects, filters, now),
+    () =>
+      applyProjectFilter(allProjects, filters, now).filter(
+        // E.M Bakış sabit kuralı — PBI ile hizalı: Arasa-Trabzon
+        // segmentinde İşlem Yönü "Satınalma" olan projeler hariç
+        // (PBI'daki ArasaPurchaseFlag=0 filtresinin karşılığı).
+        (p) =>
+          !(
+            p.segment === EM_ARASA_SEGMENT &&
+            (p.vesselPlan?.voyageType ?? "").trim() === EM_ARASA_EXCLUDED_DIRECTION
+          )
+      ),
     // `now` recomputed every render but stable string-equal so we leave it
     // out of deps to avoid a render thrash.
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -13,6 +13,12 @@ import type { Project } from "@/lib/dataverse/entities";
  *  flows everywhere. */
 const PROJECT_ID_EXCEPTION_SET = new Set(PROJECT_ID_EXCEPTIONS);
 
+/** Sentinel voyageType option for projects whose `mserp_tryexpenseprojecttype`
+ *  is empty (no ship plan / unset İşlem Yönü). Surfaced as its own filter
+ *  chip so the user can include/exclude blank-direction projects — picking
+ *  only Satış/Satınalma/Transit would otherwise silently drop them. */
+export const UNDEFINED_VOYAGE_TYPE = "Tanımsız";
+
 /**
  * Unified filter state used by Dashboard, Vessel Projects, and Veri
  * Yönetimi. Replaces three different per-page filter shapes with a
@@ -191,7 +197,9 @@ export function applyProjectFilter(
       if (!f.voyageStatuses.has(vs)) return false;
     }
     if (f.voyageTypes.size > 0) {
-      const vt = (p.vesselPlan?.voyageType ?? "").trim();
+      // Empty İşlem Yönü maps to the "Tanımsız" sentinel so a blank-value
+      // project is only kept when the user explicitly selects Tanımsız.
+      const vt = (p.vesselPlan?.voyageType ?? "").trim() || UNDEFINED_VOYAGE_TYPE;
       if (!f.voyageTypes.has(vt)) return false;
     }
     if (f.statuses.size > 0 && !f.statuses.has(p.status)) return false;
@@ -336,8 +344,9 @@ export function extractAvailableOptions(
     if (p.incoterm) i.add(p.incoterm);
     if (p.segment) seg.add(p.segment);
     if (p.vesselPlan?.vesselStatus) vs.add(p.vesselPlan.vesselStatus);
-    const vType = p.vesselPlan?.voyageType?.trim();
-    if (vType) vt.add(vType);
+    // Blank İşlem Yönü → the "Tanımsız" sentinel option, so blank-value
+    // projects remain selectable (many projects carry no voyageType).
+    vt.add(p.vesselPlan?.voyageType?.trim() || UNDEFINED_VOYAGE_TYPE);
     if (p.traderNo) tr.add(p.traderNo);
     if (p.mainTraderNo) mtr.add(p.mainTraderNo);
     if (p.vesselPlan?.companyId) co.add(p.vesselPlan.companyId);
