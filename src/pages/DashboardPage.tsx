@@ -67,6 +67,7 @@ import {
 import { selectStage } from "@/lib/selectors/project";
 import { aggregateMonthlyPL, aggregateRealizedPL } from "@/lib/selectors/monthlyPL";
 import { useActualExpenseRollup } from "@/hooks/useActualExpenseRollup";
+import { useRealizedByMonth } from "@/hooks/useRealizedByMonth";
 import { useSegmentBudgetMap } from "@/hooks/useSegmentBudgetMap";
 import { RealizedPLTable } from "@/components/dashboard/RealizedPLTable";
 import { RealizedPLDetailSheet } from "@/components/dashboard/RealizedPLDetailSheet";
@@ -208,6 +209,10 @@ export function DashboardPage() {
   // refresh for everyone) — here it's computed scoped to exactly the
   // filtered projects, which is fast for the E.M subset.
   const rollup = useActualExpenseRollup();
+  // Month-resolved realised sales + purchase (invoice-date buckets) — the
+  // PBI "Live Realized" axis. Scoped/auto-fetched exactly like the expense
+  // rollup below so both fill in for the filtered E.M set.
+  const realizedMonthly = useRealizedByMonth();
 
   const filteredProjids = React.useMemo(
     () => projects.map((p) => p.projectNo).filter(Boolean),
@@ -222,6 +227,19 @@ export function DashboardPage() {
     const computed = new Set(rollup.computedProjids);
     return filteredProjids.every((id) => computed.has(id));
   }, [filteredProjids, rollup.computedProjids]);
+
+  // Does the month-resolved realised cache cover the filtered set? Only
+  // then do we bucket realised by invoice month; otherwise the table
+  // falls back to execution-month bucketing (legacy) until it fills in.
+  const monthlyCoversFilter = React.useMemo(() => {
+    if (filteredProjids.length === 0) return false;
+    const computed = new Set(realizedMonthly.computedProjids);
+    return filteredProjids.every((id) => computed.has(id));
+  }, [filteredProjids, realizedMonthly.computedProjids]);
+
+  const realizedByMonthMap = monthlyCoversFilter
+    ? realizedMonthly.byProjectMonth
+    : undefined;
 
   // projectNo → Σ realized expense USD (from the rollup rows).
   const realizedExpenseByProject = React.useMemo(() => {
@@ -298,6 +316,28 @@ export function DashboardPage() {
     rollup.refresh(filteredProjids);
   }, [rollup, filteredProjids]);
 
+  // Same one-shot-per-coverage-gap latch for the month-resolved realised
+  // sales/purchase cache. Cheap (~350 rows for the E.M set) so it runs
+  // alongside the expense rollup fetch.
+  const didRequestMonthlyRef = React.useRef(false);
+  const lastMonthlySigRef = React.useRef("");
+  React.useEffect(() => {
+    const sig = [...filteredProjids].sort().join("|");
+    if (lastMonthlySigRef.current !== sig) {
+      lastMonthlySigRef.current = sig;
+      didRequestMonthlyRef.current = false;
+    }
+    if (monthlyCoversFilter) {
+      didRequestMonthlyRef.current = false;
+      return;
+    }
+    if (filteredProjids.length === 0 || realizedMonthly.isFetching) return;
+    if (didRequestMonthlyRef.current) return;
+    didRequestMonthlyRef.current = true;
+    realizedMonthly.refresh(filteredProjids);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredProjids, monthlyCoversFilter, realizedMonthly.isFetching]);
+
   // Realized × Projected P&L monthly table (BI replica) — segment×month
   // budget from the dedicated cache, everything else from the same
   // selectors the chart/card use.
@@ -311,10 +351,19 @@ export function DashboardPage() {
         now,
         (filters.fyKey && findFyByKey(filters.fyKey)) || getFinancialYear(now),
         t("dash.rpl.total"),
-        filters.segments
+        filters.segments,
+        realizedByMonthMap
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [projects, realizedExpenseByProject, budgetMap, filters.fyKey, filters.segments, t]
+    [
+      projects,
+      realizedExpenseByProject,
+      budgetMap,
+      filters.fyKey,
+      filters.segments,
+      realizedByMonthMap,
+      t,
+    ]
   );
   // Genel Bakış'tan kopyalanan "Ödeme Bekleyen Gemiler" kartı — aynı
   // selektör, filtrelenmiş proje setiyle (E.M Bakış'ın sağ rayında).
@@ -334,11 +383,12 @@ export function DashboardPage() {
           row.monthLabel,
           realizedExpenseByProject,
           budgetMap,
-          filters.segments
+          filters.segments,
+          realizedByMonthMap
         )
       );
     },
-    [projects, realizedExpenseByProject, budgetMap, filters.segments]
+    [projects, realizedExpenseByProject, budgetMap, filters.segments, realizedByMonthMap]
   );
 
   // Approximate "rows visible after search" — counts projects passing

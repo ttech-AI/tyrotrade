@@ -7,6 +7,7 @@ import {
   type FinancialYear,
 } from "@/lib/dashboard/financialPeriod";
 import { budgetForMonth } from "@/lib/dataverse/segmentBudget";
+import type { RealizedByMonthMap } from "@/lib/dataverse/realizedByMonth";
 
 /**
  * "Live Realized × Projected P&L" table — the E.M Bakış BI replica.
@@ -121,7 +122,14 @@ export function buildRealizedPLTable(
   /** Explicit segment selection from the page filter. When non-empty the
    *  budget sums only these segments; when empty it sums the FULL budget
    *  segment set (all Emerging-Markets segments). */
-  scopeSegments?: Set<string>
+  scopeSegments?: Set<string>,
+  /** Optional per-project × month realised (revenue/qty/purchase by
+   *  INVOICE date). When present, the realised columns bucket by invoice
+   *  month (the Power BI "Live Realized" axis) instead of the project's
+   *  single execution month; realised expense is allocated across a
+   *  project's revenue months proportional to that month's revenue.
+   *  Absent (not yet fetched) → legacy execution-month bucketing. */
+  realizedByMonth?: RealizedByMonthMap
 ): RealizedPLTableData {
   const nowKey = monthKeyOf(now);
   // "Project Budget" is a segment × month planned figure that exists
@@ -156,20 +164,71 @@ export function buildRealizedPLTable(
     });
   }
 
+  // When true, realised columns bucket by invoice month from the map;
+  // projected always buckets by the project's execution month.
+  const useMonthly = !!realizedByMonth && realizedByMonth.size > 0;
+  // Distinct projects touching each month row (projected OR realised) —
+  // drives the drill-down badge count.
+  const rowProjects: Set<string>[] = rows.map(() => new Set<string>());
+
   for (const p of projects) {
     const exec = new Date(selectExecutionDate(p));
-    if (Number.isNaN(exec.getTime())) continue;
-    const idx = indexByKey.get(monthKeyOf(exec));
-    if (idx === undefined) continue;
+    const execIdx = Number.isNaN(exec.getTime())
+      ? undefined
+      : indexByKey.get(monthKeyOf(exec));
     const m = computeProjectMetrics(p, realizedExpenseByProject);
-    const row = rows[idx];
-    row.projQtyTons += m.projQtyTons;
-    row.projRevenueUsd += m.projRevenueUsd;
-    row.projPLUsd += m.projPLUsd;
-    row.realQtyTons += m.realQtyTons;
-    row.realRevenueUsd += m.realRevenueUsd;
-    row.realPLUsd += m.realPLUsd;
-    row.projectCount += 1;
+
+    // ── Projected (always by execution month) ──
+    if (execIdx !== undefined) {
+      const row = rows[execIdx];
+      row.projQtyTons += m.projQtyTons;
+      row.projRevenueUsd += m.projRevenueUsd;
+      row.projPLUsd += m.projPLUsd;
+      rowProjects[execIdx].add(p.projectNo);
+    }
+
+    // ── Realised ──
+    if (useMonthly) {
+      const byMonth = realizedByMonth!.get(p.projectNo);
+      const expenseTotal = realizedExpenseByProject.get(p.projectNo) ?? 0;
+      const totalRev = byMonth
+        ? [...byMonth.values()].reduce((s, e) => s + e.revenueUsd, 0)
+        : 0;
+      let expenseBooked = false;
+      if (byMonth && byMonth.size > 0) {
+        for (const [mk, e] of byMonth) {
+          const idx = indexByKey.get(mk);
+          if (idx === undefined) continue; // invoice month outside this FY
+          const row = rows[idx];
+          // Allocate the project's realised expense across its revenue
+          // months proportional to each month's revenue share.
+          const expAlloc =
+            totalRev > 0 ? expenseTotal * (e.revenueUsd / totalRev) : 0;
+          if (expAlloc !== 0) expenseBooked = true;
+          row.realQtyTons += e.qtyTons;
+          row.realRevenueUsd += e.revenueUsd;
+          row.realPLUsd += e.revenueUsd - e.purchaseUsd - expAlloc;
+          rowProjects[idx].add(p.projectNo);
+        }
+      }
+      // Expense-only / zero-revenue projects (expense booked but no
+      // invoiced revenue in-FY to carry it) → keep the expense on the
+      // execution month so realised P&L isn't silently inflated.
+      if (!expenseBooked && expenseTotal !== 0 && execIdx !== undefined) {
+        rows[execIdx].realPLUsd -= expenseTotal;
+        rowProjects[execIdx].add(p.projectNo);
+      }
+    } else if (execIdx !== undefined) {
+      // Legacy: whole-project realised in the execution month.
+      const row = rows[execIdx];
+      row.realQtyTons += m.realQtyTons;
+      row.realRevenueUsd += m.realRevenueUsd;
+      row.realPLUsd += m.realPLUsd;
+    }
+  }
+
+  for (let i = 0; i < rows.length; i++) {
+    rows[i].projectCount = rowProjects[i].size;
   }
 
   for (const row of rows) {
@@ -238,8 +297,14 @@ export function buildMonthDetail(
   monthLabel: string,
   realizedExpenseByProject: Map<string, number>,
   budgetMap: Map<string, Map<string, number>>,
-  scopeSegments?: Set<string>
+  scopeSegments?: Set<string>,
+  /** Same map as `buildRealizedPLTable`. When present, the realised
+   *  table lists projects INVOICED in this month (with that month's
+   *  revenue/qty/purchase + revenue-share-allocated expense) instead of
+   *  the projects whose execution month falls here. */
+  realizedByMonth?: RealizedByMonthMap
 ): RealizedPLMonthDetail {
+  // Projected side: projects whose EXECUTION month is the clicked month.
   const inMonth = projects.filter((p) => {
     const exec = new Date(selectExecutionDate(p));
     return !Number.isNaN(exec.getTime()) && monthKeyOf(exec) === monthKey;
@@ -254,37 +319,75 @@ export function buildMonthDetail(
     monthKey
   );
 
+  const useMonthly = !!realizedByMonth && realizedByMonth.size > 0;
+  const byNo = new Map(projects.map((p) => [p.projectNo, p]));
+  const baseOf = (p: Project) => ({
+    projectNo: p.projectNo,
+    projectName: p.projectName,
+    vesselName: p.vesselPlan?.vesselName,
+    segment: p.segment ?? undefined,
+  });
+
   const projected: RealizedPLProjectRow[] = [];
-  const realized: RealizedPLProjectRow[] = [];
   for (const p of inMonth) {
     const m = computeProjectMetrics(p, realizedExpenseByProject);
-    const base = {
-      projectNo: p.projectNo,
-      projectName: p.projectName,
-      vesselName: p.vesselPlan?.vesselName,
-      segment: p.segment ?? undefined,
-    };
     projected.push({
-      ...base,
+      ...baseOf(p),
       qtyTons: m.projQtyTons,
       revenueUsd: m.projRevenueUsd,
       plUsd: m.projPLUsd,
       budgetUsd: monthBudgetUsd,
     });
-    realized.push({
-      ...base,
-      qtyTons: m.realQtyTons,
-      revenueUsd: m.realRevenueUsd,
-      plUsd: m.realPLUsd,
-      budgetUsd: m.realPLUsd,
-    });
   }
-  // Biggest projected P&L first, mirrored ordering on both tables.
+
+  const realized: RealizedPLProjectRow[] = [];
+  if (useMonthly) {
+    // Projects with realised invoices in this month → one row each with
+    // that month's slice (revenue/qty/purchase) and its share of expense.
+    for (const [projectNo, byMonth] of realizedByMonth!) {
+      const e = byMonth.get(monthKey);
+      if (!e) continue;
+      const p = byNo.get(projectNo);
+      if (!p) continue; // out of the current filtered set
+      const totalRev = [...byMonth.values()].reduce(
+        (s, x) => s + x.revenueUsd,
+        0
+      );
+      const expenseTotal = realizedExpenseByProject.get(projectNo) ?? 0;
+      const expAlloc =
+        totalRev > 0 ? expenseTotal * (e.revenueUsd / totalRev) : 0;
+      const plUsd = e.revenueUsd - e.purchaseUsd - expAlloc;
+      realized.push({
+        ...baseOf(p),
+        qtyTons: e.qtyTons,
+        revenueUsd: e.revenueUsd,
+        plUsd,
+        budgetUsd: plUsd,
+      });
+    }
+    realized.sort((a, b) => b.plUsd - a.plUsd);
+  } else {
+    for (const p of inMonth) {
+      const m = computeProjectMetrics(p, realizedExpenseByProject);
+      realized.push({
+        ...baseOf(p),
+        qtyTons: m.realQtyTons,
+        revenueUsd: m.realRevenueUsd,
+        plUsd: m.realPLUsd,
+        budgetUsd: m.realPLUsd,
+      });
+    }
+  }
+
+  // Biggest projected P&L first.
   projected.sort((a, b) => b.plUsd - a.plUsd);
-  const order = new Map(projected.map((r, i) => [r.projectNo, i]));
-  realized.sort(
-    (a, b) => (order.get(a.projectNo) ?? 0) - (order.get(b.projectNo) ?? 0)
-  );
+  if (!useMonthly) {
+    // Legacy: mirror the projected ordering onto the realised list.
+    const order = new Map(projected.map((r, i) => [r.projectNo, i]));
+    realized.sort(
+      (a, b) => (order.get(a.projectNo) ?? 0) - (order.get(b.projectNo) ?? 0)
+    );
+  }
 
   return { monthKey, monthLabel, monthBudgetUsd, projected, realized };
 }

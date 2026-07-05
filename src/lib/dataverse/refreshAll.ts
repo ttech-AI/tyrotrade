@@ -1160,6 +1160,13 @@ export async function refreshAllEntities(
   // sees an empty snapshot, runs the lazy auto-fetch, and shows the
   // TYRO AI progress UI so the user knows it's recomputing.
   clearCache(ACTUAL_EXPENSE_ROLLUP_CACHE);
+  // Same reasoning for the E.M Bakış month-resolved realised sales/purchase
+  // cache (`useRealizedByMonth`): the invoice rows it buckets just changed,
+  // so drop it → next Dashboard mount sees empty coverage and re-fetches.
+  // String literal (not the imported const) to avoid a refreshAll ↔
+  // realizedByMonth circular import — keep in sync with
+  // `REALIZED_BY_MONTH_CACHE` in `realizedByMonth.ts`.
+  clearCache("realizedByMonth");
 
   return {
     ok: true,
