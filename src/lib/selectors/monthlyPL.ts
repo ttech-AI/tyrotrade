@@ -153,16 +153,16 @@ export function aggregateMonthlyPL(
     }
 
     // Realized K/Z — realized sales − realized purchase − realized
-    // expense (mirrors BudgetSalesCard). Needs a realized signal.
+    // expense (mirrors BudgetSalesCard). BOTH sides must have posted:
+    // a half-done voyage (bought but not sold, e.g. 2646 → purchase 20M,
+    // sales 0) would otherwise show a phantom −20M realized bar. Same
+    // gate as aggregateRealizedPL + the tables.
     if (hasRealizedCoverage) {
       const realizedSalesUsd = p.salesActualUsd ?? 0;
       const realizedPurchaseUsd = p.purchaseActualUsd ?? 0;
-      const realizedExpenseUsd = realizedExpenseByProject.get(p.projectNo) ?? 0;
-      if (
-        realizedSalesUsd !== 0 ||
-        realizedPurchaseUsd !== 0 ||
-        realizedExpenseUsd !== 0
-      ) {
+      if (realizedSalesUsd > 0 && realizedPurchaseUsd > 0) {
+        const realizedExpenseUsd =
+          realizedExpenseByProject.get(p.projectNo) ?? 0;
         points[idx].realizedPL =
           (points[idx].realizedPL ?? 0) +
           (realizedSalesUsd - realizedPurchaseUsd - realizedExpenseUsd);
