@@ -76,13 +76,11 @@ export function aggregateRealizedPL(
   for (const p of projects) {
     const realizedSalesUsd = p.salesActualUsd ?? 0;
     const realizedPurchaseUsd = p.purchaseActualUsd ?? 0;
+    // BOTH sides must have posted for a project to count as realized — a
+    // half-done voyage (bought but not sold, e.g. 2646) would otherwise
+    // register a phantom −(purchase) loss. See computeProjectMetrics.
+    if (!(realizedSalesUsd > 0 && realizedPurchaseUsd > 0)) continue;
     const realizedExpenseUsd = realizedExpenseByProject.get(p.projectNo) ?? 0;
-    if (
-      realizedSalesUsd === 0 &&
-      realizedPurchaseUsd === 0 &&
-      realizedExpenseUsd === 0
-    )
-      continue;
     pl += realizedSalesUsd - realizedPurchaseUsd - realizedExpenseUsd;
     salesUsd += realizedSalesUsd;
     contributingCount++;

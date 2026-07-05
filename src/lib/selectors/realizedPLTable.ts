@@ -55,16 +55,28 @@ export function computeProjectMetrics(
       ? projRevenueUsd - estPurchaseUsd - pl.expenseTotal
       : 0;
 
-  const realRevenueUsd = p.salesActualUsd ?? 0;
-  const realPurchaseUsd = p.purchaseActualUsd ?? 0;
-  const realExpenseUsd = realizedExpenseByProject.get(p.projectNo) ?? 0;
-  const realPLUsd = realRevenueUsd - realPurchaseUsd - realExpenseUsd;
+  // A project counts as "realized" ONLY when BOTH sides actually posted —
+  // realized sales AND realized purchase. A half-done voyage (e.g. bought
+  // but not yet sold — PRJ000002646: purchase 20M, sales 0) would otherwise
+  // show a phantom −20M realized loss and drag the month/segment. When one
+  // side is missing, every realized figure reads 0 (the projected side is
+  // unaffected — it's still a valid forecast row).
+  const rawRealRevenue = p.salesActualUsd ?? 0;
+  const rawRealPurchase = p.purchaseActualUsd ?? 0;
+  const hasBothRealizedSides = rawRealRevenue > 0 && rawRealPurchase > 0;
+  const realExpenseUsd = hasBothRealizedSides
+    ? realizedExpenseByProject.get(p.projectNo) ?? 0
+    : 0;
+  const realRevenueUsd = hasBothRealizedSides ? rawRealRevenue : 0;
+  const realPLUsd = hasBothRealizedSides
+    ? rawRealRevenue - rawRealPurchase - realExpenseUsd
+    : 0;
 
   return {
     projQtyTons: selectTotalTons(p),
     projRevenueUsd,
     projPLUsd,
-    realQtyTons: p.salesActualQtyTons ?? 0,
+    realQtyTons: hasBothRealizedSides ? p.salesActualQtyTons ?? 0 : 0,
     realRevenueUsd,
     realPLUsd,
   };
@@ -188,35 +200,35 @@ export function buildRealizedPLTable(
     }
 
     // ── Realised ──
-    if (useMonthly) {
+    // Same both-sides gate as computeProjectMetrics: skip realised entirely
+    // for half-done voyages (realized sales OR purchase missing, e.g. 2646).
+    const hasBothRealizedSides =
+      (p.salesActualUsd ?? 0) > 0 && (p.purchaseActualUsd ?? 0) > 0;
+    if (useMonthly && hasBothRealizedSides) {
       const byMonth = realizedByMonth!.get(p.projectNo);
       const expenseTotal = realizedExpenseByProject.get(p.projectNo) ?? 0;
       const totalRev = byMonth
         ? [...byMonth.values()].reduce((s, e) => s + e.revenueUsd, 0)
         : 0;
-      let expenseBooked = false;
-      if (byMonth && byMonth.size > 0) {
+      // Only allocate expense when the project has invoiced revenue in this
+      // view to anchor it (totalRev > 0). A project with realised expense
+      // but NO captured invoice revenue (e.g. 2106 — item-8 sale filtered
+      // out, so byMonth is empty) is NOT dumped anywhere — that phantom
+      // "-1,566,400 with Qty 0 / Revenue 0" was dragging the invoice-date
+      // month. No revenue anchor → no expense in the invoice-date view.
+      if (byMonth && byMonth.size > 0 && totalRev > 0) {
         for (const [mk, e] of byMonth) {
           const idx = indexByKey.get(mk);
           if (idx === undefined) continue; // invoice month outside this FY
           const row = rows[idx];
           // Allocate the project's realised expense across its revenue
           // months proportional to each month's revenue share.
-          const expAlloc =
-            totalRev > 0 ? expenseTotal * (e.revenueUsd / totalRev) : 0;
-          if (expAlloc !== 0) expenseBooked = true;
+          const expAlloc = expenseTotal * (e.revenueUsd / totalRev);
           row.realQtyTons += e.qtyTons;
           row.realRevenueUsd += e.revenueUsd;
           row.realPLUsd += e.revenueUsd - e.purchaseUsd - expAlloc;
           rowProjects[idx].add(p.projectNo);
         }
-      }
-      // Expense-only / zero-revenue projects (expense booked but no
-      // invoiced revenue in-FY to carry it) → keep the expense on the
-      // execution month so realised P&L isn't silently inflated.
-      if (!expenseBooked && expenseTotal !== 0 && execIdx !== undefined) {
-        rows[execIdx].realPLUsd -= expenseTotal;
-        rowProjects[execIdx].add(p.projectNo);
       }
     } else if (execIdx !== undefined) {
       // Legacy: whole-project realised in the execution month.
@@ -349,6 +361,9 @@ export function buildMonthDetail(
       if (!e) continue;
       const p = byNo.get(projectNo);
       if (!p) continue; // out of the current filtered set
+      // Both-sides gate — skip half-done voyages (2646: purchase only).
+      if (!((p.salesActualUsd ?? 0) > 0 && (p.purchaseActualUsd ?? 0) > 0))
+        continue;
       const totalRev = [...byMonth.values()].reduce(
         (s, x) => s + x.revenueUsd,
         0
