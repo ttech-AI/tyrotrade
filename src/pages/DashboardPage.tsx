@@ -67,6 +67,7 @@ import {
 import { selectStage } from "@/lib/selectors/project";
 import { aggregateMonthlyPL, aggregateRealizedPL } from "@/lib/selectors/monthlyPL";
 import { useActualExpenseRollup } from "@/hooks/useActualExpenseRollup";
+import { useRealizedByMonth } from "@/hooks/useRealizedByMonth";
 import { useSegmentBudgetMap } from "@/hooks/useSegmentBudgetMap";
 import { RealizedPLTable } from "@/components/dashboard/RealizedPLTable";
 import { RealizedPLDetailSheet } from "@/components/dashboard/RealizedPLDetailSheet";
@@ -208,6 +209,10 @@ export function DashboardPage() {
   // refresh for everyone) — here it's computed scoped to exactly the
   // filtered projects, which is fast for the E.M subset.
   const rollup = useActualExpenseRollup();
+  // Month-resolved realised sales + purchase (INVOICE-date buckets) — feeds
+  // the SECOND "Fatura Tarihi" table (PBI LIVE_PL card = 174,5M for Aug).
+  // The first table stays project-period (Realized Project List = ~117M).
+  const realizedMonthly = useRealizedByMonth();
 
   const filteredProjids = React.useMemo(
     () => projects.map((p) => p.projectNo).filter(Boolean),
@@ -222,6 +227,17 @@ export function DashboardPage() {
     const computed = new Set(rollup.computedProjids);
     return filteredProjids.every((id) => computed.has(id));
   }, [filteredProjids, rollup.computedProjids]);
+
+  // Coverage for the invoice-date aggregate → gates the SECOND table.
+  const monthlyCoversFilter = React.useMemo(() => {
+    if (filteredProjids.length === 0) return false;
+    const computed = new Set(realizedMonthly.computedProjids);
+    return filteredProjids.every((id) => computed.has(id));
+  }, [filteredProjids, realizedMonthly.computedProjids]);
+
+  const realizedByMonthMap = monthlyCoversFilter
+    ? realizedMonthly.byProjectMonth
+    : undefined;
 
   // projectNo → Σ realized expense USD (from the rollup rows).
   const realizedExpenseByProject = React.useMemo(() => {
@@ -293,10 +309,36 @@ export function DashboardPage() {
   }, [filteredProjids, realizedCoversFilter, rollup.isFetching]);
 
   const handleRealizedRefresh = React.useCallback(() => {
-    if (rollup.isFetching) return;
-    didRequestRef.current = true;
-    rollup.refresh(filteredProjids);
-  }, [rollup, filteredProjids]);
+    if (!rollup.isFetching) {
+      didRequestRef.current = true;
+      rollup.refresh(filteredProjids);
+    }
+    // Also refresh the invoice-date aggregate (second table).
+    if (!realizedMonthly.isFetching) {
+      realizedMonthly.refresh(filteredProjids);
+    }
+  }, [rollup, realizedMonthly, filteredProjids]);
+
+  // Auto-fetch the invoice-date aggregate once per coverage gap (same
+  // latch pattern as the expense rollup above).
+  const didRequestMonthlyRef = React.useRef(false);
+  const lastMonthlySigRef = React.useRef("");
+  React.useEffect(() => {
+    const sig = [...filteredProjids].sort().join("|");
+    if (lastMonthlySigRef.current !== sig) {
+      lastMonthlySigRef.current = sig;
+      didRequestMonthlyRef.current = false;
+    }
+    if (monthlyCoversFilter) {
+      didRequestMonthlyRef.current = false;
+      return;
+    }
+    if (filteredProjids.length === 0 || realizedMonthly.isFetching) return;
+    if (didRequestMonthlyRef.current) return;
+    didRequestMonthlyRef.current = true;
+    realizedMonthly.refresh(filteredProjids);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredProjids, monthlyCoversFilter, realizedMonthly.isFetching]);
 
   // Realized × Projected P&L monthly table (BI replica) — segment×month
   // budget from the dedicated cache, everything else from the same
@@ -315,6 +357,32 @@ export function DashboardPage() {
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [projects, realizedExpenseByProject, budgetMap, filters.fyKey, filters.segments, t]
+  );
+  // SECOND table — same builder but realised bucketed by INVOICE DATE
+  // (PBI "Live Realized" axis). Falls back to project-period until the
+  // invoice aggregate covers the filtered set.
+  const realizedTableInvoice = React.useMemo(
+    () =>
+      buildRealizedPLTable(
+        projects,
+        realizedExpenseByProject,
+        budgetMap,
+        now,
+        (filters.fyKey && findFyByKey(filters.fyKey)) || getFinancialYear(now),
+        t("dash.rpl.total"),
+        filters.segments,
+        realizedByMonthMap
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      projects,
+      realizedExpenseByProject,
+      budgetMap,
+      filters.fyKey,
+      filters.segments,
+      realizedByMonthMap,
+      t,
+    ]
   );
   // Genel Bakış'tan kopyalanan "Ödeme Bekleyen Gemiler" kartı — aynı
   // selektör, filtrelenmiş proje setiyle (E.M Bakış'ın sağ rayında).
@@ -339,6 +407,24 @@ export function DashboardPage() {
       );
     },
     [projects, realizedExpenseByProject, budgetMap, filters.segments]
+  );
+  // Invoice-date drill-down — same sheet, but realised split by invoice
+  // month (projects invoiced in the clicked month).
+  const openMonthDetailInvoice = React.useCallback(
+    (row: RealizedPLMonthRow) => {
+      setDetailMonth(
+        buildMonthDetail(
+          projects,
+          row.monthKey,
+          row.monthLabel,
+          realizedExpenseByProject,
+          budgetMap,
+          filters.segments,
+          realizedByMonthMap
+        )
+      );
+    },
+    [projects, realizedExpenseByProject, budgetMap, filters.segments, realizedByMonthMap]
   );
 
   // Approximate "rows visible after search" — counts projects passing
@@ -534,6 +620,20 @@ export function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* 3. satır — aynı tablonun FATURA TARİHİ versiyonu (PBI LIVE_PL
+            kartı = realized işlem tarihine göre; Ağu ~174,5M). Üstteki tablo
+            proje-dönem eksenli (Realized Project List = ~117M) kalır. */}
+        <RealizedPLTable
+          data={realizedTableInvoice}
+          hasRealizedCoverage={monthlyCoversFilter && realizedCoversFilter}
+          isFetching={rollup.isFetching || realizedMonthly.isFetching}
+          onRefresh={handleRealizedRefresh}
+          onSelectMonth={openMonthDetailInvoice}
+          fyLabel={fyShortLabel}
+          title={t("dash.rpl.titleInvoice")}
+          subtitle={`${fyShortLabel} · ${t("dash.rpl.subtitleInvoice")}`}
+        />
       </div>
 
       <RealizedPLDetailSheet

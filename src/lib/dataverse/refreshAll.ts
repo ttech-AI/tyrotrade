@@ -137,7 +137,13 @@ export const FINANCING_PURCH_IDS_CACHE = "financingPurchIds";
  *  the P&L Cost report reads. NOT a real Dataverse entity set —
  *  populated by `fetchActualExpenseRollupForAllProjects` in the
  *  refresh chain. Format: `ActualExpenseRollupRow[]`. */
-export const ACTUAL_EXPENSE_ROLLUP_CACHE = "actualExpenseRollup";
+// NOTE: the `v2` suffix is a CACHE-BUST version tag. Bump it whenever the
+// rollup MATH changes (exclusion codes, sign model, ExpenseNum filter, …)
+// so the previously-cached rows are ignored on the next load and the E.M
+// page auto-recomputes with the new logic — instead of the user having to
+// hit "Yenile" manually. (v2 = the TMESMSN000216-family ExpenseNum
+// exclusion; PRJ000002060 realised P&L −369k → +611k.)
+export const ACTUAL_EXPENSE_ROLLUP_CACHE = "actualExpenseRollup_v2";
 
 /** Synthetic cache key for the per-(projid, expenseType) aggregated
  *  estimated expense. Replaces the old `mserp_tryaiotherexpenseentities`

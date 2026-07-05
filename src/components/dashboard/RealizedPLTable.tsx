@@ -24,6 +24,11 @@ interface Props {
   onRefresh: () => void;
   onSelectMonth: (row: RealizedPLMonthRow) => void;
   fyLabel: string;
+  /** Optional title override — used by the second "invoice-date" variant
+   *  of the card. Defaults to the standard project-period title. */
+  title?: string;
+  /** Optional subtitle override (defaults to `fyLabel · <monthly subtitle>`). */
+  subtitle?: string;
 }
 
 function plColor(v: number) {
@@ -44,6 +49,8 @@ export function RealizedPLTable({
   onRefresh,
   onSelectMonth,
   fyLabel,
+  title,
+  subtitle,
 }: Props) {
   const t = useT();
   const money = (v: number) => formatCompactCurrency(v, "USD");
@@ -55,8 +62,8 @@ export function RealizedPLTable({
 
   return (
     <BentoTile
-      title={t("dash.rpl.title")}
-      subtitle={`${fyLabel} · ${t("dash.monthly.subtitle")}`}
+      title={title ?? t("dash.rpl.title")}
+      subtitle={subtitle ?? `${fyLabel} · ${t("dash.monthly.subtitle")}`}
       icon={TableIcon}
       iconTone={TONE_PL}
       interactive={false}
