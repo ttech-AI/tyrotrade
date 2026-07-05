@@ -67,7 +67,6 @@ import {
 import { selectStage } from "@/lib/selectors/project";
 import { aggregateMonthlyPL, aggregateRealizedPL } from "@/lib/selectors/monthlyPL";
 import { useActualExpenseRollup } from "@/hooks/useActualExpenseRollup";
-import { useRealizedByMonth } from "@/hooks/useRealizedByMonth";
 import { useSegmentBudgetMap } from "@/hooks/useSegmentBudgetMap";
 import { RealizedPLTable } from "@/components/dashboard/RealizedPLTable";
 import { RealizedPLDetailSheet } from "@/components/dashboard/RealizedPLDetailSheet";
@@ -209,10 +208,6 @@ export function DashboardPage() {
   // refresh for everyone) — here it's computed scoped to exactly the
   // filtered projects, which is fast for the E.M subset.
   const rollup = useActualExpenseRollup();
-  // Month-resolved realised sales + purchase (invoice-date buckets) — the
-  // PBI "Live Realized" axis. Scoped/auto-fetched exactly like the expense
-  // rollup below so both fill in for the filtered E.M set.
-  const realizedMonthly = useRealizedByMonth();
 
   const filteredProjids = React.useMemo(
     () => projects.map((p) => p.projectNo).filter(Boolean),
@@ -227,19 +222,6 @@ export function DashboardPage() {
     const computed = new Set(rollup.computedProjids);
     return filteredProjids.every((id) => computed.has(id));
   }, [filteredProjids, rollup.computedProjids]);
-
-  // Does the month-resolved realised cache cover the filtered set? Only
-  // then do we bucket realised by invoice month; otherwise the table
-  // falls back to execution-month bucketing (legacy) until it fills in.
-  const monthlyCoversFilter = React.useMemo(() => {
-    if (filteredProjids.length === 0) return false;
-    const computed = new Set(realizedMonthly.computedProjids);
-    return filteredProjids.every((id) => computed.has(id));
-  }, [filteredProjids, realizedMonthly.computedProjids]);
-
-  const realizedByMonthMap = monthlyCoversFilter
-    ? realizedMonthly.byProjectMonth
-    : undefined;
 
   // projectNo → Σ realized expense USD (from the rollup rows).
   const realizedExpenseByProject = React.useMemo(() => {
@@ -311,39 +293,10 @@ export function DashboardPage() {
   }, [filteredProjids, realizedCoversFilter, rollup.isFetching]);
 
   const handleRealizedRefresh = React.useCallback(() => {
-    if (!rollup.isFetching) {
-      didRequestRef.current = true;
-      rollup.refresh(filteredProjids);
-    }
-    // Manual "Yenile" also re-fetches the invoice-month realised aggregate
-    // so the user has a definitive trigger even if the auto-fetch latch
-    // already fired once.
-    if (!realizedMonthly.isFetching) {
-      realizedMonthly.refresh(filteredProjids);
-    }
-  }, [rollup, realizedMonthly, filteredProjids]);
-
-  // Same one-shot-per-coverage-gap latch for the month-resolved realised
-  // sales/purchase cache. Cheap (~350 rows for the E.M set) so it runs
-  // alongside the expense rollup fetch.
-  const didRequestMonthlyRef = React.useRef(false);
-  const lastMonthlySigRef = React.useRef("");
-  React.useEffect(() => {
-    const sig = [...filteredProjids].sort().join("|");
-    if (lastMonthlySigRef.current !== sig) {
-      lastMonthlySigRef.current = sig;
-      didRequestMonthlyRef.current = false;
-    }
-    if (monthlyCoversFilter) {
-      didRequestMonthlyRef.current = false;
-      return;
-    }
-    if (filteredProjids.length === 0 || realizedMonthly.isFetching) return;
-    if (didRequestMonthlyRef.current) return;
-    didRequestMonthlyRef.current = true;
-    realizedMonthly.refresh(filteredProjids);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredProjids, monthlyCoversFilter, realizedMonthly.isFetching]);
+    if (rollup.isFetching) return;
+    didRequestRef.current = true;
+    rollup.refresh(filteredProjids);
+  }, [rollup, filteredProjids]);
 
   // Realized × Projected P&L monthly table (BI replica) — segment×month
   // budget from the dedicated cache, everything else from the same
@@ -358,19 +311,10 @@ export function DashboardPage() {
         now,
         (filters.fyKey && findFyByKey(filters.fyKey)) || getFinancialYear(now),
         t("dash.rpl.total"),
-        filters.segments,
-        realizedByMonthMap
+        filters.segments
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [
-      projects,
-      realizedExpenseByProject,
-      budgetMap,
-      filters.fyKey,
-      filters.segments,
-      realizedByMonthMap,
-      t,
-    ]
+    [projects, realizedExpenseByProject, budgetMap, filters.fyKey, filters.segments, t]
   );
   // Genel Bakış'tan kopyalanan "Ödeme Bekleyen Gemiler" kartı — aynı
   // selektör, filtrelenmiş proje setiyle (E.M Bakış'ın sağ rayında).
@@ -390,12 +334,11 @@ export function DashboardPage() {
           row.monthLabel,
           realizedExpenseByProject,
           budgetMap,
-          filters.segments,
-          realizedByMonthMap
+          filters.segments
         )
       );
     },
-    [projects, realizedExpenseByProject, budgetMap, filters.segments, realizedByMonthMap]
+    [projects, realizedExpenseByProject, budgetMap, filters.segments]
   );
 
   // Approximate "rows visible after search" — counts projects passing
@@ -576,15 +519,6 @@ export function DashboardPage() {
             yüksekliğine sabitlenir — alt hizası tabloyla aynı (taşmaz). */}
         <div className="grid grid-cols-12 gap-3 items-stretch">
           <div className="col-span-12 xl:col-span-9 min-w-0">
-            {!monthlyCoversFilter && filteredProjids.length > 0 && (
-              <div className="mb-2 rounded-lg border border-amber-300/60 bg-amber-50/70 px-3 py-1.5 text-xs text-amber-800">
-                {realizedMonthly.isFetching
-                  ? "Fatura-ayı gerçekleşen hesaplanıyor…"
-                  : realizedMonthly.error
-                  ? `Fatura-ayı fetch hatası: ${realizedMonthly.error}`
-                  : `Fatura-ayı kapsam eksik: ${realizedMonthly.computedProjids.length}/${filteredProjids.length} proje — realized hâlâ operasyon-ayında. "Yenile" ile tetikle.`}
-              </div>
-            )}
             <RealizedPLTable
               data={realizedTable}
               hasRealizedCoverage={realizedCoversFilter}

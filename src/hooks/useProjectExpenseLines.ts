@@ -107,6 +107,24 @@ const EXCLUDED_EXPENSE_IDS = new Set<string>([
   "712502",
 ]);
 
+/** Voucher-level exclusions replicated from the Power BI report's own
+ *  "ExpenseNum is not …" filter — 9 hand-picked vouchers PBI's realised
+ *  measures never count. Found live: TMESMSN000216 is a 980.087 USD
+ *  broker-commission voucher on PRJ000002060 that flipped its realised
+ *  P&L sign (−369k vs PBI +617k) until excluded. Keep in sync with
+ *  `actualExpenseRollup.ts`. */
+const EXCLUDED_EXPENSE_NUMS = new Set<string>([
+  "TMESMSN000216",
+  "TMESMSN000217",
+  "TMESMSN000218",
+  "TMESMSN000219",
+  "DMESMSN002207",
+  "DMESMSN002696",
+  "DMESMSN002697",
+  "DMESMSN002503",
+  "AFZEMSN001374",
+]);
+
 /** Fixing / booking projects (e.g. `FFIX001145`) are out-of-`PROJECTS_FILTER`-
  *  scope projects a cost is originally booked to before being distributed to
  *  the real voyage project. Their projectnum is a redirect — the distribution
@@ -463,6 +481,11 @@ async function runExpenseChain(
     }
     const linePid = String(r.mserp_projectnum ?? "").trim();
     const expensenum = String(r.mserp_expensenum ?? "").trim();
+    // PBI's hand-picked voucher exclusions (report-level ExpenseNum filter).
+    if (EXCLUDED_EXPENSE_NUMS.has(expensenum)) {
+      droppedExcludedCount += 1;
+      continue;
+    }
     // A non-empty projectnum naming a DIFFERENT, REAL project means the line
     // belongs to THAT project — a voucher split per-project carries one line
     // per owner (e.g. AFZEMSN001056 has a PRJ…2106 line AND a PRJ…2335 line,
