@@ -311,10 +311,17 @@ export function DashboardPage() {
   }, [filteredProjids, realizedCoversFilter, rollup.isFetching]);
 
   const handleRealizedRefresh = React.useCallback(() => {
-    if (rollup.isFetching) return;
-    didRequestRef.current = true;
-    rollup.refresh(filteredProjids);
-  }, [rollup, filteredProjids]);
+    if (!rollup.isFetching) {
+      didRequestRef.current = true;
+      rollup.refresh(filteredProjids);
+    }
+    // Manual "Yenile" also re-fetches the invoice-month realised aggregate
+    // so the user has a definitive trigger even if the auto-fetch latch
+    // already fired once.
+    if (!realizedMonthly.isFetching) {
+      realizedMonthly.refresh(filteredProjids);
+    }
+  }, [rollup, realizedMonthly, filteredProjids]);
 
   // Same one-shot-per-coverage-gap latch for the month-resolved realised
   // sales/purchase cache. Cheap (~350 rows for the E.M set) so it runs
@@ -569,6 +576,15 @@ export function DashboardPage() {
             yüksekliğine sabitlenir — alt hizası tabloyla aynı (taşmaz). */}
         <div className="grid grid-cols-12 gap-3 items-stretch">
           <div className="col-span-12 xl:col-span-9 min-w-0">
+            {!monthlyCoversFilter && filteredProjids.length > 0 && (
+              <div className="mb-2 rounded-lg border border-amber-300/60 bg-amber-50/70 px-3 py-1.5 text-xs text-amber-800">
+                {realizedMonthly.isFetching
+                  ? "Fatura-ayı gerçekleşen hesaplanıyor…"
+                  : realizedMonthly.error
+                  ? `Fatura-ayı fetch hatası: ${realizedMonthly.error}`
+                  : `Fatura-ayı kapsam eksik: ${realizedMonthly.computedProjids.length}/${filteredProjids.length} proje — realized hâlâ operasyon-ayında. "Yenile" ile tetikle.`}
+              </div>
+            )}
             <RealizedPLTable
               data={realizedTable}
               hasRealizedCoverage={realizedCoversFilter}

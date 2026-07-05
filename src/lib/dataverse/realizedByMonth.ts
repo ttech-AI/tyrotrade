@@ -89,9 +89,12 @@ export async function fetchRealizedByMonthForProjects(
   const financingSales = getFinancingSalesIdSet();
   const financingPurch = getFinancingPurchIdSet();
 
-  // Parallel: customer invoices (revenue + qty) and vendor invoices
-  // (purchase). Both intercompany-filtered server-side.
-  const [salesRes, purchRes] = await Promise.all([
+  // Independent (allSettled): customer invoices (revenue + qty) and vendor
+  // invoices (purchase). Both intercompany-filtered server-side. If ONE
+  // query fails (e.g. an entity/field quirk on the buy side) we still
+  // surface the other so realised Revenue/Qty appear — and we log exactly
+  // which leg failed instead of killing the whole aggregate.
+  const [salesSettled, purchSettled] = await Promise.allSettled([
     listAllByInChunked<Record<string, unknown>>(
       client,
       SALES_ENTITY,
@@ -117,6 +120,21 @@ export async function fetchRealizedByMonthForProjects(
       NON_INTERCOMPANY_FILTER
     ),
   ]);
+  if (salesSettled.status === "rejected") {
+    // eslint-disable-next-line no-console
+    console.warn("[realizedByMonth] SALES query failed:", salesSettled.reason);
+  }
+  if (purchSettled.status === "rejected") {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[realizedByMonth] PURCHASE query failed:",
+      purchSettled.reason
+    );
+  }
+  const salesRes =
+    salesSettled.status === "fulfilled" ? salesSettled.value : { value: [] };
+  const purchRes =
+    purchSettled.status === "fulfilled" ? purchSettled.value : { value: [] };
 
   // projectNo → monthKey → aggregate. Built additively then flattened.
   const agg = new Map<

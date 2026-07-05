@@ -74,6 +74,8 @@ export function useRealizedByMonth(): UseRealizedByMonthReturn {
     if (scoped.length === 0) return;
     setIsFetching(true);
     setError(null);
+    // eslint-disable-next-line no-console
+    console.info("[useRealizedByMonth] fetch start —", scoped.length, "projid");
     try {
       const client = getDataverseClient();
       const { rows, computedProjids } = await fetchRealizedByMonthForProjects(
@@ -86,6 +88,14 @@ export function useRealizedByMonth(): UseRealizedByMonthReturn {
         fetchedAt,
         value: computedProjids,
       });
+      // eslint-disable-next-line no-console
+      console.info(
+        "[useRealizedByMonth] fetch OK —",
+        rows.length,
+        "rows,",
+        computedProjids.length,
+        "projid"
+      );
     } catch (err) {
       // eslint-disable-next-line no-console
       console.warn("[useRealizedByMonth] fetch failed:", err);
