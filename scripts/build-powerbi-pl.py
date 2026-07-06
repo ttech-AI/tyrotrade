@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
-"""Generate src/data/powerbiPL.ts from the two Power BI Excel exports.
+"""Generate src/data/powerbiPL.ts from the Power BI Excel exports.
 
-Static "LIVE REALIZED – PROJECTED P&L" snapshot for FY 25-26, rendered by
-the "Power BI Version" table on the E.M Bakış dashboard as a fixed reference
-alongside the live (our-system) tables. NOT filter-reactive.
+Static "LIVE REALIZED – PROJECTED P&L" snapshots, one per financial year,
+rendered by the "Power BI Version" table on the E.M Bakış dashboard as a fixed
+reference. The table for a given FY is shown ONLY when that FY is the selected
+filter (a 25-26 export is meaningless under a 24-25 filter and vice-versa).
 
-Sources (read from the tyro-project-mcp repo root = parent of tyrotrade-repo):
-  - "Live Realized - Projected P&L 25-26.xlsx"            → monthly rows
-  - "Live Realized - Projected P&L Detailed Matrix 25-26.xlsx" → segment drill-down
+Auto-discovers every year pair sitting in the tyro-project-mcp repo root
+(= parent of tyrotrade-repo):
+  - "Live Realized - Projected P&L <FY>.xlsx"                 → monthly rows
+  - "Live Realized - Projected P&L Detailed Matrix <FY>.xlsx" → segment drill-down
+where <FY> is "YY-YY" (e.g. "24-25", "25-26"). Drop in a new pair + re-run:
 
-Re-run after replacing either Excel:
     python scripts/build-powerbi-pl.py
 """
 import os
+import re
 import sys
 import io
+import glob
 import openpyxl
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
@@ -22,9 +26,11 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(SCRIPT_DIR)                 # tyrotrade-repo
 OUTER = os.path.dirname(REPO)                      # tyro-project-mcp-dev (Excels live here)
-MAIN_XLSX = os.path.join(OUTER, "Live Realized - Projected P&L 25-26.xlsx")
-DETAIL_XLSX = os.path.join(OUTER, "Live Realized - Projected P&L Detailed Matrix 25-26.xlsx")
 OUT_TS = os.path.join(REPO, "src", "data", "powerbiPL.ts")
+
+# "Live Realized - Projected P&L 25-26.xlsx" → FY "25-26"; the Detailed Matrix
+# file has "Detailed Matrix " before the FY so it won't match this pattern.
+MAIN_RE = re.compile(r"^Live Realized - Projected P&L (\d{2}-\d{2})\.xlsx$")
 
 _MONTHS = {
     "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
@@ -52,9 +58,8 @@ def num(v):
         return 0.0
 
 
-def load_main():
-    """Returns list of {monthKey, projQty, projRev, projPL, budget, realQty, realRev, realPL}."""
-    wb = openpyxl.load_workbook(MAIN_XLSX, data_only=True)
+def load_main(path):
+    wb = openpyxl.load_workbook(path, data_only=True)
     ws = wb.worksheets[0]
     rows = []
     for r in ws.iter_rows(min_row=2, values_only=True):
@@ -75,19 +80,15 @@ def load_main():
     return rows
 
 
-def load_detail():
-    """Returns dict monthKey -> list of {segment, projPL, realPL, budget}.
-
-    Header layout: row1 = month labels (each spanning 3 cols), row2 =
-    [Projected P&L, Live Realized P&L, Projected Budget] per month, col0 =
-    Segment Name. Month i (0-based) → cols (1+3i, 2+3i, 3+3i).
-    """
-    wb = openpyxl.load_workbook(DETAIL_XLSX, data_only=True)
+def load_detail(path):
+    """monthKey -> list of {segment, projPL, realPL, budget}. Header layout:
+    row1 = month labels (col 1, 4, 7, …), row2 = [Projected P&L, Live Realized
+    P&L, Projected Budget] per month, col0 = Segment Name."""
+    wb = openpyxl.load_workbook(path, data_only=True)
     ws = wb.worksheets[0]
     grid = list(ws.iter_rows(values_only=True))
     wb.close()
-    header = grid[0]  # month labels at col 1, 4, 7, ...
-    # month index -> monthKey
+    header = grid[0]
     idx_to_key = {}
     for i in range(12):
         col = 1 + 3 * i
@@ -106,98 +107,125 @@ def load_detail():
             real = num(row[2 + 3 * i]) if 2 + 3 * i < len(row) else 0.0
             bud = num(row[3 + 3 * i]) if 3 + 3 * i < len(row) else 0.0
             if proj == 0.0 and real == 0.0 and bud == 0.0:
-                continue  # segment inactive this month
+                continue
             out[mk].append({
-                "segment": seg,
-                "projPLUsd": proj,
-                "realPLUsd": real,
-                "budgetUsd": bud,
+                "segment": seg, "projPLUsd": proj, "realPLUsd": real, "budgetUsd": bud,
             })
     return out
 
 
+def discover():
+    """Returns sorted list of (fy, main_path, detail_path) tuples."""
+    found = []
+    for path in glob.glob(os.path.join(OUTER, "*.xlsx")):
+        m = MAIN_RE.match(os.path.basename(path))
+        if not m:
+            continue
+        fy = m.group(1)
+        detail = os.path.join(OUTER, f"Live Realized - Projected P&L Detailed Matrix {fy}.xlsx")
+        if not os.path.exists(detail):
+            print(f"  ! {fy}: main found but no Detailed Matrix — skipping")
+            continue
+        found.append((fy, path, detail))
+    return sorted(found, key=lambda x: x[0])
+
+
 def fmt(v):
-    """Compact number literal — integers without trailing .0."""
-    if v == int(v):
-        return str(int(v))
-    return repr(round(v, 6))
-
-
-def main():
-    months = load_main()
-    detail = load_detail()
-
-    # ── verification print ──
-    tp = sum(m["realPLUsd"] for m in months)
-    tb = sum(m["budgetUsd"] for m in months)
-    print(f"main: {len(months)} month rows; Σ realized P&L={tp:,.0f}, Σ budget={tb:,.0f}")
-    for m in months:
-        print(f"  {m['monthKey']}: realPL={m['realPLUsd']:>14,.0f} budget={m['budgetUsd']:>12,.0f} "
-              f"segs={len(detail.get(m['monthKey'], []))}")
-
-    lines = []
-    lines.append("// AUTO-GENERATED by scripts/build-powerbi-pl.py — DO NOT EDIT BY HAND.")
-    lines.append("// Static Power BI export snapshot (FY 25-26) for the \"Power BI Version\"")
-    lines.append("// reference table on the E.M Bakış dashboard. Re-run the script after")
-    lines.append("// replacing either \"Live Realized - Projected P&L … .xlsx\" export.")
-    lines.append("")
-    lines.append("export interface PowerBIPLMonthRow {")
-    lines.append("  /** 'YYYY-MM' of the FY month. */")
-    lines.append("  monthKey: string;")
-    lines.append("  projQtyTons: number;")
-    lines.append("  projRevenueUsd: number;")
-    lines.append("  projPLUsd: number;")
-    lines.append("  budgetUsd: number;")
-    lines.append("  realQtyTons: number;")
-    lines.append("  realRevenueUsd: number;")
-    lines.append("  realPLUsd: number;")
-    lines.append("}")
-    lines.append("")
-    lines.append("export interface PowerBIPLSegmentRow {")
-    lines.append("  segment: string;")
-    lines.append("  projPLUsd: number;")
-    lines.append("  realPLUsd: number;")
-    lines.append("  budgetUsd: number;")
-    lines.append("}")
-    lines.append("")
-    lines.append("/** 12 FY-month rows, Jul-25 → Jun-26 (from the main export). */")
-    lines.append("export const POWERBI_PL_ROWS: PowerBIPLMonthRow[] = [")
-    for m in months:
-        lines.append(
-            "  { monthKey: \"%s\", projQtyTons: %s, projRevenueUsd: %s, projPLUsd: %s, "
-            "budgetUsd: %s, realQtyTons: %s, realRevenueUsd: %s, realPLUsd: %s }," % (
-                m["monthKey"], fmt(m["projQtyTons"]), fmt(m["projRevenueUsd"]),
-                fmt(m["projPLUsd"]), fmt(m["budgetUsd"]), fmt(m["realQtyTons"]),
-                fmt(m["realRevenueUsd"]), fmt(m["realPLUsd"]),
-            )
-        )
-    lines.append("];")
-    lines.append("")
-    lines.append("/** monthKey → per-segment P&L / budget breakdown (drill-down, from the")
-    lines.append(" *  detailed-matrix export). Segments with an all-zero month are omitted. */")
-    lines.append("export const POWERBI_PL_SEGMENTS: Record<string, PowerBIPLSegmentRow[]> = {")
-    for m in months:
-        mk = m["monthKey"]
-        segs = detail.get(mk, [])
-        lines.append(f"  \"{mk}\": [")
-        for s in segs:
-            lines.append(
-                "    { segment: %s, projPLUsd: %s, realPLUsd: %s, budgetUsd: %s }," % (
-                    ts_str(s["segment"]), fmt(s["projPLUsd"]), fmt(s["realPLUsd"]), fmt(s["budgetUsd"]),
-                )
-            )
-        lines.append("  ],")
-    lines.append("};")
-    lines.append("")
-
-    os.makedirs(os.path.dirname(OUT_TS), exist_ok=True)
-    with open(OUT_TS, "w", encoding="utf-8", newline="\n") as f:
-        f.write("\n".join(lines))
-    print(f"\nwrote {OUT_TS}")
+    return str(int(v)) if v == int(v) else repr(round(v, 6))
 
 
 def ts_str(s):
     return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def main():
+    years = discover()
+    if not years:
+        print("No 'Live Realized - Projected P&L <FY>.xlsx' files found in", OUTER)
+        sys.exit(1)
+
+    data = {}  # fy -> (rows, detail)
+    for fy, main_path, detail_path in years:
+        rows = load_main(main_path)
+        detail = load_detail(detail_path)
+        data[fy] = (rows, detail)
+        tp = sum(m["realPLUsd"] for m in rows)
+        tb = sum(m["budgetUsd"] for m in rows)
+        print(f"FY {fy}: {len(rows)} months, Σ realized P&L={tp:,.0f}, Σ budget={tb:,.0f}")
+
+    L = []
+    L.append("// AUTO-GENERATED by scripts/build-powerbi-pl.py — DO NOT EDIT BY HAND.")
+    L.append("// Static Power BI export snapshots (one per financial year) for the")
+    L.append("// \"Power BI Version\" reference table on the E.M Bakış dashboard. Re-run the")
+    L.append("// script after adding/replacing a \"Live Realized - Projected P&L … .xlsx\" pair.")
+    L.append("")
+    L.append("export interface PowerBIPLMonthRow {")
+    L.append("  /** 'YYYY-MM' of the FY month. */")
+    L.append("  monthKey: string;")
+    L.append("  projQtyTons: number;")
+    L.append("  projRevenueUsd: number;")
+    L.append("  projPLUsd: number;")
+    L.append("  budgetUsd: number;")
+    L.append("  realQtyTons: number;")
+    L.append("  realRevenueUsd: number;")
+    L.append("  realPLUsd: number;")
+    L.append("}")
+    L.append("")
+    L.append("export interface PowerBIPLSegmentRow {")
+    L.append("  segment: string;")
+    L.append("  projPLUsd: number;")
+    L.append("  realPLUsd: number;")
+    L.append("  budgetUsd: number;")
+    L.append("}")
+    L.append("")
+    L.append("export interface PowerBIPLYear {")
+    L.append("  /** FinancialYear.label this snapshot belongs to (e.g. '25-26'). */")
+    L.append("  fy: string;")
+    L.append("  /** 12 FY-month rows, Jul → Jun. */")
+    L.append("  rows: PowerBIPLMonthRow[];")
+    L.append("  /** monthKey → per-segment breakdown (drill-down). */")
+    L.append("  segments: Record<string, PowerBIPLSegmentRow[]>;")
+    L.append("}")
+    L.append("")
+    L.append("/** Every FY export we have, keyed by FinancialYear.label. The dashboard")
+    L.append(" *  renders the Power BI Version table only for a selected FY that is a key")
+    L.append(" *  here. */")
+    L.append("export const POWERBI_PL_BY_FY: Record<string, PowerBIPLYear> = {")
+    for fy, _, _ in years:
+        rows, detail = data[fy]
+        L.append(f"  {ts_str(fy)}: {{")
+        L.append(f"    fy: {ts_str(fy)},")
+        L.append("    rows: [")
+        for m in rows:
+            L.append(
+                "      { monthKey: \"%s\", projQtyTons: %s, projRevenueUsd: %s, projPLUsd: %s, "
+                "budgetUsd: %s, realQtyTons: %s, realRevenueUsd: %s, realPLUsd: %s }," % (
+                    m["monthKey"], fmt(m["projQtyTons"]), fmt(m["projRevenueUsd"]),
+                    fmt(m["projPLUsd"]), fmt(m["budgetUsd"]), fmt(m["realQtyTons"]),
+                    fmt(m["realRevenueUsd"]), fmt(m["realPLUsd"]),
+                )
+            )
+        L.append("    ],")
+        L.append("    segments: {")
+        for m in rows:
+            mk = m["monthKey"]
+            L.append(f"      \"{mk}\": [")
+            for s in detail.get(mk, []):
+                L.append(
+                    "        { segment: %s, projPLUsd: %s, realPLUsd: %s, budgetUsd: %s }," % (
+                        ts_str(s["segment"]), fmt(s["projPLUsd"]), fmt(s["realPLUsd"]), fmt(s["budgetUsd"]),
+                    )
+                )
+            L.append("      ],")
+        L.append("    },")
+        L.append("  },")
+    L.append("};")
+    L.append("")
+
+    os.makedirs(os.path.dirname(OUT_TS), exist_ok=True)
+    with open(OUT_TS, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(L))
+    print(f"\nwrote {OUT_TS}  ({', '.join(fy for fy, _, _ in years)})")
 
 
 if __name__ == "__main__":

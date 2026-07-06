@@ -86,7 +86,7 @@ import {
 import {
   buildPowerBIPLTable,
   getPowerBISegments,
-  POWERBI_PL_FY,
+  hasPowerBIPL,
 } from "@/lib/selectors/powerbiPLTable";
 import { useThemeAccent } from "@/components/layout/theme-accent";
 import {
@@ -437,20 +437,24 @@ export function DashboardPage() {
   );
 
   // "Power BI Version" table — a FIXED snapshot straight from the PBI Excel
-  // export (src/data/powerbiPL.ts). Filter/FY-independent; only the localized
-  // "Toplam" footer label varies. Row drill-down = per-segment matrix.
+  // export (src/data/powerbiPL.ts) for the SELECTED financial year. null when
+  // there's no export for that FY (then the table isn't rendered). Row
+  // drill-down = per-segment matrix from the detailed export.
   const powerbiTable = React.useMemo(
-    () => buildPowerBIPLTable(t("dash.rpl.total")),
-    [t]
+    () => buildPowerBIPLTable(selectedFy.label, t("dash.rpl.total")),
+    [selectedFy.label, t]
   );
   const [pbiDetail, setPbiDetail] = React.useState<PowerBIPLDetail | null>(null);
-  const openPowerbiDetail = React.useCallback((row: RealizedPLMonthRow) => {
-    setPbiDetail({
-      monthKey: row.monthKey,
-      monthLabel: row.monthLabel,
-      segments: getPowerBISegments(row.monthKey),
-    });
-  }, []);
+  const openPowerbiDetail = React.useCallback(
+    (row: RealizedPLMonthRow) => {
+      setPbiDetail({
+        monthKey: row.monthKey,
+        monthLabel: row.monthLabel,
+        segments: getPowerBISegments(selectedFy.label, row.monthKey),
+      });
+    },
+    [selectedFy.label]
+  );
 
   // Approximate "rows visible after search" — counts projects passing
   // the toolbar's free-text query. Matches the per-breakdown filter so
@@ -660,19 +664,18 @@ export function DashboardPage() {
           subtitle={`${fyShortLabel} · ${t("dash.rpl.subtitleInvoice")}`}
         />
 
-        {/* 4. satır — POWER BI VERSION: PBI Excel export'unun sabit anlık
-            görüntüsü. Yalnızca FY 25-26 seçiliyken gösterilir (başka bir mali
-            yıl filtresinde anlamsız olurdu); ay satırına tıklayınca segment
-            kırılımı sağ panelde. */}
-        {selectedFy.label === POWERBI_PL_FY && (
+        {/* 4. satır — POWER BI VERSION: seçili mali yılın PBI Excel export
+            anlık görüntüsü. Yalnızca o FY için bir export varsa (24-25, 25-26,
+            …) gösterilir; ay satırına tıklayınca segment kırılımı sağ panelde. */}
+        {powerbiTable && (
           <RealizedPLTable
             data={powerbiTable}
             hasRealizedCoverage
             hideRefresh
             onSelectMonth={openPowerbiDetail}
-            fyLabel={POWERBI_PL_FY}
+            fyLabel={selectedFy.label}
             title={t("dash.pbi.title")}
-            subtitle={t("dash.pbi.subtitle")}
+            subtitle={`${t("dash.pbi.subtitle")} · ${selectedFy.fullLabel}`}
           />
         )}
       </div>
@@ -684,7 +687,7 @@ export function DashboardPage() {
       />
 
       <PowerBIPLDetailSheet
-        open={pbiDetail !== null && selectedFy.label === POWERBI_PL_FY}
+        open={pbiDetail !== null && hasPowerBIPL(selectedFy.label)}
         onOpenChange={(o) => !o && setPbiDetail(null)}
         detail={pbiDetail}
       />
