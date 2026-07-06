@@ -39,12 +39,17 @@ interface MonthlyPLChartProps {
   /** True once the realized-expense rollup covers the filtered set. */
   hasRealizedCoverage: boolean;
   /** Rollup fetch in flight (scoped to the filter). */
-  isFetching: boolean;
+  isFetching?: boolean;
   /** Trigger a scoped rollup recompute. */
-  onRefresh: () => void;
+  onRefresh?: () => void;
   /** FY short label, e.g. "25-26". */
   fyLabel: string;
   span?: string;
+  /** Hide the refresh button — for the static Power BI export mode, which has
+   *  nothing to refetch. */
+  hideRefresh?: boolean;
+  /** Optional subtitle override (defaults to `fyLabel · <monthly subtitle>`). */
+  subtitle?: string;
 }
 
 /**
@@ -62,23 +67,27 @@ export function MonthlyPLChart({
   onRefresh,
   fyLabel,
   span,
+  hideRefresh,
+  subtitle,
 }: MonthlyPLChartProps) {
   const t = useT();
 
   return (
     <BentoTile
       title={t("dash.monthly.title")}
-      subtitle={`${fyLabel} · ${t("dash.monthly.subtitle")}`}
+      subtitle={subtitle ?? `${fyLabel} · ${t("dash.monthly.subtitle")}`}
       icon={ChartBarBigIcon}
       iconTone={TONE_FORECAST}
       interactive={false}
       span={span}
       headerAction={
-        <RefreshButton
-          isFetching={isFetching}
-          hasRealizedCoverage={hasRealizedCoverage}
-          onRefresh={onRefresh}
-        />
+        hideRefresh || !onRefresh ? undefined : (
+          <RefreshButton
+            isFetching={isFetching ?? false}
+            hasRealizedCoverage={hasRealizedCoverage}
+            onRefresh={onRefresh}
+          />
+        )
       }
     >
       <div className="flex flex-col gap-2 h-full min-h-[260px]">

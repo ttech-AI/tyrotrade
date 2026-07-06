@@ -85,6 +85,7 @@ import {
 } from "@/lib/selectors/realizedPLTable";
 import {
   buildPowerBIPLTable,
+  buildPowerBIMonthlyPL,
   getPowerBISegments,
   hasPowerBIPL,
 } from "@/lib/selectors/powerbiPLTable";
@@ -286,6 +287,14 @@ export function DashboardPage() {
     [filters.fyKey]
   );
   const fyShortLabel = selectedFy.label;
+
+  // Aylık K/Z Performansı grafiği — seçili FY'nin PBI export'u varsa (24-25,
+  // 25-26) onun aylık Projected/Realized P&L'i; yoksa canlı aggregateMonthlyPL.
+  const monthlyUsesPbi = hasPowerBIPL(selectedFy.label);
+  const monthlyPoints = React.useMemo(
+    () => buildPowerBIMonthlyPL(selectedFy.label) ?? monthlyPL,
+    [selectedFy.label, monthlyPL]
+  );
 
   // Auto-compute the realized series once per "coverage gap" (non-blocking):
   // estimated bars render immediately; realized fills in when the scoped
@@ -620,11 +629,17 @@ export function DashboardPage() {
             realizedFetching={rollup.isFetching}
           />
           <MonthlyPLChart
-            points={monthlyPL}
-            hasRealizedCoverage={realizedCoversFilter}
-            isFetching={rollup.isFetching}
+            points={monthlyPoints}
+            hasRealizedCoverage={monthlyUsesPbi || realizedCoversFilter}
+            isFetching={monthlyUsesPbi ? false : rollup.isFetching}
             onRefresh={handleRealizedRefresh}
+            hideRefresh={monthlyUsesPbi}
             fyLabel={fyShortLabel}
+            subtitle={
+              monthlyUsesPbi
+                ? `${fyShortLabel} · ${t("dash.monthly.subtitle")} · Power BI`
+                : undefined
+            }
           />
         </div>
 

@@ -21,6 +21,7 @@ import type {
   RealizedPLMonthRow,
   RealizedPLTableData,
 } from "./realizedPLTable";
+import type { MonthlyPLPoint } from "./monthlyPL";
 
 const MONTH_FMT = new Intl.DateTimeFormat("tr-TR", { month: "short" });
 
@@ -97,4 +98,26 @@ export function getPowerBISegments(
   monthKey: string
 ): PowerBIPLSegmentRow[] {
   return POWERBI_PL_BY_FY[fy]?.segments[monthKey] ?? [];
+}
+
+/** Monthly estimated-vs-realized P&L points for the "Aylık K/Z Performansı"
+ *  chart, sourced from the PBI export for `fy`. null when there's no export
+ *  (the caller then falls back to the live `aggregateMonthlyPL`). Projected
+ *  P&L → estPL, Live Realized P&L → realizedPL. Everything is historical
+ *  (isFuture false); no per-project count in the export → realizedCount 0. */
+export function buildPowerBIMonthlyPL(fy: string): MonthlyPLPoint[] | null {
+  const year = POWERBI_PL_BY_FY[fy];
+  if (!year) return null;
+  const fmt = new Intl.DateTimeFormat("tr-TR", { month: "short" });
+  return year.rows.map((r) => {
+    const [y, m] = r.monthKey.split("-").map(Number);
+    return {
+      monthKey: r.monthKey,
+      monthLabel: fmt.format(new Date(y, m - 1, 1)),
+      estPL: r.projPLUsd,
+      realizedPL: r.realPLUsd,
+      realizedCount: 0,
+      isFuture: false,
+    };
+  });
 }
