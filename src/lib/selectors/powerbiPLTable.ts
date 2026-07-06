@@ -21,6 +21,13 @@ import type {
   RealizedPLTableData,
 } from "./realizedPLTable";
 
+/** Financial year this static snapshot represents (matches
+ *  `FinancialYear.label`). The dashboard only renders the "Power BI Version"
+ *  table when this FY is the selected one — it's a fixed 25-26 export, so it
+ *  would be meaningless under any other FY filter. Bump this if the Excel
+ *  export is regenerated for a different year. */
+export const POWERBI_PL_FY = "25-26";
+
 const MONTH_FMT = new Intl.DateTimeFormat("tr-TR", { month: "short" });
 
 /** "2025-07" → "Tem-25" (same label dialect as the live table). */

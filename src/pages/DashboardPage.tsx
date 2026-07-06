@@ -86,6 +86,7 @@ import {
 import {
   buildPowerBIPLTable,
   getPowerBISegments,
+  POWERBI_PL_FY,
 } from "@/lib/selectors/powerbiPLTable";
 import { useThemeAccent } from "@/components/layout/theme-accent";
 import {
@@ -660,17 +661,20 @@ export function DashboardPage() {
         />
 
         {/* 4. satır — POWER BI VERSION: PBI Excel export'unun sabit anlık
-            görüntüsü (FY 25-26). Filtre/FY'den bağımsız referans tablo; ay
-            satırına tıklayınca segment kırılımı sağ panelde. */}
-        <RealizedPLTable
-          data={powerbiTable}
-          hasRealizedCoverage
-          hideRefresh
-          onSelectMonth={openPowerbiDetail}
-          fyLabel="25-26"
-          title={t("dash.pbi.title")}
-          subtitle={t("dash.pbi.subtitle")}
-        />
+            görüntüsü. Yalnızca FY 25-26 seçiliyken gösterilir (başka bir mali
+            yıl filtresinde anlamsız olurdu); ay satırına tıklayınca segment
+            kırılımı sağ panelde. */}
+        {selectedFy.label === POWERBI_PL_FY && (
+          <RealizedPLTable
+            data={powerbiTable}
+            hasRealizedCoverage
+            hideRefresh
+            onSelectMonth={openPowerbiDetail}
+            fyLabel={POWERBI_PL_FY}
+            title={t("dash.pbi.title")}
+            subtitle={t("dash.pbi.subtitle")}
+          />
+        )}
       </div>
 
       <RealizedPLDetailSheet
@@ -680,7 +684,7 @@ export function DashboardPage() {
       />
 
       <PowerBIPLDetailSheet
-        open={pbiDetail !== null}
+        open={pbiDetail !== null && selectedFy.label === POWERBI_PL_FY}
         onOpenChange={(o) => !o && setPbiDetail(null)}
         detail={pbiDetail}
       />
