@@ -53,7 +53,6 @@ import {
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { useMsal } from "@azure/msal-react";
-import { shouldUseMock } from "@/lib/dataverse";
 import {
   Tooltip,
   TooltipContent,
@@ -125,20 +124,6 @@ export function DashboardPage() {
   const account = accounts[0] ?? instance.getActiveAccount() ?? null;
   // Tam ad-soyad (sadece ad değil) — selamlama başlığında gösterilir.
   const fullName = account?.name?.trim() || null;
-  // Canlı K/Z tabloları (project-period + invoice-date) yalnızca yetkili
-  // kullanıcılara gösterilir. Mock/dev modunda kısıtlama uygulanmaz.
-  const LIVE_PL_EMAILS = React.useMemo(
-    () =>
-      new Set([
-        "pinar.kurtunluoglu@tiryaki.com.tr",
-        "cenk.sayli@tiryaki.com.tr",
-      ]),
-    []
-  );
-  const canSeeLivePL = React.useMemo(() => {
-    const email = (account?.username ?? "").trim().toLowerCase();
-    return shouldUseMock() || LIVE_PL_EMAILS.has(email);
-  }, [account, LIVE_PL_EMAILS]);
   const [filters, setFilters] = React.useState<ProjectFilterState>(() => {
     // E.M Bakış varsayılanları: mevcut finansal dönem (FY) + ana trader
     // TRD-FTB. Bu sayfa Emerging Markets KPI ekranı — açılışta doğrudan
@@ -377,23 +362,9 @@ export function DashboardPage() {
   // budget from the dedicated cache, everything else from the same
   // selectors the chart/card use.
   const budgetMap = useSegmentBudgetMap();
-  const realizedTable = React.useMemo(
-    () =>
-      buildRealizedPLTable(
-        projects,
-        realizedExpenseByProject,
-        budgetMap,
-        now,
-        (filters.fyKey && findFyByKey(filters.fyKey)) || getFinancialYear(now),
-        t("dash.rpl.total"),
-        filters.segments
-      ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [projects, realizedExpenseByProject, budgetMap, filters.fyKey, filters.segments, t]
-  );
-  // SECOND table — same builder but realised bucketed by INVOICE DATE
-  // (PBI "Live Realized" axis). Falls back to project-period until the
-  // invoice aggregate covers the filtered set.
+  // Invoice-date tablosu — realised INVOICE DATE'e göre kovalanır (PBI
+  // "Live Realized" ekseni). BI export'u olmayan FY'lerde birincil tablo
+  // olarak (fallback) kullanılır. (Eski proje-dönem tablosu kaldırıldı.)
   const realizedTableInvoice = React.useMemo(
     () =>
       buildRealizedPLTable(
@@ -426,23 +397,9 @@ export function DashboardPage() {
 
   const [detailMonth, setDetailMonth] =
     React.useState<RealizedPLMonthDetail | null>(null);
-  const openMonthDetail = React.useCallback(
-    (row: RealizedPLMonthRow) => {
-      setDetailMonth(
-        buildMonthDetail(
-          projects,
-          row.monthKey,
-          row.monthLabel,
-          realizedExpenseByProject,
-          budgetMap,
-          filters.segments
-        )
-      );
-    },
-    [projects, realizedExpenseByProject, budgetMap, filters.segments]
-  );
-  // Invoice-date drill-down — same sheet, but realised split by invoice
-  // month (projects invoiced in the clicked month).
+  // Invoice-date drill-down — realised split by invoice month (projects
+  // invoiced in the clicked month). Fed by both the primary Invoice-date
+  // table (fallback) and the secondary one.
   const openMonthDetailInvoice = React.useCallback(
     (row: RealizedPLMonthRow) => {
       setDetailMonth(
@@ -629,84 +586,80 @@ export function DashboardPage() {
           </div>
         </GlassPanel>
 
-        {/* 1. satır — sadece iki kart: Dönem Performansı + Aylık K/Z. */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
-          <PeriodPerformanceTile
-            projects={projects}
-            now={now}
-            fy={selectedFy}
-            onClick={() => setDrawerKpi("period")}
-            realizedPL={realizedCoversFilter ? realizedAgg.pl : null}
-            realizedMarginPct={
-              realizedCoversFilter ? realizedAgg.marginPct : null
-            }
-            realizedContributingCount={realizedAgg.contributingCount}
-            realizedFetching={rollup.isFetching}
-          />
-          <MonthlyPLChart
-            points={monthlyPoints}
-            hasRealizedCoverage={monthlyUsesPbi || realizedCoversFilter}
-            isFetching={monthlyUsesPbi ? false : rollup.isFetching}
-            onRefresh={handleRealizedRefresh}
-            hideRefresh={monthlyUsesPbi}
-            fyLabel={fyShortLabel}
-            subtitle={
-              monthlyUsesPbi
-                ? `${fyShortLabel} · ${t("dash.monthly.subtitle")} · Power BI`
-                : undefined
-            }
-          />
+        {/* 1. satır — hero kartlar (Dönem Perf. + Aylık K/Z) + sağ rayda
+            Ödeme Bekleyen Gemiler. Kart tablolardan BAĞIMSIZ → BI export
+            olsun olmasın (24-25/25-26 ya da 26-27) her zaman görünür. */}
+        <div className="grid grid-cols-12 gap-3 items-stretch">
+          <div className="col-span-12 xl:col-span-9 grid grid-cols-1 lg:grid-cols-2 gap-3">
+            <PeriodPerformanceTile
+              projects={projects}
+              now={now}
+              fy={selectedFy}
+              onClick={() => setDrawerKpi("period")}
+              realizedPL={realizedCoversFilter ? realizedAgg.pl : null}
+              realizedMarginPct={
+                realizedCoversFilter ? realizedAgg.marginPct : null
+              }
+              realizedContributingCount={realizedAgg.contributingCount}
+              realizedFetching={rollup.isFetching}
+            />
+            <MonthlyPLChart
+              points={monthlyPoints}
+              hasRealizedCoverage={monthlyUsesPbi || realizedCoversFilter}
+              isFetching={monthlyUsesPbi ? false : rollup.isFetching}
+              onRefresh={handleRealizedRefresh}
+              hideRefresh={monthlyUsesPbi}
+              fyLabel={fyShortLabel}
+              subtitle={
+                monthlyUsesPbi
+                  ? `${fyShortLabel} · ${t("dash.monthly.subtitle")} · Power BI`
+                  : undefined
+              }
+            />
+          </div>
+          <div className="col-span-12 xl:col-span-3 min-w-0">
+            <PendingPaymentsCard pending={pending} />
+          </div>
         </div>
 
-        {/* 2. satır — BI VERSION + sağda Ödeme Bekleyen Gemiler. Seçili mali
-            yılın PBI Excel export anlık görüntüsü. Yalnızca o FY için bir
-            export varsa (24-25, 25-26, …) gösterilir; ay satırına tıklayınca
-            segment kırılımı sağ panelde. */}
-        {powerbiTable && (
-          <div className="grid grid-cols-12 gap-3 items-stretch">
-            <div className="col-span-12 xl:col-span-9 min-w-0">
-              <RealizedPLTable
-                data={powerbiTable}
-                hasRealizedCoverage
-                hideRefresh
-                onSelectMonth={openPowerbiDetail}
-                fyLabel={selectedFy.label}
-                title={t("dash.pbi.title")}
-                subtitle={`${t("dash.pbi.subtitle")} · ${selectedFy.fullLabel}`}
-              />
-            </div>
-            <div className="col-span-12 xl:col-span-3 min-w-0 relative">
-              <div className="xl:absolute xl:inset-0">
-                <PendingPaymentsCard pending={pending} />
-              </div>
-            </div>
-          </div>
+        {/* 2. satır — Birincil tablo (tam genişlik). BI Version varsa o; yoksa
+            fallback olarak Invoice Date tablosu en üste gelir (grafikteki
+            fallback mantığının aynısı). Kullanıcı kısıtı YOK — herkese açık. */}
+        {powerbiTable ? (
+          <RealizedPLTable
+            data={powerbiTable}
+            hasRealizedCoverage
+            hideRefresh
+            onSelectMonth={openPowerbiDetail}
+            fyLabel={selectedFy.label}
+            title={t("dash.pbi.title")}
+            subtitle={`${t("dash.pbi.subtitle")} · ${selectedFy.fullLabel}`}
+          />
+        ) : (
+          <RealizedPLTable
+            data={realizedTableInvoice}
+            hasRealizedCoverage={monthlyCoversFilter && realizedCoversFilter}
+            isFetching={rollup.isFetching || realizedMonthly.isFetching}
+            onRefresh={handleRealizedRefresh}
+            onSelectMonth={openMonthDetailInvoice}
+            fyLabel={fyShortLabel}
+            title={t("dash.rpl.titleInvoice")}
+            subtitle={`${fyShortLabel} · ${t("dash.rpl.subtitleInvoice")}`}
+          />
         )}
 
-        {/* 3–4. satırlar — canlı Tahmini × Gerçekleşen K/Z tabloları.
-            Yalnızca yetkili kullanıcılar görebilir (pinar + cenk). */}
-        {canSeeLivePL && (
-          <>
-            <RealizedPLTable
-              data={realizedTable}
-              hasRealizedCoverage={realizedCoversFilter}
-              isFetching={rollup.isFetching}
-              onRefresh={handleRealizedRefresh}
-              onSelectMonth={openMonthDetail}
-              fyLabel={fyShortLabel}
-            />
-
-            <RealizedPLTable
-              data={realizedTableInvoice}
-              hasRealizedCoverage={monthlyCoversFilter && realizedCoversFilter}
-              isFetching={rollup.isFetching || realizedMonthly.isFetching}
-              onRefresh={handleRealizedRefresh}
-              onSelectMonth={openMonthDetailInvoice}
-              fyLabel={fyShortLabel}
-              title={t("dash.rpl.titleInvoice")}
-              subtitle={`${fyShortLabel} · ${t("dash.rpl.subtitleInvoice")}`}
-            />
-          </>
+        {/* 3. satır — BI Version gösterildiyse, Invoice Date tablosu da altında. */}
+        {powerbiTable && (
+          <RealizedPLTable
+            data={realizedTableInvoice}
+            hasRealizedCoverage={monthlyCoversFilter && realizedCoversFilter}
+            isFetching={rollup.isFetching || realizedMonthly.isFetching}
+            onRefresh={handleRealizedRefresh}
+            onSelectMonth={openMonthDetailInvoice}
+            fyLabel={fyShortLabel}
+            title={t("dash.rpl.titleInvoice")}
+            subtitle={`${fyShortLabel} · ${t("dash.rpl.subtitleInvoice")}`}
+          />
         )}
       </div>
 
