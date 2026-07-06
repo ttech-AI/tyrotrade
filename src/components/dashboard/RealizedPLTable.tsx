@@ -20,8 +20,8 @@ const NEG = "rgb(190 24 93)";
 interface Props {
   data: RealizedPLTableData;
   hasRealizedCoverage: boolean;
-  isFetching: boolean;
-  onRefresh: () => void;
+  isFetching?: boolean;
+  onRefresh?: () => void;
   onSelectMonth: (row: RealizedPLMonthRow) => void;
   fyLabel: string;
   /** Optional title override — used by the second "invoice-date" variant
@@ -29,6 +29,9 @@ interface Props {
   title?: string;
   /** Optional subtitle override (defaults to `fyLabel · <monthly subtitle>`). */
   subtitle?: string;
+  /** Hide the refresh button — for the static "Power BI Version" snapshot
+   *  table, which has nothing to refetch. */
+  hideRefresh?: boolean;
 }
 
 function plColor(v: number) {
@@ -51,6 +54,7 @@ export function RealizedPLTable({
   fyLabel,
   title,
   subtitle,
+  hideRefresh,
 }: Props) {
   const t = useT();
   const money = (v: number) => formatCompactCurrency(v, "USD");
@@ -68,11 +72,13 @@ export function RealizedPLTable({
       iconTone={TONE_PL}
       interactive={false}
       headerAction={
-        <RefreshButton
-          isFetching={isFetching}
-          hasRealizedCoverage={hasRealizedCoverage}
-          onRefresh={onRefresh}
-        />
+        hideRefresh || !onRefresh ? undefined : (
+          <RefreshButton
+            isFetching={isFetching ?? false}
+            hasRealizedCoverage={hasRealizedCoverage}
+            onRefresh={onRefresh}
+          />
+        )
       }
     >
       <div className="flex flex-col gap-2">

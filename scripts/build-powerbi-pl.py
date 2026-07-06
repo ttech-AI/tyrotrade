@@ -1,0 +1,204 @@
+#!/usr/bin/env python3
+"""Generate src/data/powerbiPL.ts from the two Power BI Excel exports.
+
+Static "LIVE REALIZED – PROJECTED P&L" snapshot for FY 25-26, rendered by
+the "Power BI Version" table on the E.M Bakış dashboard as a fixed reference
+alongside the live (our-system) tables. NOT filter-reactive.
+
+Sources (read from the tyro-project-mcp repo root = parent of tyrotrade-repo):
+  - "Live Realized - Projected P&L 25-26.xlsx"            → monthly rows
+  - "Live Realized - Projected P&L Detailed Matrix 25-26.xlsx" → segment drill-down
+
+Re-run after replacing either Excel:
+    python scripts/build-powerbi-pl.py
+"""
+import os
+import sys
+import io
+import openpyxl
+
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(SCRIPT_DIR)                 # tyrotrade-repo
+OUTER = os.path.dirname(REPO)                      # tyro-project-mcp-dev (Excels live here)
+MAIN_XLSX = os.path.join(OUTER, "Live Realized - Projected P&L 25-26.xlsx")
+DETAIL_XLSX = os.path.join(OUTER, "Live Realized - Projected P&L Detailed Matrix 25-26.xlsx")
+OUT_TS = os.path.join(REPO, "src", "data", "powerbiPL.ts")
+
+_MONTHS = {
+    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
+}
+
+
+def month_key(label):
+    """'Jul-25' -> '2025-07'. Returns None for non-month labels (Total, blank)."""
+    if not label or not isinstance(label, str) or "-" not in label:
+        return None
+    mon, yy = label.strip().split("-", 1)
+    m = _MONTHS.get(mon.strip().lower()[:3])
+    if m is None or not yy.strip().isdigit():
+        return None
+    return f"20{int(yy):02d}-{m:02d}"
+
+
+def num(v):
+    if v is None or v == "":
+        return 0.0
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def load_main():
+    """Returns list of {monthKey, projQty, projRev, projPL, budget, realQty, realRev, realPL}."""
+    wb = openpyxl.load_workbook(MAIN_XLSX, data_only=True)
+    ws = wb.worksheets[0]
+    rows = []
+    for r in ws.iter_rows(min_row=2, values_only=True):
+        mk = month_key(r[0])
+        if mk is None:
+            continue  # skips Total + blank rows
+        rows.append({
+            "monthKey": mk,
+            "projQtyTons": num(r[1]),
+            "projRevenueUsd": num(r[2]),
+            "projPLUsd": num(r[3]),
+            "budgetUsd": num(r[4]),
+            "realQtyTons": num(r[5]),
+            "realRevenueUsd": num(r[6]),
+            "realPLUsd": num(r[7]),
+        })
+    wb.close()
+    return rows
+
+
+def load_detail():
+    """Returns dict monthKey -> list of {segment, projPL, realPL, budget}.
+
+    Header layout: row1 = month labels (each spanning 3 cols), row2 =
+    [Projected P&L, Live Realized P&L, Projected Budget] per month, col0 =
+    Segment Name. Month i (0-based) → cols (1+3i, 2+3i, 3+3i).
+    """
+    wb = openpyxl.load_workbook(DETAIL_XLSX, data_only=True)
+    ws = wb.worksheets[0]
+    grid = list(ws.iter_rows(values_only=True))
+    wb.close()
+    header = grid[0]  # month labels at col 1, 4, 7, ...
+    # month index -> monthKey
+    idx_to_key = {}
+    for i in range(12):
+        col = 1 + 3 * i
+        if col < len(header):
+            idx_to_key[i] = month_key(header[col])
+    out = {mk: [] for mk in idx_to_key.values() if mk}
+    for row in grid[2:]:
+        seg = (row[0] or "").strip() if isinstance(row[0], str) else ""
+        if not seg or seg.lower() in ("total", "grand total", "toplam"):
+            continue
+        for i in range(12):
+            mk = idx_to_key.get(i)
+            if not mk:
+                continue
+            proj = num(row[1 + 3 * i]) if 1 + 3 * i < len(row) else 0.0
+            real = num(row[2 + 3 * i]) if 2 + 3 * i < len(row) else 0.0
+            bud = num(row[3 + 3 * i]) if 3 + 3 * i < len(row) else 0.0
+            if proj == 0.0 and real == 0.0 and bud == 0.0:
+                continue  # segment inactive this month
+            out[mk].append({
+                "segment": seg,
+                "projPLUsd": proj,
+                "realPLUsd": real,
+                "budgetUsd": bud,
+            })
+    return out
+
+
+def fmt(v):
+    """Compact number literal — integers without trailing .0."""
+    if v == int(v):
+        return str(int(v))
+    return repr(round(v, 6))
+
+
+def main():
+    months = load_main()
+    detail = load_detail()
+
+    # ── verification print ──
+    tp = sum(m["realPLUsd"] for m in months)
+    tb = sum(m["budgetUsd"] for m in months)
+    print(f"main: {len(months)} month rows; Σ realized P&L={tp:,.0f}, Σ budget={tb:,.0f}")
+    for m in months:
+        print(f"  {m['monthKey']}: realPL={m['realPLUsd']:>14,.0f} budget={m['budgetUsd']:>12,.0f} "
+              f"segs={len(detail.get(m['monthKey'], []))}")
+
+    lines = []
+    lines.append("// AUTO-GENERATED by scripts/build-powerbi-pl.py — DO NOT EDIT BY HAND.")
+    lines.append("// Static Power BI export snapshot (FY 25-26) for the \"Power BI Version\"")
+    lines.append("// reference table on the E.M Bakış dashboard. Re-run the script after")
+    lines.append("// replacing either \"Live Realized - Projected P&L … .xlsx\" export.")
+    lines.append("")
+    lines.append("export interface PowerBIPLMonthRow {")
+    lines.append("  /** 'YYYY-MM' of the FY month. */")
+    lines.append("  monthKey: string;")
+    lines.append("  projQtyTons: number;")
+    lines.append("  projRevenueUsd: number;")
+    lines.append("  projPLUsd: number;")
+    lines.append("  budgetUsd: number;")
+    lines.append("  realQtyTons: number;")
+    lines.append("  realRevenueUsd: number;")
+    lines.append("  realPLUsd: number;")
+    lines.append("}")
+    lines.append("")
+    lines.append("export interface PowerBIPLSegmentRow {")
+    lines.append("  segment: string;")
+    lines.append("  projPLUsd: number;")
+    lines.append("  realPLUsd: number;")
+    lines.append("  budgetUsd: number;")
+    lines.append("}")
+    lines.append("")
+    lines.append("/** 12 FY-month rows, Jul-25 → Jun-26 (from the main export). */")
+    lines.append("export const POWERBI_PL_ROWS: PowerBIPLMonthRow[] = [")
+    for m in months:
+        lines.append(
+            "  { monthKey: \"%s\", projQtyTons: %s, projRevenueUsd: %s, projPLUsd: %s, "
+            "budgetUsd: %s, realQtyTons: %s, realRevenueUsd: %s, realPLUsd: %s }," % (
+                m["monthKey"], fmt(m["projQtyTons"]), fmt(m["projRevenueUsd"]),
+                fmt(m["projPLUsd"]), fmt(m["budgetUsd"]), fmt(m["realQtyTons"]),
+                fmt(m["realRevenueUsd"]), fmt(m["realPLUsd"]),
+            )
+        )
+    lines.append("];")
+    lines.append("")
+    lines.append("/** monthKey → per-segment P&L / budget breakdown (drill-down, from the")
+    lines.append(" *  detailed-matrix export). Segments with an all-zero month are omitted. */")
+    lines.append("export const POWERBI_PL_SEGMENTS: Record<string, PowerBIPLSegmentRow[]> = {")
+    for m in months:
+        mk = m["monthKey"]
+        segs = detail.get(mk, [])
+        lines.append(f"  \"{mk}\": [")
+        for s in segs:
+            lines.append(
+                "    { segment: %s, projPLUsd: %s, realPLUsd: %s, budgetUsd: %s }," % (
+                    ts_str(s["segment"]), fmt(s["projPLUsd"]), fmt(s["realPLUsd"]), fmt(s["budgetUsd"]),
+                )
+            )
+        lines.append("  ],")
+    lines.append("};")
+    lines.append("")
+
+    os.makedirs(os.path.dirname(OUT_TS), exist_ok=True)
+    with open(OUT_TS, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(lines))
+    print(f"\nwrote {OUT_TS}")
+
+
+def ts_str(s):
+    return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+if __name__ == "__main__":
+    main()

@@ -71,6 +71,10 @@ import { useRealizedByMonth } from "@/hooks/useRealizedByMonth";
 import { useSegmentBudgetMap } from "@/hooks/useSegmentBudgetMap";
 import { RealizedPLTable } from "@/components/dashboard/RealizedPLTable";
 import { RealizedPLDetailSheet } from "@/components/dashboard/RealizedPLDetailSheet";
+import {
+  PowerBIPLDetailSheet,
+  type PowerBIPLDetail,
+} from "@/components/dashboard/PowerBIPLDetailSheet";
 import { PendingPaymentsCard } from "@/components/overview/PendingPaymentsCard";
 import { selectPendingPayments } from "@/lib/selectors/overview";
 import {
@@ -79,6 +83,10 @@ import {
   type RealizedPLMonthRow,
   type RealizedPLMonthDetail,
 } from "@/lib/selectors/realizedPLTable";
+import {
+  buildPowerBIPLTable,
+  getPowerBISegments,
+} from "@/lib/selectors/powerbiPLTable";
 import { useThemeAccent } from "@/components/layout/theme-accent";
 import {
   findFyByKey,
@@ -427,6 +435,22 @@ export function DashboardPage() {
     [projects, realizedExpenseByProject, budgetMap, filters.segments, realizedByMonthMap]
   );
 
+  // "Power BI Version" table — a FIXED snapshot straight from the PBI Excel
+  // export (src/data/powerbiPL.ts). Filter/FY-independent; only the localized
+  // "Toplam" footer label varies. Row drill-down = per-segment matrix.
+  const powerbiTable = React.useMemo(
+    () => buildPowerBIPLTable(t("dash.rpl.total")),
+    [t]
+  );
+  const [pbiDetail, setPbiDetail] = React.useState<PowerBIPLDetail | null>(null);
+  const openPowerbiDetail = React.useCallback((row: RealizedPLMonthRow) => {
+    setPbiDetail({
+      monthKey: row.monthKey,
+      monthLabel: row.monthLabel,
+      segments: getPowerBISegments(row.monthKey),
+    });
+  }, []);
+
   // Approximate "rows visible after search" — counts projects passing
   // the toolbar's free-text query. Matches the per-breakdown filter so
   // the toolbar's `12/437` counter is honest. Specific breakdowns may
@@ -634,12 +658,31 @@ export function DashboardPage() {
           title={t("dash.rpl.titleInvoice")}
           subtitle={`${fyShortLabel} · ${t("dash.rpl.subtitleInvoice")}`}
         />
+
+        {/* 4. satır — POWER BI VERSION: PBI Excel export'unun sabit anlık
+            görüntüsü (FY 25-26). Filtre/FY'den bağımsız referans tablo; ay
+            satırına tıklayınca segment kırılımı sağ panelde. */}
+        <RealizedPLTable
+          data={powerbiTable}
+          hasRealizedCoverage
+          hideRefresh
+          onSelectMonth={openPowerbiDetail}
+          fyLabel="25-26"
+          title={t("dash.pbi.title")}
+          subtitle={t("dash.pbi.subtitle")}
+        />
       </div>
 
       <RealizedPLDetailSheet
         open={detailMonth !== null}
         onOpenChange={(o) => !o && setDetailMonth(null)}
         detail={detailMonth}
+      />
+
+      <PowerBIPLDetailSheet
+        open={pbiDetail !== null}
+        onOpenChange={(o) => !o && setPbiDetail(null)}
+        detail={pbiDetail}
       />
 
       {/* KPI detail drawer — renders the breakdown component matching
