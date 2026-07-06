@@ -643,7 +643,22 @@ export function DashboardPage() {
           />
         </div>
 
-        {/* 2. satır — aylık Tahmini × Gerçekleşen K/Z tablosu (geniş, ay
+        {/* 2. satır — POWER BI VERSION: seçili mali yılın PBI Excel export
+            anlık görüntüsü. Yalnızca o FY için bir export varsa (24-25, 25-26,
+            …) gösterilir; ay satırına tıklayınca segment kırılımı sağ panelde. */}
+        {powerbiTable && (
+          <RealizedPLTable
+            data={powerbiTable}
+            hasRealizedCoverage
+            hideRefresh
+            onSelectMonth={openPowerbiDetail}
+            fyLabel={selectedFy.label}
+            title={t("dash.pbi.title")}
+            subtitle={`${t("dash.pbi.subtitle")} · ${selectedFy.fullLabel}`}
+          />
+        )}
+
+        {/* 3. satır — aylık Tahmini × Gerçekleşen K/Z tablosu (geniş, ay
             satırına tıklayınca proje kırılımı sağ panelde) + sağda Ödeme
             Bekleyen Gemiler. Sağ ray mutlak konumlu kart ile tablonun
             yüksekliğine sabitlenir — alt hizası tabloyla aynı (taşmaz). */}
@@ -665,7 +680,7 @@ export function DashboardPage() {
           </div>
         </div>
 
-        {/* 3. satır — aynı tablonun FATURA TARİHİ versiyonu (PBI LIVE_PL
+        {/* 4. satır — aynı tablonun FATURA TARİHİ versiyonu (PBI LIVE_PL
             kartı = realized işlem tarihine göre; Ağu ~174,5M). Üstteki tablo
             proje-dönem eksenli (Realized Project List = ~117M) kalır. */}
         <RealizedPLTable
@@ -678,21 +693,6 @@ export function DashboardPage() {
           title={t("dash.rpl.titleInvoice")}
           subtitle={`${fyShortLabel} · ${t("dash.rpl.subtitleInvoice")}`}
         />
-
-        {/* 4. satır — POWER BI VERSION: seçili mali yılın PBI Excel export
-            anlık görüntüsü. Yalnızca o FY için bir export varsa (24-25, 25-26,
-            …) gösterilir; ay satırına tıklayınca segment kırılımı sağ panelde. */}
-        {powerbiTable && (
-          <RealizedPLTable
-            data={powerbiTable}
-            hasRealizedCoverage
-            hideRefresh
-            onSelectMonth={openPowerbiDetail}
-            fyLabel={selectedFy.label}
-            title={t("dash.pbi.title")}
-            subtitle={`${t("dash.pbi.subtitle")} · ${selectedFy.fullLabel}`}
-          />
-        )}
       </div>
 
       <RealizedPLDetailSheet
