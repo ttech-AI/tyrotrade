@@ -20,6 +20,8 @@ import {
 } from "@/lib/selectors/project";
 import { aggregateEstimatedPL } from "@/lib/selectors/aggregate";
 import { getFinancialYear, type FinancialYear } from "@/lib/dashboard/financialPeriod";
+import { POWERBI_PL_BY_FY } from "@/data/powerbiPL";
+import { formatCompactCurrency } from "@/lib/format";
 import type { Project } from "@/lib/dataverse/entities";
 
 interface PeriodPerformanceTileProps {
@@ -80,23 +82,52 @@ export function PeriodPerformanceTile({
   const t = useT();
 
   const totalProjects = projects.length;
+
+  // Power BI export snapshot for the SELECTED financial year (24-25, 25-26, …).
+  // When present, the four non-count KPIs + the sparkline read from it instead
+  // of the live/project-derived figures (the user asked for these to mirror the
+  // PBI export). FYs without an export fall back to the live behaviour below.
+  const activeFy = fy ?? getFinancialYear(now);
+  const pbi = POWERBI_PL_BY_FY[activeFy.label];
+  const usingPbi = !!pbi;
+  const pbiTotals = React.useMemo(() => {
+    if (!pbi) return null;
+    return pbi.rows.reduce(
+      (a, r) => ({
+        projQtyTons: a.projQtyTons + r.projQtyTons,
+        realQtyTons: a.realQtyTons + r.realQtyTons,
+        projPLUsd: a.projPLUsd + r.projPLUsd,
+        realPLUsd: a.realPLUsd + r.realPLUsd,
+      }),
+      { projQtyTons: 0, realQtyTons: 0, projPLUsd: 0, realPLUsd: 0 }
+    );
+  }, [pbi]);
+
+  // ── Live (project-derived) figures — used as-is for FYs without an export ──
   // Estimated tonnage — Σ line quantity (kg → MT).
-  const estTonnage = React.useMemo(
+  const estTonnageLive = React.useMemo(
     () => projects.reduce((sum, p) => sum + selectTotalTons(p), 0),
     [projects]
   );
-  // Realized tonnage — invoiced quantity (tons) from customer invoices. Comes
-  // from the main refresh (sales), so it's available without the expense rollup.
-  const realizedTonnage = React.useMemo(
+  // Realized tonnage — invoiced quantity (tons) from customer invoices.
+  const realizedTonnageLive = React.useMemo(
     () => projects.reduce((sum, p) => sum + (p.salesActualQtyTons ?? 0), 0),
     [projects]
   );
   // Estimated net P&L (USD) — same rollup the K&Z tile / monthly chart use.
-  const estPL = React.useMemo(() => aggregateEstimatedPL(projects).pl, [projects]);
-  // Realized P&L arrives via props (the page owns the expense rollup). `null` =
-  // rollup hasn't covered the filter yet → muted placeholder. (Realized tonnage
-  // above is NOT gated — it comes from sales, not the expense rollup.)
-  const hasRealizedPL = realizedPL !== null;
+  const estPLLive = React.useMemo(() => aggregateEstimatedPL(projects).pl, [projects]);
+
+  // ── Displayed figures: PBI export when available, else live ──
+  const estTonnage = usingPbi ? pbiTotals!.projQtyTons : estTonnageLive;
+  const realizedTonnage = usingPbi ? pbiTotals!.realQtyTons : realizedTonnageLive;
+  const estPL = usingPbi ? pbiTotals!.projPLUsd : estPLLive;
+  // Realized P&L: PBI total in export mode, otherwise the prop the page computes
+  // (null until the expense rollup covers the filter). Project count stays live.
+  const realizedPLValue = usingPbi ? pbiTotals!.realPLUsd : realizedPL;
+  const hasRealizedPL = usingPbi ? true : realizedPL !== null;
+  const contributingCount = usingPbi
+    ? pbi.rows.filter((r) => r.realPLUsd !== 0).length
+    : realizedContributingCount;
 
   // Financial-year-aligned 12-month sparkline: Jul (start of FY) → Jun
   // (end of FY). Anchored at the SELECTED FY (the period filter's fyKey),
@@ -104,7 +135,23 @@ export function PeriodPerformanceTile({
   // the chart the moment the calendar rolls into a fresh, data-less FY while
   // the user is still viewing a past year's projects.
   const sparkline = React.useMemo<SparkPoint[]>(() => {
-    const activeFy = fy ?? getFinancialYear(now);
+    const fyy = fy ?? getFinancialYear(now);
+    const pbiYear = POWERBI_PL_BY_FY[fyy.label];
+    // PBI export mode → monthly Live Realized P&L straight from the Excel
+    // (same monthly-area form as before, P&L instead of project-intake count).
+    if (pbiYear) {
+      const fmt = new Intl.DateTimeFormat("tr-TR", { month: "short" });
+      return pbiYear.rows.map((r) => {
+        const [y, m] = r.monthKey.split("-").map(Number);
+        return {
+          monthKey: r.monthKey,
+          monthLabel: fmt.format(new Date(y, m - 1, 1)),
+          value: r.realPLUsd,
+        };
+      });
+    }
+    // Live fallback → 12-month project-intake distribution.
+    const activeFy = fyy;
     const buckets: SparkPoint[] = [];
     for (let i = 0; i < 12; i++) {
       const d = new Date(activeFy.startYear, 6 + i, 1); // Jul = month 6
@@ -133,7 +180,11 @@ export function PeriodPerformanceTile({
   return (
     <BentoTile
       title={t("dash.tile.period.title")}
-      subtitle={t("dash.tile.period.subtitle")}
+      subtitle={
+        usingPbi
+          ? `${t("dash.tile.period.subtitle")} · Power BI`
+          : t("dash.tile.period.subtitle")
+      }
       icon={ChartLineData01Icon}
       iconTone={TONE_FORECAST}
       span={span}
@@ -186,16 +237,16 @@ export function PeriodPerformanceTile({
             label={t("dash.tile.period.realPnl")}
             tooltip={t("dash.tile.period.realPnlTip").replace(
               "{count}",
-              String(realizedContributingCount)
+              String(contributingCount)
             )}
             value={
               hasRealizedPL ? (
                 <span
                   className="text-[21px] font-semibold leading-none tracking-tight"
-                  style={{ color: plColor(realizedPL as number) }}
+                  style={{ color: plColor(realizedPLValue as number) }}
                 >
                   <AnimatedNumber
-                    value={realizedPL as number}
+                    value={realizedPLValue as number}
                     preset="currency"
                     currency="USD"
                   />
@@ -271,13 +322,20 @@ export function PeriodPerformanceTile({
                 // recharts' Formatter type widens `value` to `ValueType |
                 // undefined`. Coerce to number and return the [value, name]
                 // tuple it expects.
-                formatter={(v) => [
-                  t("dash.tile.period.sparkOpened").replace(
-                    "{count}",
-                    String(Number(v ?? 0))
-                  ),
-                  t("dash.tile.period.sparkUnit"),
-                ]}
+                formatter={(v) =>
+                  usingPbi
+                    ? [
+                        formatCompactCurrency(Number(v ?? 0), "USD"),
+                        t("dash.tile.period.realPnl"),
+                      ]
+                    : [
+                        t("dash.tile.period.sparkOpened").replace(
+                          "{count}",
+                          String(Number(v ?? 0))
+                        ),
+                        t("dash.tile.period.sparkUnit"),
+                      ]
+                }
                 labelFormatter={(l) =>
                   t("dash.tile.period.sparkMonth").replace("{month}", String(l))
                 }
