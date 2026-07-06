@@ -586,67 +586,70 @@ export function DashboardPage() {
           </div>
         </GlassPanel>
 
-        {/* 1. satır — hero kartlar (Dönem Perf. + Aylık K/Z) + sağ rayda
-            Ödeme Bekleyen Gemiler. Kart tablolardan BAĞIMSIZ → BI export
-            olsun olmasın (24-25/25-26 ya da 26-27) her zaman görünür. */}
-        <div className="grid grid-cols-12 gap-3 items-stretch">
-          <div className="col-span-12 xl:col-span-9 grid grid-cols-1 lg:grid-cols-2 gap-3">
-            <PeriodPerformanceTile
-              projects={projects}
-              now={now}
-              fy={selectedFy}
-              onClick={() => setDrawerKpi("period")}
-              realizedPL={realizedCoversFilter ? realizedAgg.pl : null}
-              realizedMarginPct={
-                realizedCoversFilter ? realizedAgg.marginPct : null
-              }
-              realizedContributingCount={realizedAgg.contributingCount}
-              realizedFetching={rollup.isFetching}
-            />
-            <MonthlyPLChart
-              points={monthlyPoints}
-              hasRealizedCoverage={monthlyUsesPbi || realizedCoversFilter}
-              isFetching={monthlyUsesPbi ? false : rollup.isFetching}
-              onRefresh={handleRealizedRefresh}
-              hideRefresh={monthlyUsesPbi}
-              fyLabel={fyShortLabel}
-              subtitle={
-                monthlyUsesPbi
-                  ? `${fyShortLabel} · ${t("dash.monthly.subtitle")} · Power BI`
-                  : undefined
-              }
-            />
-          </div>
-          <div className="col-span-12 xl:col-span-3 min-w-0">
-            <PendingPaymentsCard pending={pending} />
-          </div>
+        {/* 1. satır — hero kartlar: Dönem Performansı + Aylık K/Z. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
+          <PeriodPerformanceTile
+            projects={projects}
+            now={now}
+            fy={selectedFy}
+            onClick={() => setDrawerKpi("period")}
+            realizedPL={realizedCoversFilter ? realizedAgg.pl : null}
+            realizedMarginPct={
+              realizedCoversFilter ? realizedAgg.marginPct : null
+            }
+            realizedContributingCount={realizedAgg.contributingCount}
+            realizedFetching={rollup.isFetching}
+          />
+          <MonthlyPLChart
+            points={monthlyPoints}
+            hasRealizedCoverage={monthlyUsesPbi || realizedCoversFilter}
+            isFetching={monthlyUsesPbi ? false : rollup.isFetching}
+            onRefresh={handleRealizedRefresh}
+            hideRefresh={monthlyUsesPbi}
+            fyLabel={fyShortLabel}
+            subtitle={
+              monthlyUsesPbi
+                ? `${fyShortLabel} · ${t("dash.monthly.subtitle")} · Power BI`
+                : undefined
+            }
+          />
         </div>
 
-        {/* 2. satır — Birincil tablo (tam genişlik). BI Version varsa o; yoksa
-            fallback olarak Invoice Date tablosu en üste gelir (grafikteki
-            fallback mantığının aynısı). Kullanıcı kısıtı YOK — herkese açık. */}
-        {powerbiTable ? (
-          <RealizedPLTable
-            data={powerbiTable}
-            hasRealizedCoverage
-            hideRefresh
-            onSelectMonth={openPowerbiDetail}
-            fyLabel={selectedFy.label}
-            title={t("dash.pbi.title")}
-            subtitle={`${t("dash.pbi.subtitle")} · ${selectedFy.fullLabel}`}
-          />
-        ) : (
-          <RealizedPLTable
-            data={realizedTableInvoice}
-            hasRealizedCoverage={monthlyCoversFilter && realizedCoversFilter}
-            isFetching={rollup.isFetching || realizedMonthly.isFetching}
-            onRefresh={handleRealizedRefresh}
-            onSelectMonth={openMonthDetailInvoice}
-            fyLabel={fyShortLabel}
-            title={t("dash.rpl.titleInvoice")}
-            subtitle={`${fyShortLabel} · ${t("dash.rpl.subtitleInvoice")}`}
-          />
-        )}
+        {/* 2. satır — Birincil tablo + sağda Ödeme Bekleyen Gemiler.
+            BI Version varsa o; yoksa fallback olarak Invoice Date tablosu aynı
+            konuma gelir (grafikteki fallback mantığı). Kullanıcı kısıtı YOK.
+            Ana tablo her FY'de dolu olduğundan kart 26-27 dahil hep görünür. */}
+        <div className="grid grid-cols-12 gap-3 items-stretch">
+          <div className="col-span-12 xl:col-span-9 min-w-0">
+            {powerbiTable ? (
+              <RealizedPLTable
+                data={powerbiTable}
+                hasRealizedCoverage
+                hideRefresh
+                onSelectMonth={openPowerbiDetail}
+                fyLabel={selectedFy.label}
+                title={t("dash.pbi.title")}
+                subtitle={`${t("dash.pbi.subtitle")} · ${selectedFy.fullLabel}`}
+              />
+            ) : (
+              <RealizedPLTable
+                data={realizedTableInvoice}
+                hasRealizedCoverage={monthlyCoversFilter && realizedCoversFilter}
+                isFetching={rollup.isFetching || realizedMonthly.isFetching}
+                onRefresh={handleRealizedRefresh}
+                onSelectMonth={openMonthDetailInvoice}
+                fyLabel={fyShortLabel}
+                title={t("dash.rpl.titleInvoice")}
+                subtitle={`${fyShortLabel} · ${t("dash.rpl.subtitleInvoice")}`}
+              />
+            )}
+          </div>
+          <div className="col-span-12 xl:col-span-3 min-w-0 relative">
+            <div className="xl:absolute xl:inset-0">
+              <PendingPaymentsCard pending={pending} />
+            </div>
+          </div>
+        </div>
 
         {/* 3. satır — BI Version gösterildiyse, Invoice Date tablosu da altında. */}
         {powerbiTable && (
