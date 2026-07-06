@@ -191,9 +191,12 @@ export function PeriodPerformanceTile({
       rowSpan={rowSpan}
       onClick={onClick}
     >
-      <div className="flex flex-col gap-2 h-full">
-        {/* 5-up KPI row: proje sayısı · tahmini/gerçekleşen tonaj · tahmini/gerçekleşen PnL */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+      <div className="@container flex flex-col gap-2 h-full">
+        {/* 5-up KPI row. Column count follows the CARD's own width (container
+            query), not the viewport — so when the TYRO Chat drawer opens and
+            the card narrows, it steps 5 → 3 → 2 columns instead of overflowing
+            (the $79,8 Mn values used to overlap). */}
+        <div className="grid grid-cols-2 @sm:grid-cols-3 @xl:grid-cols-5 gap-2.5">
           <KPI
             label={t("dash.tile.period.projectCount")}
             tooltip={t("dash.tile.period.projectCountTip")}
