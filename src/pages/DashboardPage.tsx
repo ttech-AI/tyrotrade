@@ -53,6 +53,7 @@ import {
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
 import { useMsal } from "@azure/msal-react";
+import { shouldUseMock } from "@/lib/dataverse";
 import {
   Tooltip,
   TooltipContent,
@@ -124,6 +125,20 @@ export function DashboardPage() {
   const account = accounts[0] ?? instance.getActiveAccount() ?? null;
   // Tam ad-soyad (sadece ad değil) — selamlama başlığında gösterilir.
   const fullName = account?.name?.trim() || null;
+  // Canlı K/Z tabloları (project-period + invoice-date) yalnızca yetkili
+  // kullanıcılara gösterilir. Mock/dev modunda kısıtlama uygulanmaz.
+  const LIVE_PL_EMAILS = React.useMemo(
+    () =>
+      new Set([
+        "pinar.kurtunluoglu@tiryaki.com.tr",
+        "cenk.sayli@tiryaki.com.tr",
+      ]),
+    []
+  );
+  const canSeeLivePL = React.useMemo(() => {
+    const email = (account?.username ?? "").trim().toLowerCase();
+    return shouldUseMock() || LIVE_PL_EMAILS.has(email);
+  }, [account, LIVE_PL_EMAILS]);
   const [filters, setFilters] = React.useState<ProjectFilterState>(() => {
     // E.M Bakış varsayılanları: mevcut finansal dönem (FY) + ana trader
     // TRD-FTB. Bu sayfa Emerging Markets KPI ekranı — açılışta doğrudan
@@ -643,27 +658,35 @@ export function DashboardPage() {
           />
         </div>
 
-        {/* 2. satır — POWER BI VERSION: seçili mali yılın PBI Excel export
-            anlık görüntüsü. Yalnızca o FY için bir export varsa (24-25, 25-26,
-            …) gösterilir; ay satırına tıklayınca segment kırılımı sağ panelde. */}
+        {/* 2. satır — BI VERSION + sağda Ödeme Bekleyen Gemiler. Seçili mali
+            yılın PBI Excel export anlık görüntüsü. Yalnızca o FY için bir
+            export varsa (24-25, 25-26, …) gösterilir; ay satırına tıklayınca
+            segment kırılımı sağ panelde. */}
         {powerbiTable && (
-          <RealizedPLTable
-            data={powerbiTable}
-            hasRealizedCoverage
-            hideRefresh
-            onSelectMonth={openPowerbiDetail}
-            fyLabel={selectedFy.label}
-            title={t("dash.pbi.title")}
-            subtitle={`${t("dash.pbi.subtitle")} · ${selectedFy.fullLabel}`}
-          />
+          <div className="grid grid-cols-12 gap-3 items-stretch">
+            <div className="col-span-12 xl:col-span-9 min-w-0">
+              <RealizedPLTable
+                data={powerbiTable}
+                hasRealizedCoverage
+                hideRefresh
+                onSelectMonth={openPowerbiDetail}
+                fyLabel={selectedFy.label}
+                title={t("dash.pbi.title")}
+                subtitle={`${t("dash.pbi.subtitle")} · ${selectedFy.fullLabel}`}
+              />
+            </div>
+            <div className="col-span-12 xl:col-span-3 min-w-0 relative">
+              <div className="xl:absolute xl:inset-0">
+                <PendingPaymentsCard pending={pending} />
+              </div>
+            </div>
+          </div>
         )}
 
-        {/* 3. satır — aylık Tahmini × Gerçekleşen K/Z tablosu (geniş, ay
-            satırına tıklayınca proje kırılımı sağ panelde) + sağda Ödeme
-            Bekleyen Gemiler. Sağ ray mutlak konumlu kart ile tablonun
-            yüksekliğine sabitlenir — alt hizası tabloyla aynı (taşmaz). */}
-        <div className="grid grid-cols-12 gap-3 items-stretch">
-          <div className="col-span-12 xl:col-span-9 min-w-0">
+        {/* 3–4. satırlar — canlı Tahmini × Gerçekleşen K/Z tabloları.
+            Yalnızca yetkili kullanıcılar görebilir (pinar + cenk). */}
+        {canSeeLivePL && (
+          <>
             <RealizedPLTable
               data={realizedTable}
               hasRealizedCoverage={realizedCoversFilter}
@@ -672,27 +695,19 @@ export function DashboardPage() {
               onSelectMonth={openMonthDetail}
               fyLabel={fyShortLabel}
             />
-          </div>
-          <div className="col-span-12 xl:col-span-3 min-w-0 relative">
-            <div className="xl:absolute xl:inset-0">
-              <PendingPaymentsCard pending={pending} />
-            </div>
-          </div>
-        </div>
 
-        {/* 4. satır — aynı tablonun FATURA TARİHİ versiyonu (PBI LIVE_PL
-            kartı = realized işlem tarihine göre; Ağu ~174,5M). Üstteki tablo
-            proje-dönem eksenli (Realized Project List = ~117M) kalır. */}
-        <RealizedPLTable
-          data={realizedTableInvoice}
-          hasRealizedCoverage={monthlyCoversFilter && realizedCoversFilter}
-          isFetching={rollup.isFetching || realizedMonthly.isFetching}
-          onRefresh={handleRealizedRefresh}
-          onSelectMonth={openMonthDetailInvoice}
-          fyLabel={fyShortLabel}
-          title={t("dash.rpl.titleInvoice")}
-          subtitle={`${fyShortLabel} · ${t("dash.rpl.subtitleInvoice")}`}
-        />
+            <RealizedPLTable
+              data={realizedTableInvoice}
+              hasRealizedCoverage={monthlyCoversFilter && realizedCoversFilter}
+              isFetching={rollup.isFetching || realizedMonthly.isFetching}
+              onRefresh={handleRealizedRefresh}
+              onSelectMonth={openMonthDetailInvoice}
+              fyLabel={fyShortLabel}
+              title={t("dash.rpl.titleInvoice")}
+              subtitle={`${fyShortLabel} · ${t("dash.rpl.subtitleInvoice")}`}
+            />
+          </>
+        )}
       </div>
 
       <RealizedPLDetailSheet
