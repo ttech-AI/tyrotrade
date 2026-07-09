@@ -68,55 +68,125 @@ export function ChatMessage({ message, className }: ChatMessageProps) {
 
 /* ─────────── Tiny markdown subset ─────────── */
 
+type MdBlock =
+  | { type: "p"; content: string[] }
+  | { type: "ul"; content: string[] }
+  | { type: "table"; header: string[]; rows: string[][] };
+
+/** Split a `| a | b |` row into trimmed cells (leading/trailing pipes stripped). */
+function splitTableRow(line: string): string[] {
+  let s = line.trim();
+  if (s.startsWith("|")) s = s.slice(1);
+  if (s.endsWith("|")) s = s.slice(0, -1);
+  return s.split("|").map((c) => c.trim());
+}
+
+/** A markdown table separator row, e.g. `| --- | :--: | ---: |`. */
+function isTableSeparator(line: string): boolean {
+  const s = line.trim();
+  if (!s.includes("-") || !s.includes("|")) return false;
+  const cells = splitTableRow(s);
+  return cells.length > 0 && cells.every((c) => /^:?-{2,}:?$/.test(c.replace(/\s/g, "")));
+}
+
 /**
- * Render a small subset of markdown: paragraphs, line breaks,
- * `**bold**`, and bullet lines starting with "- ". Anything fancier
- * (links, code blocks) is rendered as plain text — Gemini follows the
- * "kısa ve net" guidance from our system prompt so this is enough.
+ * Render a small subset of markdown: paragraphs, line breaks, `**bold**`,
+ * bullet lines ("- "), and GitHub-style tables (`| a | b |` + `|---|---|`).
+ * Tables matter because the Copilot agent formats tabular answers as markdown
+ * tables — Copilot Studio's own UI renders them, so this custom renderer must
+ * too (otherwise the web-app chat shows mangled pipes). Kept lightweight (no
+ * react-markdown dependency).
  */
 export function MarkdownText({ text }: { text: string }) {
-  // Group consecutive bullet lines into a single <ul>; everything else
-  // becomes a <p>. Keeps the renderer trivially lightweight without
-  // pulling react-markdown.
   const lines = text.split(/\r?\n/);
-  const blocks: Array<{ type: "p" | "ul"; content: string[] }> = [];
-  for (const raw of lines) {
-    const line = raw.trimEnd();
+  const blocks: MdBlock[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i].trimEnd();
+
+    // Table: a row containing "|" immediately followed by a separator row.
+    if (line.includes("|") && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
+      const header = splitTableRow(line);
+      const rows: string[][] = [];
+      i += 2; // consume header + separator
+      while (
+        i < lines.length &&
+        lines[i].trim() !== "" &&
+        lines[i].includes("|") &&
+        !isTableSeparator(lines[i])
+      ) {
+        rows.push(splitTableRow(lines[i].trimEnd()));
+        i++;
+      }
+      blocks.push({ type: "table", header, rows });
+      continue;
+    }
+
     const isBullet = /^\s*[-*•]\s+/.test(line);
     if (isBullet) {
       const last = blocks[blocks.length - 1];
-      if (last && last.type === "ul") {
-        last.content.push(line.replace(/^\s*[-*•]\s+/, ""));
-      } else {
-        blocks.push({ type: "ul", content: [line.replace(/^\s*[-*•]\s+/, "")] });
-      }
+      const item = line.replace(/^\s*[-*•]\s+/, "");
+      if (last && last.type === "ul") last.content.push(item);
+      else blocks.push({ type: "ul", content: [item] });
     } else if (line.trim() === "") {
-      // Paragraph break — close current block by starting a fresh one
       if (blocks.length && blocks[blocks.length - 1].type === "p") {
         blocks.push({ type: "p", content: [] });
       }
     } else {
       const last = blocks[blocks.length - 1];
-      if (last && last.type === "p") {
-        last.content.push(line);
-      } else {
-        blocks.push({ type: "p", content: [line] });
-      }
+      if (last && last.type === "p") last.content.push(line);
+      else blocks.push({ type: "p", content: [line] });
     }
+    i++;
   }
+
   return (
     <div className="space-y-1.5">
-      {blocks.map((b, i) =>
-        b.type === "ul" ? (
-          <ul key={i} className="list-disc pl-4 space-y-0.5">
-            {b.content.map((c, j) => (
-              <li key={j}>
-                <Inline text={c} />
-              </li>
-            ))}
-          </ul>
-        ) : b.content.length === 0 ? null : (
-          <p key={i}>
+      {blocks.map((b, bi) => {
+        if (b.type === "table") {
+          return (
+            <div key={bi} className="overflow-x-auto -mx-1">
+              <table className="w-full border-collapse text-[12px]">
+                <thead>
+                  <tr>
+                    {b.header.map((h, j) => (
+                      <th
+                        key={j}
+                        className="text-left font-semibold px-2 py-1 border-b border-border/60 whitespace-nowrap"
+                      >
+                        <Inline text={h} />
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {b.rows.map((r, ri) => (
+                    <tr key={ri} className="border-b border-border/25">
+                      {r.map((c, ci) => (
+                        <td key={ci} className="px-2 py-1 align-top tabular-nums whitespace-nowrap">
+                          <Inline text={c} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+        if (b.type === "ul") {
+          return (
+            <ul key={bi} className="list-disc pl-4 space-y-0.5">
+              {b.content.map((c, j) => (
+                <li key={j}>
+                  <Inline text={c} />
+                </li>
+              ))}
+            </ul>
+          );
+        }
+        return b.content.length === 0 ? null : (
+          <p key={bi}>
             {b.content.map((c, j) => (
               <span key={j}>
                 {j > 0 && <br />}
@@ -124,8 +194,8 @@ export function MarkdownText({ text }: { text: string }) {
               </span>
             ))}
           </p>
-        )
-      )}
+        );
+      })}
     </div>
   );
 }
