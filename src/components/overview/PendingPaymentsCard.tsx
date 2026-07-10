@@ -1,6 +1,5 @@
-import * as React from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, ChevronDown, ChevronUp } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Invoice03Icon } from "@hugeicons/core-free-icons";
 import { GlassPanel } from "@/components/glass/GlassPanel";
@@ -13,21 +12,17 @@ import { type PendingPayments } from "@/lib/selectors/overview";
  * Rows are sorted by "bekleme süresi" (waiting days) — the longest
  * waiting first — where waiting = days since the voyage's most recent
  * populated milestone. Rows deep-link into Sefer Takibi.
+ *
+ * The list fills the card and scrolls when there are more voyages than
+ * fit — no "show more" collapse, so the card never grows past its grid
+ * slot; the user simply scrolls the rest.
  */
-/** Rows shown before the user expands the list. */
-const COLLAPSED_ROWS = 5;
-
 export function PendingPaymentsCard({
   pending,
 }: {
   pending: PendingPayments;
 }) {
   const t = useT();
-  const [showAll, setShowAll] = React.useState(false);
-  const visibleRows = showAll
-    ? pending.rows
-    : pending.rows.slice(0, COLLAPSED_ROWS);
-  const hiddenCount = pending.rows.length - COLLAPSED_ROWS;
   return (
     <GlassPanel
       tone="default"
@@ -68,9 +63,12 @@ export function PendingPaymentsCard({
             </span>
           </div>
 
-          {/* Rows */}
-          <div className="flex-1 px-2 py-1.5 overflow-y-auto">
-            {visibleRows.map((r) => (
+          {/* Rows — fill the card; scroll when longer than it fits.
+              `min-h-0` lets this flex child shrink below its content so
+              `overflow-y-auto` actually engages instead of growing the
+              card past its grid slot. */}
+          <div className="flex-1 min-h-0 px-2 py-1.5 overflow-y-auto">
+            {pending.rows.map((r) => (
               <Link
                 key={r.projectNo}
                 to={`/projects/${r.projectNo}`}
@@ -95,27 +93,6 @@ export function PendingPaymentsCard({
                 />
               </Link>
             ))}
-            {/* Expand / collapse — first 5 by default, the rest on
-                demand so the card stays scannable */}
-            {hiddenCount > 0 && (
-              <button
-                type="button"
-                onClick={() => setShowAll((v) => !v)}
-                className="w-full flex items-center justify-center gap-1.5 rounded-lg px-2 py-2 mt-0.5 text-[11.5px] font-semibold text-foreground/70 hover:text-foreground hover:bg-foreground/[0.04] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-              >
-                {showAll ? (
-                  <>
-                    <ChevronUp className="size-3.5" strokeWidth={2.25} />
-                    {t("ov.pending.showLess")}
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="size-3.5" strokeWidth={2.25} />
-                    {t("ov.pending.showMore")} (+{hiddenCount})
-                  </>
-                )}
-              </button>
-            )}
           </div>
         </>
       )}
