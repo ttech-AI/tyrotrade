@@ -457,7 +457,10 @@ export function isPaymentPending(status: string | null | undefined): boolean {
 }
 
 export interface PendingPaymentRow {
-  project: Project;
+  /** Ship-plan project id (`mserp_tryshipprojid`) — row key + deep-link. */
+  projectNo: string;
+  /** Display label — vessel name when usable, else the project id. */
+  label: string;
   /** `mserp_netfreightamount` — F&O label "Ürün Bedeli ($)", i.e. the
    *  voyage's CARGO VALUE in USD (not freight). 0 when not entered. */
   amountUsd: number;
@@ -470,6 +473,102 @@ export interface PendingPayments {
   rows: PendingPaymentRow[];
   totalUsd: number;
   count: number;
+}
+
+/* Small readers so the raw-ship-row variant doesn't need composeProjects. */
+function readStr(r: Record<string, unknown>, k: string): string {
+  const v = r[k];
+  return typeof v === "string" ? v : v == null ? "" : String(v);
+}
+function annotatedOrRaw(r: Record<string, unknown>, k: string): string {
+  const fv = r[`${k}@OData.Community.Display.V1.FormattedValue`];
+  if (typeof fv === "string" && fv.trim()) return fv;
+  return readStr(r, k);
+}
+function isUsableName(v: string): boolean {
+  return v.trim().length > 0 && !/^\d[\d\s,.]*$/.test(v.trim());
+}
+/** Newest of a list of ISO dates → days elapsed to `now` (0 when none). */
+function daysSinceLatest(
+  isos: (string | null | undefined)[],
+  now: Date
+): number {
+  let bestT = -Infinity;
+  for (const iso of isos) {
+    if (!iso) continue;
+    const t = new Date(iso).getTime();
+    if (Number.isFinite(t) && t > bestT) bestT = t;
+  }
+  return bestT === -Infinity
+    ? 0
+    : Math.max(0, Math.floor((now.getTime() - bestT) / 86_400_000));
+}
+
+/** Ship-plan milestone date columns, newest-first priority. */
+const SHIP_MILESTONE_KEYS = [
+  "mserp_trydischargeenddate",
+  "mserp_trydischargestartdate",
+  "mserp_tryarrivalconfirmdate",
+  "mserp_arrivaldate",
+  "mserp_trydeparturedatebl",
+  "mserp_tryloadenddate",
+  "mserp_tryloadstartdate",
+  "mserp_trynoraccepteddate",
+  "mserp_tryestimatedtimeofarrival",
+] as const;
+
+/**
+ * Payment-pending voyages built DIRECTLY from raw ship-plan rows
+ * (`mserp_tryaiprojectshiprelationentities`), NOT from composed projects.
+ *
+ * This is deliberate: the payment-pending card is a GLOBAL financial alert
+ * that must list EVERY pending voyage regardless of (a) the page's filters,
+ * (b) the segment scope that culls headerless projects, and (c) whether the
+ * sub-project cache has been elevated yet (a voyage whose only record is a
+ * sub-project ship row — e.g. ORGANIK01-71 — never reaches composeProjects
+ * as its own Project, so a projects-based selector silently drops it). The
+ * ship cache carries payment status, vessel name, freight amount and every
+ * milestone, so it is a complete, filter-independent source on its own.
+ */
+export function selectPendingPaymentsFromShips(
+  shipRows: Record<string, unknown>[],
+  now: Date,
+  maxRows: number = 200
+): PendingPayments {
+  const byProj = new Map<string, PendingPaymentRow>();
+  for (const s of shipRows) {
+    if (!isPaymentPending(annotatedOrRaw(s, "mserp_trypaymentstatus"))) continue;
+    const projectNo = readStr(s, "mserp_tryshipprojid").trim();
+    if (!projectNo) continue;
+    const label =
+      [
+        readStr(s, "mserp_vesselname"),
+        annotatedOrRaw(s, "mserp_vessel"),
+        readStr(s, "mserp_trydescription"),
+      ]
+        .map((v) => v.trim())
+        .find(isUsableName) ?? projectNo;
+    const amountRaw = s["mserp_netfreightamount"];
+    const amountNum =
+      typeof amountRaw === "number" ? amountRaw : Number(amountRaw);
+    const amountUsd = Number.isFinite(amountNum) ? amountNum : 0;
+    const days = daysSinceLatest(
+      SHIP_MILESTONE_KEYS.map((k) => readStr(s, k) || null),
+      now
+    );
+    // A project can carry more than one ship-plan row; keep the
+    // longest-waiting so the card shows one line per voyage project.
+    const prev = byProj.get(projectNo);
+    if (!prev || days > prev.days) {
+      byProj.set(projectNo, { projectNo, label, amountUsd, days });
+    }
+  }
+  const rows = [...byProj.values()].sort((a, b) => b.days - a.days);
+  return {
+    rows: rows.slice(0, maxRows),
+    totalUsd: rows.reduce((sum, r) => sum + r.amountUsd, 0),
+    count: rows.length,
+  };
 }
 
 /** Most recent populated milestone date on the plan, newest-first. */
@@ -517,7 +616,12 @@ export function selectPendingPayments(
     const days = Number.isFinite(sinceT)
       ? Math.max(0, Math.floor((now.getTime() - sinceT) / 86_400_000))
       : 0;
-    all.push({ project: p, amountUsd, days });
+    all.push({
+      projectNo: p.projectNo,
+      label: voyageDisplayLabel(p),
+      amountUsd,
+      days,
+    });
   }
   all.sort((a, b) => b.days - a.days);
   return {

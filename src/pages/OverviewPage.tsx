@@ -15,7 +15,6 @@ import {
   buildGroupSegmentColumns,
   buildSegmentMatrix,
   segmentsForGroup,
-  selectPendingPayments,
   selectWaitingVessels,
   voyageDisplayLabel,
   GROUP_META,
@@ -31,6 +30,7 @@ import { SegmentMatrixCard } from "@/components/overview/SegmentMatrixCard";
 import { LongestWaitingCard } from "@/components/overview/LongestWaitingCard";
 import { GroupSegmentColumns } from "@/components/overview/GroupSegmentColumns";
 import { PendingPaymentsCard } from "@/components/overview/PendingPaymentsCard";
+import { usePendingPayments } from "@/hooks/usePendingPayments";
 import {
   DetailContextMenu,
   type DetailMenuState,
@@ -115,18 +115,13 @@ export function OverviewPage() {
     () => selectWaitingVessels(projects, now),
     [projects, now]
   );
-  // "Ödeme Bekleyen Gemiler" is a GLOBAL financial alert, NOT a view of the
-  // current slice: it must always list EVERY payment-pending voyage in
-  // scope, regardless of the page's group / segment / status / period
-  // filters. So it reads straight from the unfiltered `rawProjects` — never
-  // from the filtered `projects`. Verified against live Dataverse: of the
-  // payment-pending voyages most sit at Completed / Closed (past the active
-  // pipeline), so ANY voyage-status narrowing would hide the majority. High
-  // maxRows because the card itself collapses to 5 with a toggle.
-  const pending = React.useMemo(
-    () => selectPendingPayments(rawProjects, now, 200),
-    [rawProjects, now]
-  );
+  // "Ödeme Bekleyen Gemiler" is a GLOBAL financial alert. It is sourced
+  // straight from the raw ship-plan cache (usePendingPayments) — NOT from
+  // this page's filtered project list — so it is immune to every filter
+  // (group / segment / status / period / trader) AND to the segment /
+  // sub-project scope that would otherwise drop headerless voyages. It
+  // always lists every payment-pending voyage there is.
+  const pending = usePendingPayments();
 
   /* ─── In-page filter handlers — clicking a group / segment / status
      applies the filter ON THIS PAGE (no navigation): every card, the

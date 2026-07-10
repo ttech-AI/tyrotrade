@@ -5,10 +5,7 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { Invoice03Icon } from "@hugeicons/core-free-icons";
 import { GlassPanel } from "@/components/glass/GlassPanel";
 import { useT } from "@/lib/i18n/LanguageProvider";
-import {
-  voyageDisplayLabel,
-  type PendingPayments,
-} from "@/lib/selectors/overview";
+import { type PendingPayments } from "@/lib/selectors/overview";
 
 /**
  * "Ödeme Bekleyen Gemiler" — voyages whose ship plan carries a pending
@@ -75,18 +72,18 @@ export function PendingPaymentsCard({
           <div className="flex-1 px-2 py-1.5 overflow-y-auto">
             {visibleRows.map((r) => (
               <Link
-                key={r.project.projectNo}
-                to={`/projects/${r.project.projectNo}`}
-                state={{ focusProjectNo: r.project.projectNo }}
+                key={r.projectNo}
+                to={`/projects/${r.projectNo}`}
+                state={{ focusProjectNo: r.projectNo }}
                 className="group flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-foreground/[0.04] transition-colors min-w-0"
-                title={`${r.project.projectNo} ${t("ov.pending.openInProjects")}`}
+                title={`${r.projectNo} ${t("ov.pending.openInProjects")}`}
               >
                 <div className="min-w-0 flex-1">
                   <div className="text-[12px] font-medium text-foreground/90 truncate">
-                    {voyageDisplayLabel(r.project)}
+                    {r.label}
                   </div>
                   <div className="text-[10.5px] font-mono text-muted-foreground truncate">
-                    {r.project.projectNo}
+                    {r.projectNo}
                   </div>
                 </div>
                 <span className="text-[11px] font-semibold tabular-nums text-muted-foreground w-[52px] text-right shrink-0">

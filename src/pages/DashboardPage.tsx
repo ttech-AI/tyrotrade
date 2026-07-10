@@ -76,7 +76,7 @@ import {
   type PowerBIPLDetail,
 } from "@/components/dashboard/PowerBIPLDetailSheet";
 import { PendingPaymentsCard } from "@/components/overview/PendingPaymentsCard";
-import { selectPendingPayments } from "@/lib/selectors/overview";
+import { usePendingPayments } from "@/hooks/usePendingPayments";
 import {
   buildRealizedPLTable,
   buildMonthDetail,
@@ -390,10 +390,9 @@ export function DashboardPage() {
   );
   // Genel Bakış'tan kopyalanan "Ödeme Bekleyen Gemiler" kartı — aynı
   // selektör, filtrelenmiş proje setiyle (E.M Bakış'ın sağ rayında).
-  const pending = React.useMemo(
-    () => selectPendingPayments(projects, now, 200),
-    [projects, now]
-  );
+  // Global financial alert — sourced from the raw ship cache, filter- and
+  // scope-independent (see usePendingPayments). Always the full pending set.
+  const pending = usePendingPayments();
 
   const [detailMonth, setDetailMonth] =
     React.useState<RealizedPLMonthDetail | null>(null);
