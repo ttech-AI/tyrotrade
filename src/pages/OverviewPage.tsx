@@ -115,11 +115,27 @@ export function OverviewPage() {
     () => selectWaitingVessels(projects, now),
     [projects, now]
   );
-  // High maxRows — the card itself collapses to 5 with a "Daha fazla
-  // göster" toggle, so we hand it the full list.
+  // "Ödeme Bekleyen Gemiler" is a financial alert, NOT a pipeline view:
+  // payment-pending voyages have almost always moved PAST the active
+  // pipeline (Completed / Closed), so the page's default voyage-status
+  // narrowing (To Be Nominated + Nominated + Commenced) would cull them
+  // all and the card would read empty. Feed it a set that honours every
+  // OTHER filter (group / segment / period / etc.) but drops the
+  // voyage-status narrowing — same "empty the self-pruning field" gotcha
+  // documented for extractAvailableOptions. High maxRows because the card
+  // itself collapses to 5 with a "Daha fazla göster" toggle.
+  const pendingProjects = React.useMemo(
+    () =>
+      applyProjectFilter(
+        rawProjects,
+        { ...filters, voyageStatuses: new Set<string>() },
+        now
+      ),
+    [rawProjects, filters, now]
+  );
   const pending = React.useMemo(
-    () => selectPendingPayments(projects, now, 200),
-    [projects, now]
+    () => selectPendingPayments(pendingProjects, now, 200),
+    [pendingProjects, now]
   );
 
   /* ─── In-page filter handlers — clicking a group / segment / status
