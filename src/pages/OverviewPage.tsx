@@ -115,27 +115,17 @@ export function OverviewPage() {
     () => selectWaitingVessels(projects, now),
     [projects, now]
   );
-  // "Ödeme Bekleyen Gemiler" is a financial alert, NOT a pipeline view:
-  // payment-pending voyages have almost always moved PAST the active
-  // pipeline (Completed / Closed), so the page's default voyage-status
-  // narrowing (To Be Nominated + Nominated + Commenced) would cull them
-  // all and the card would read empty. Feed it a set that honours every
-  // OTHER filter (group / segment / period / etc.) but drops the
-  // voyage-status narrowing — same "empty the self-pruning field" gotcha
-  // documented for extractAvailableOptions. High maxRows because the card
-  // itself collapses to 5 with a "Daha fazla göster" toggle.
-  const pendingProjects = React.useMemo(
-    () =>
-      applyProjectFilter(
-        rawProjects,
-        { ...filters, voyageStatuses: new Set<string>() },
-        now
-      ),
-    [rawProjects, filters, now]
-  );
+  // "Ödeme Bekleyen Gemiler" is a GLOBAL financial alert, NOT a view of the
+  // current slice: it must always list EVERY payment-pending voyage in
+  // scope, regardless of the page's group / segment / status / period
+  // filters. So it reads straight from the unfiltered `rawProjects` — never
+  // from the filtered `projects`. Verified against live Dataverse: of the
+  // payment-pending voyages most sit at Completed / Closed (past the active
+  // pipeline), so ANY voyage-status narrowing would hide the majority. High
+  // maxRows because the card itself collapses to 5 with a toggle.
   const pending = React.useMemo(
-    () => selectPendingPayments(pendingProjects, now, 200),
-    [pendingProjects, now]
+    () => selectPendingPayments(rawProjects, now, 200),
+    [rawProjects, now]
   );
 
   /* ─── In-page filter handlers — clicking a group / segment / status
