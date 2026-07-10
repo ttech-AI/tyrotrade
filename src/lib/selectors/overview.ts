@@ -448,10 +448,18 @@ export function selectWaitingVessels(
 /* ─────────── Payment-pending voyages ─────────── */
 
 /** True when the ship plan's payment status reads as pending
- *  ("Beklemede", "Bekliyor", "Pending", "Waiting"…). Empty / completed
- *  statuses are NOT pending. */
+ *  ("Beklemede", "Pending", "Waiting"…). Empty / completed statuses are
+ *  NOT pending.
+ *
+ *  ⚠️ Lowercase with the LOCALE-INVARIANT `toLowerCase()`, NOT
+ *  `toLocaleLowerCase("tr-TR")`: the Turkish locale maps the ASCII "I" to
+ *  the dotless "ı", so an all-caps "PENDING" became "pendıng" and silently
+ *  failed the /pending/ test — a real "PENDING" voyage (PRJ000002267)
+ *  dropped out of the alert, leaving 11 of 12. Invariant lowercase keeps
+ *  "I" → "i" so every casing of the English keywords matches. Turkish
+ *  "Beklemede" has no dotted-I, so it is unaffected either way. */
 export function isPaymentPending(status: string | null | undefined): boolean {
-  const s = (status ?? "").toLocaleLowerCase("tr-TR");
+  const s = (status ?? "").toLowerCase();
   if (!s) return false;
   return /bekle|pending|waiting/.test(s);
 }
