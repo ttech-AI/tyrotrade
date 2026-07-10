@@ -117,10 +117,11 @@ export function OverviewPage() {
   );
   // "Ödeme Bekleyen Gemiler" is a GLOBAL financial alert. It is sourced
   // straight from the raw ship-plan cache (usePendingPayments) — NOT from
-  // this page's filtered project list — so it is immune to every filter
-  // (group / segment / status / period / trader) AND to the segment /
-  // sub-project scope that would otherwise drop headerless voyages. It
-  // always lists every payment-pending voyage there is.
+  // this page's filtered project list — so it is immune to every page
+  // filter (group / segment / status / period) AND to the segment /
+  // sub-project scope that would otherwise drop headerless voyages. It is,
+  // however, deliberately scoped to TRD-FTB voyages only (see
+  // usePendingPayments) — that is a fixed business rule, not a page filter.
   const pending = usePendingPayments();
 
   /* ─── In-page filter handlers — clicking a group / segment / status

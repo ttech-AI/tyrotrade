@@ -390,8 +390,9 @@ export function DashboardPage() {
   );
   // Genel Bakış'tan kopyalanan "Ödeme Bekleyen Gemiler" kartı — aynı
   // selektör, filtrelenmiş proje setiyle (E.M Bakış'ın sağ rayında).
-  // Global financial alert — sourced from the raw ship cache, filter- and
-  // scope-independent (see usePendingPayments). Always the full pending set.
+  // Global financial alert — sourced from the raw ship cache, page-filter-
+  // and scope-independent, but scoped to TRD-FTB (see usePendingPayments) —
+  // which happens to match this page's own E.M/TRD-FTB scope already.
   const pending = usePendingPayments();
 
   const [detailMonth, setDetailMonth] =
