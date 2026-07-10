@@ -801,16 +801,20 @@ export async function refreshAllEntities(
         // — separating them caused a "property not found" 400. Don't
         // re-touch the lookup section without re-testing.
         //
-        // Scope: parent project IDs UNION sub-project IDs — sub-projects
-        // carry their own ship-plan rows in F&O, joined via the same
-        // `mserp_tryshipprojid` FK that parents use. See
-        // `readAllScopedProjids()` for the rationale.
-        const projids = readAllScopedProjids();
-        const result = await listAllByInChunked<Record<string, unknown>>(
-          client,
+        // Scope: UNSCOPED — fetch every ship-plan row. The entity is
+        // tiny (~545 rows total) and the payment-pending alert
+        // (usePendingPayments) reads this cache DIRECTLY, so it must
+        // hold EVERY voyage. The previous `readAllScopedProjids()` IN
+        // filter (parent + sub-project ids) under-counted the alert:
+        // any pending voyage whose projid wasn't in the projects cache
+        // at fetch time — a briefly-stale header, a failed IN chunk —
+        // was silently dropped (observed: a pending PRJ missing from
+        // the card while it was present server-side). composeProjects
+        // looks ships up BY project id, so surplus ship rows with no
+        // matching project are simply ignored — an unscoped fetch is
+        // safe there. `$select` still trims the payload / cache.
+        const result = await client.listAll<Record<string, unknown>>(
           ENTITY_SETS.ship,
-          "mserp_tryshipprojid",
-          projids,
           {
             $select: SHIP_COLUMNS.join(","),
             $count: true,
