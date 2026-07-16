@@ -71,6 +71,8 @@ export function ChatMessage({ message, className }: ChatMessageProps) {
 type MdBlock =
   | { type: "p"; content: string[] }
   | { type: "ul"; content: string[] }
+  | { type: "ol"; content: string[] }
+  | { type: "h"; level: number; content: string }
   | { type: "table"; header: string[]; rows: string[][] };
 
 /** Split a `| a | b |` row into trimmed cells (leading/trailing pipes stripped). */
@@ -91,7 +93,8 @@ function isTableSeparator(line: string): boolean {
 
 /**
  * Render a small subset of markdown: paragraphs, line breaks, `**bold**`,
- * bullet lines ("- "), and GitHub-style tables (`| a | b |` + `|---|---|`).
+ * ATX headings (`#`..`######`), bullet lines ("- "), numbered lists ("1. "),
+ * and GitHub-style tables (`| a | b |` + `|---|---|`).
  * Tables matter because the Copilot agent formats tabular answers as markdown
  * tables — Copilot Studio's own UI renders them, so this custom renderer must
  * too (otherwise the web-app chat shows mangled pipes). Kept lightweight (no
@@ -122,12 +125,23 @@ export function MarkdownText({ text }: { text: string }) {
       continue;
     }
 
+    // ATX heading: `#`..`######` followed by a space. Copilot uses these
+    // for section titles; without a case here the literal `##` leaks through.
+    const heading = /^(#{1,6})\s+(.*)$/.exec(line.trim());
     const isBullet = /^\s*[-*•]\s+/.test(line);
-    if (isBullet) {
+    const isOrdered = /^\s*\d+\.\s+/.test(line);
+    if (heading) {
+      blocks.push({ type: "h", level: heading[1].length, content: heading[2].trim() });
+    } else if (isBullet) {
       const last = blocks[blocks.length - 1];
       const item = line.replace(/^\s*[-*•]\s+/, "");
       if (last && last.type === "ul") last.content.push(item);
       else blocks.push({ type: "ul", content: [item] });
+    } else if (isOrdered) {
+      const last = blocks[blocks.length - 1];
+      const item = line.replace(/^\s*\d+\.\s+/, "");
+      if (last && last.type === "ol") last.content.push(item);
+      else blocks.push({ type: "ol", content: [item] });
     } else if (line.trim() === "") {
       if (blocks.length && blocks[blocks.length - 1].type === "p") {
         blocks.push({ type: "p", content: [] });
@@ -174,6 +188,21 @@ export function MarkdownText({ text }: { text: string }) {
             </div>
           );
         }
+        if (b.type === "h") {
+          // Scale the three sensible heading levels down to chat-bubble size;
+          // deeper levels collapse onto the smallest so nothing looks oversized.
+          const cls =
+            b.level <= 1
+              ? "text-[15px] font-semibold text-foreground mt-1"
+              : b.level === 2
+                ? "text-[14px] font-semibold text-foreground mt-1"
+                : "text-[13px] font-semibold text-foreground";
+          return (
+            <p key={bi} className={cls}>
+              <Inline text={b.content} />
+            </p>
+          );
+        }
         if (b.type === "ul") {
           return (
             <ul key={bi} className="list-disc pl-4 space-y-0.5">
@@ -183,6 +212,17 @@ export function MarkdownText({ text }: { text: string }) {
                 </li>
               ))}
             </ul>
+          );
+        }
+        if (b.type === "ol") {
+          return (
+            <ol key={bi} className="list-decimal pl-4 space-y-0.5">
+              {b.content.map((c, j) => (
+                <li key={j}>
+                  <Inline text={c} />
+                </li>
+              ))}
+            </ol>
           );
         }
         return b.content.length === 0 ? null : (
