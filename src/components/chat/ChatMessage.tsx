@@ -216,8 +216,8 @@ export function MarkdownText({ text }: { text: string }) {
       {blocks.map((b, bi) => {
         if (b.type === "table") {
           return (
-            <div key={bi} className="overflow-x-auto -mx-1">
-              <table className="w-full border-collapse text-[12px]">
+            <div key={bi} className="max-w-full overflow-x-auto">
+              <table className="w-max border-collapse text-[12px]">
                 <thead>
                   <tr>
                     {b.header.map((h, j) => (

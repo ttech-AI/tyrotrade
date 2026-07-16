@@ -655,7 +655,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
       <OrbAvatar size={28} className="mt-0.5" />
       <div className="flex flex-col items-start min-w-0 max-w-[calc(100%-2.25rem)]">
         <span className="mb-1 text-[11px] font-semibold text-muted-foreground">TYRO</span>
-        <div className="rounded-2xl rounded-tl-md border border-border/60 bg-card px-3.5 py-2.5 text-[13px] leading-relaxed text-foreground shadow-sm">
+        <div className="min-w-0 max-w-full rounded-2xl rounded-tl-md border border-border/60 bg-card px-3.5 py-2.5 text-[13px] leading-relaxed text-foreground shadow-sm">
           {msg.pending ? (
             <TypingIndicator />
           ) : (
@@ -767,7 +767,14 @@ Proje: **CORN // 40KMT** · \`PRJ000002292\` · Segment: Iraq
 - Alım: **211,39 $/MT**
 - Gider: *40,98 $/MT* (tahmini)
 
-> ✅ Gerçekleşen kâr tahminin **+40.359 $** üzerinde — giderler bütçenin altında kaldı.`;
+> ✅ Gerçekleşen kâr tahminin **+40.359 $** üzerinde — giderler bütçenin altında kaldı.
+
+### 🧾 Faturalar (geniş tablo — yatay kaydır)
+
+| Fatura No | Tarih | Müşteri | Sipariş No | Ürün | Miktar | Tutar | Para Birimi |
+|---|---|---|---|---|---|---|---|
+| SLT0002 | 30.06.2026 | AVISORES CA | AFZSSS000000002 | MISIR BÜTÜN | 25.000.000 KG | 7.656.910,37 | USD |
+| SLT0001 | 30.06.2026 | ALIMENTOS GLOBAL GOURMET C.A. | AFZSSS000000003 | SOYA KÜSPESİ | 5.270.878 KG | 2.450.958,27 | USD |`;
 
 const PREVIEW_MESSAGES: ChatMessage[] = [
   { id: "p-greet", role: "bot", text: "Merhaba 👋 Ben TYRO. Projeler, gemiler ve P&L hakkında soru sorabilirsin." },
