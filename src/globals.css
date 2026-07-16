@@ -185,6 +185,39 @@
   animation: chat-typing-dot 1.2s ease-in-out infinite;
 }
 
+/* Composer "beam" — an animated brand-gradient border ring that sweeps
+ * around the input, brightening on focus. The mask trick paints only the
+ * 1.5px ring (gradient minus the inner content box). Signature premium
+ * touch borrowed from the corporate AI chat's composer. */
+.chat-composer-beam {
+  position: relative;
+  border-radius: 1rem;
+}
+.chat-composer-beam::before {
+  content: "";
+  position: absolute;
+  inset: -1.5px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(90deg, #818cf8, #6366f1, #4338ca, #6366f1, #818cf8);
+  background-size: 200% 100%;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.4;
+  transition: opacity 0.3s ease;
+  animation: chat-beam 4s linear infinite;
+  pointer-events: none;
+}
+.chat-composer-beam:focus-within::before {
+  opacity: 0.9;
+}
+@keyframes chat-beam {
+  to {
+    background-position: 200% 0;
+  }
+}
+
 @layer base {
   *,
   *::before,

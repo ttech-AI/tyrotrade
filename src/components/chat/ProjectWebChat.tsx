@@ -9,8 +9,6 @@ import type { Activity } from "@microsoft/agents-activity";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowUp, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
-import { HugeiconsIcon } from "@hugeicons/react";
-import { BubbleChatIcon } from "@hugeicons/core-free-icons";
 import { shouldUseMock } from "@/lib/dataverse";
 import { MarkdownText } from "./ChatMessage";
 import { isAuthConfigured, COPILOT_STUDIO_SCOPE } from "@/lib/auth/msal";
@@ -72,7 +70,7 @@ export function ProjectWebChat(props: ProjectWebChatProps) {
         <p className="text-[12.5px] text-muted-foreground leading-relaxed">
           TYRO Chat gerçek mod gerektirir.
           <br />
-          <span className="font-medium text-slate-600">VITE_USE_MOCK=false</span>{" "}
+          <span className="font-medium text-foreground">VITE_USE_MOCK=false</span>{" "}
           ile oturum açın.
         </p>
       </div>
@@ -473,7 +471,7 @@ function ProjectWebChatCore({ projectContext, userContext }: ProjectWebChatProps
   if (error) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-3 px-6 text-center">
-        <p className="text-[13px] font-medium text-slate-700">Bağlantı kurulamadı</p>
+        <p className="text-[13px] font-medium text-foreground">Bağlantı kurulamadı</p>
         <p className="text-[11.5px] text-muted-foreground leading-relaxed max-w-xs">{error}</p>
         <button
           type="button"
@@ -496,15 +494,7 @@ function ProjectWebChatCore({ projectContext, userContext }: ProjectWebChatProps
     return (
       <div className="h-full flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <span
-            className="size-11 rounded-2xl grid place-items-center shadow-sm text-white"
-            style={{
-              background: TYRO_CHAT_TONE.gradient,
-              boxShadow: `0 8px 24px -6px ${TYRO_CHAT_TONE.ring}, inset 0 1px 0 0 rgba(255,255,255,0.25)`,
-            }}
-          >
-            <HugeiconsIcon icon={BubbleChatIcon} size={20} strokeWidth={1.75} />
-          </span>
+          <OrbAvatar size={44} />
           <div className="flex gap-1">
             {[0, 150, 300].map((delay) => (
               <span
@@ -521,7 +511,7 @@ function ProjectWebChatCore({ projectContext, userContext }: ProjectWebChatProps
   }
 
   return (
-    <div className="h-full flex flex-col bg-slate-50/40">
+    <div className="h-full flex flex-col bg-muted/20">
       {/* Message list */}
       <div className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
         {messages.map((msg) => (
@@ -530,51 +520,51 @@ function ProjectWebChatCore({ projectContext, userContext }: ProjectWebChatProps
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      <div className="shrink-0 border-t border-border/40 px-3 py-3 bg-white/80 backdrop-blur-sm">
-        <div
-          className={cn(
-            "flex items-end gap-2 rounded-2xl border border-border/60 bg-white px-3 py-2",
-            "shadow-[0_2px_8px_-2px_rgba(15,23,42,0.08)]",
-            "transition-all duration-150",
-            "focus-within:border-[#6366f1]/45 focus-within:shadow-[0_0_0_3px_rgba(99,102,241,0.08)]"
-          )}
-        >
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Bir şey sorun…"
-            rows={1}
-            disabled={busy}
+      {/* Composer */}
+      <div className="shrink-0 border-t border-border/40 px-3 py-3 bg-background/80 backdrop-blur-sm">
+        <div className="chat-composer-beam rounded-2xl">
+          <div
             className={cn(
-              "flex-1 resize-none bg-transparent block",
-              "text-[13px] leading-[20px] outline-none py-1.5",
-              "placeholder:text-muted-foreground/50 disabled:opacity-50",
-              "max-h-32 overflow-y-auto"
+              "flex items-end gap-2 rounded-2xl border border-border/60 bg-card px-3 py-2",
+              "shadow-[0_2px_8px_-2px_rgba(15,23,42,0.08)]"
             )}
-            style={{ height: "32px" }}
-            onInput={(e) => {
-              const el = e.currentTarget;
-              el.style.height = "32px";
-              if (el.scrollHeight > 32) {
-                el.style.height = `${el.scrollHeight}px`;
-              }
-            }}
-          />
-          <button
-            type="button"
-            onClick={() => void handleSend()}
-            disabled={!input.trim() || busy}
-            className="size-8 rounded-full grid place-items-center shrink-0 text-white transition-all hover:brightness-110 active:scale-95 disabled:opacity-35 disabled:pointer-events-none shadow-sm"
-            style={{
-              background: TYRO_CHAT_TONE.gradient,
-              boxShadow: `0 4px 12px -4px ${TYRO_CHAT_TONE.ring}`,
-            }}
           >
-            <ArrowUp className="size-4" />
-          </button>
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Bir şey sorun…"
+              rows={1}
+              disabled={busy}
+              className={cn(
+                "flex-1 resize-none bg-transparent block text-foreground",
+                "text-[13px] leading-[20px] outline-none py-1.5",
+                "placeholder:text-muted-foreground/60 disabled:opacity-50",
+                "max-h-32 overflow-y-auto"
+              )}
+              style={{ height: "32px" }}
+              onInput={(e) => {
+                const el = e.currentTarget;
+                el.style.height = "32px";
+                if (el.scrollHeight > 32) {
+                  el.style.height = `${el.scrollHeight}px`;
+                }
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => void handleSend()}
+              disabled={!input.trim() || busy}
+              className="size-8 rounded-full grid place-items-center shrink-0 text-white transition-all hover:brightness-110 active:scale-95 disabled:opacity-35 disabled:pointer-events-none shadow-sm"
+              style={{
+                background: TYRO_CHAT_TONE.gradient,
+                boxShadow: `0 4px 12px -4px ${TYRO_CHAT_TONE.ring}`,
+              }}
+            >
+              <ArrowUp className="size-4" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -582,6 +572,50 @@ function ProjectWebChatCore({ projectContext, userContext }: ProjectWebChatProps
 }
 
 /* ─── Modern chat sub-components (mirror the corporate AI chat) ──────────── */
+
+/**
+ * Soft glowing gradient orb — the AI avatar. Modeled on the corporate AI
+ * chat's PastelVoiceOrb (layered radial base + white highlight + a slowly
+ * rotating conic undercurrent + a colored glow halo + gentle breathing),
+ * recolored into this chat's indigo/violet family for cohesion. No glyph.
+ */
+function OrbAvatar({ size = 28, className }: { size?: number; className?: string }) {
+  return (
+    <motion.span
+      aria-hidden
+      className={cn("relative inline-block shrink-0 rounded-full", className)}
+      style={{
+        width: size,
+        height: size,
+        boxShadow: "0 4px 14px -2px rgba(99,102,241,0.50), 0 2px 6px rgba(139,92,246,0.35)",
+      }}
+      animate={{ scale: [1, 1.05, 1] }}
+      transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
+    >
+      <span
+        className="absolute inset-0 overflow-hidden rounded-full"
+        style={{
+          background:
+            "radial-gradient(circle at 34% 28%, rgba(255,255,255,0.98) 0%, rgba(199,210,254,0.92) 20%, rgba(129,140,248,0.72) 48%, rgba(99,102,241,0.85) 76%, rgba(67,56,202,0.95) 100%)",
+          boxShadow: "inset 0 0 8px rgba(255,255,255,0.55)",
+        }}
+      >
+        <motion.span
+          className="absolute -inset-2 rounded-full"
+          style={{
+            mixBlendMode: "multiply",
+            opacity: 0.55,
+            filter: "blur(4px)",
+            background:
+              "conic-gradient(from 210deg at 50% 50%, rgba(255,255,255,0.30), rgba(139,92,246,0.50), rgba(99,102,241,0.55), rgba(139,92,246,0.40), rgba(255,255,255,0.30))",
+          }}
+          animate={{ rotate: [0, 360] }}
+          transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
+        />
+      </span>
+    </motion.span>
+  );
+}
 
 /**
  * One chat row — user (right, soft-tint bubble) or bot (left, gradient
@@ -598,13 +632,12 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
         className="flex justify-end"
       >
         <div
-          className="max-w-[85%] rounded-2xl rounded-tr-md px-3.5 py-2.5 text-[13px] leading-relaxed"
+          className="max-w-[85%] rounded-2xl rounded-tr-md px-3.5 py-2.5 text-[13px] leading-relaxed text-foreground"
           style={{
-            // Soft accent tint (matches the corporate AI chat's user
-            // bubble) instead of a heavy solid gradient — lighter, calmer.
-            background: "rgba(99,102,241,0.10)",
-            border: "1px solid rgba(99,102,241,0.28)",
-            color: "#0f172a",
+            // Soft accent tint (matches the corporate AI chat's user bubble).
+            // Semi-transparent indigo sits well over both light and dark cards.
+            background: "rgba(99,102,241,0.12)",
+            border: "1px solid rgba(99,102,241,0.30)",
           }}
         >
           <span className="whitespace-pre-wrap">{msg.text}</span>
@@ -619,18 +652,10 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
       transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
       className="flex gap-2 items-start"
     >
-      <span
-        className="size-7 rounded-full grid place-items-center shrink-0 text-white mt-0.5"
-        style={{
-          background: TYRO_CHAT_TONE.gradient,
-          boxShadow: `0 4px 12px -4px ${TYRO_CHAT_TONE.ring}, inset 0 1px 0 0 rgba(255,255,255,0.25)`,
-        }}
-      >
-        <HugeiconsIcon icon={BubbleChatIcon} size={13} strokeWidth={2} />
-      </span>
+      <OrbAvatar size={28} className="mt-0.5" />
       <div className="flex flex-col items-start min-w-0 max-w-[calc(100%-2.25rem)]">
-        <span className="mb-1 text-[11px] font-semibold text-slate-500">TYRO</span>
-        <div className="rounded-2xl rounded-tl-md border border-border/60 bg-white px-3.5 py-2.5 text-[13px] leading-relaxed text-slate-800 shadow-sm">
+        <span className="mb-1 text-[11px] font-semibold text-muted-foreground">TYRO</span>
+        <div className="rounded-2xl rounded-tl-md border border-border/60 bg-card px-3.5 py-2.5 text-[13px] leading-relaxed text-foreground shadow-sm">
           {msg.pending ? (
             <TypingIndicator />
           ) : (
@@ -715,7 +740,7 @@ function CopyButton({ text }: { text: string }) {
       type="button"
       onClick={handleCopy}
       aria-label="Kopyala"
-      className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+      className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] text-muted-foreground/70 transition hover:bg-muted hover:text-foreground"
     >
       {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
       <span>{copied ? "Kopyalandı" : "Kopyala"}</span>
@@ -754,21 +779,23 @@ const PREVIEW_MESSAGES: ChatMessage[] = [
 /** Renders the chat shell with canned messages + a static composer. */
 function ChatPreview() {
   return (
-    <div className="h-full flex flex-col bg-slate-50/40">
+    <div className="h-full flex flex-col bg-muted/20">
       <div className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
         {PREVIEW_MESSAGES.map((msg) => (
           <MessageBubble key={msg.id} msg={msg} />
         ))}
       </div>
-      <div className="shrink-0 border-t border-border/40 px-3 py-3 bg-white/80 backdrop-blur-sm">
-        <div className="flex items-end gap-2 rounded-2xl border border-border/60 bg-white px-3 py-2 shadow-[0_2px_8px_-2px_rgba(15,23,42,0.08)]">
-          <span className="flex-1 py-1.5 text-[13px] text-muted-foreground/50">Bir şey sorun…</span>
-          <span
-            className="size-8 rounded-full grid place-items-center shrink-0 text-white shadow-sm"
-            style={{ background: TYRO_CHAT_TONE.gradient, boxShadow: `0 4px 12px -4px ${TYRO_CHAT_TONE.ring}` }}
-          >
-            <ArrowUp className="size-4" />
-          </span>
+      <div className="shrink-0 border-t border-border/40 px-3 py-3 bg-background/80 backdrop-blur-sm">
+        <div className="chat-composer-beam rounded-2xl">
+          <div className="flex items-end gap-2 rounded-2xl border border-border/60 bg-card px-3 py-2 shadow-[0_2px_8px_-2px_rgba(15,23,42,0.08)]">
+            <span className="flex-1 py-1.5 text-[13px] text-muted-foreground/60">Bir şey sorun…</span>
+            <span
+              className="size-8 rounded-full grid place-items-center shrink-0 text-white shadow-sm"
+              style={{ background: TYRO_CHAT_TONE.gradient, boxShadow: `0 4px 12px -4px ${TYRO_CHAT_TONE.ring}` }}
+            >
+              <ArrowUp className="size-4" />
+            </span>
+          </div>
         </div>
       </div>
     </div>
