@@ -10,6 +10,7 @@ import { TyroChatButton, TYRO_CHAT_TONE } from "@/components/layout/TyroChatButt
 import { NotificationButton } from "@/components/layout/NotificationButton";
 import { TyroChatDrawer } from "@/components/chat/TyroChatDrawer";
 import { ProjectWebChat, type ProjectContext, type UserContext } from "@/components/chat/ProjectWebChat";
+import { useChatWidth } from "@/components/chat/useChatWidth";
 import { useMsal } from "@azure/msal-react";
 import { useProjects } from "@/hooks/useProjects";
 import { AppSidebar } from "./AppSidebar";
@@ -200,17 +201,37 @@ function DesktopChatSlot({
     setChatKey((k) => k + 1);
   }, []);
 
+  // Drag-to-resize width (shared with the mobile drawer via localStorage).
+  const { width, reset: resetWidth, startResize, dragging } = useChatWidth();
+
   return (
     <div
+      style={{ width: open ? width : 0 }}
       className={cn(
-        "shrink-0 flex flex-col overflow-hidden",
+        "relative shrink-0 flex flex-col overflow-hidden",
         "bg-white/95 backdrop-blur-2xl backdrop-saturate-150",
-        "transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+        // Animate width on open/close, but not mid-drag (would lag the pointer).
+        dragging ? "" : "transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
         open
-          ? "w-[460px] border-l border-border/60 rounded-l-3xl shadow-[-30px_0_80px_-16px_rgba(15,23,42,0.12)]"
-          : "w-0"
+          ? "border-l border-border/60 rounded-l-3xl shadow-[-30px_0_80px_-16px_rgba(15,23,42,0.12)]"
+          : ""
       )}
     >
+      {open && (
+        <div
+          onPointerDown={startResize}
+          onDoubleClick={resetWidth}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Sohbet genişliğini ayarla"
+          className="group absolute left-0 top-0 z-30 h-full w-2 cursor-col-resize"
+        >
+          <span
+            aria-hidden
+            className="absolute left-0 top-1/2 h-10 w-1 -translate-y-1/2 rounded-full bg-border/70 transition-colors group-hover:bg-[#6366f1]"
+          />
+        </div>
+      )}
       {hasOpened && (
         <>
           {/* Top accent bar */}

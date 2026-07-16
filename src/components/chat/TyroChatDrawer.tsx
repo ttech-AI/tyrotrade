@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sheet";
 import { TYRO_CHAT_TONE } from "@/components/layout/TyroChatButton";
 import { ProjectWebChat, type ProjectContext, type UserContext } from "./ProjectWebChat";
+import { useChatWidth } from "./useChatWidth";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { cn } from "@/lib/utils";
 
@@ -62,20 +63,42 @@ export function TyroChatDrawer({
     setOverlayVisible(false);
   }, []);
 
+  // Drag-to-resize width (shared with the desktop panel via localStorage).
+  const { width, reset: resetWidth, startResize } = useChatWidth();
+
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         hideOverlay
         side="right"
+        // Inline width beats the sheet variant's `w-3/4 sm:max-w-sm`; maxWidth
+        // caps it at 95vw so it never fully covers the app.
+        style={{ width, maxWidth: "95vw" }}
         className={cn(
-          "w-full sm:max-w-[460px] p-0 flex flex-col gap-0 overflow-hidden",
+          "w-full p-0 flex flex-col gap-0 overflow-hidden",
           "bg-white/95 backdrop-blur-2xl backdrop-saturate-150",
           "border-l border-border/60",
           "shadow-[0_30px_80px_-16px_rgba(15,23,42,0.45)]"
         )}
         aria-describedby={undefined}
       >
+        {/* Resize handle — drag the left edge to widen/narrow; double-click
+            to reset to the default width. Hidden on mobile (full-width). */}
+        <div
+          onPointerDown={startResize}
+          onDoubleClick={resetWidth}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Sohbet genişliğini ayarla"
+          className="group absolute left-0 top-0 z-50 hidden h-full w-2 cursor-col-resize sm:block"
+        >
+          <span
+            aria-hidden
+            className="absolute left-0 top-1/2 h-10 w-1 -translate-y-1/2 rounded-full bg-border/70 transition-colors group-hover:bg-[#6366f1]"
+          />
+        </div>
+
         {/* Top accent bar */}
         <div
           aria-hidden

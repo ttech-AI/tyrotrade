@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { AiBrain02Icon } from "@hugeicons/core-free-icons";
 import { useThemeAccent } from "@/components/layout/theme-accent";
@@ -73,7 +74,30 @@ type MdBlock =
   | { type: "ul"; content: string[] }
   | { type: "ol"; content: string[] }
   | { type: "h"; level: number; content: string }
+  | { type: "quote"; content: string[] }
+  | { type: "code"; content: string[] }
+  | { type: "hr" }
   | { type: "table"; header: string[]; rows: string[][] };
+
+/**
+ * Copilot Studio replies often carry raw HTML tags — line breaks (`<br>`,
+ * `<hr>`), paragraphs (`<p>`) and inline emphasis (`<b>`/`<strong>`,
+ * `<i>`/`<em>`). This renderer never interprets raw HTML (no dangerous
+ * innerHTML), so those tags would otherwise show as literal text. Convert
+ * them to their CommonMark equivalents before parsing. XSS-safe: we only
+ * rewrite a fixed tag whitelist to markdown, never inject HTML.
+ */
+function normalizeMarkdown(text: string): string {
+  if (typeof text !== "string") return "";
+  return text
+    .replace(/<br\s*\/?>/gi, "  \n")
+    .replace(/<hr\s*\/?>/gi, "\n\n---\n\n")
+    .replace(/<\/?p\s*\/?>/gi, "\n\n")
+    .replace(/<\/?(?:b|strong)\s*>/gi, "**")
+    .replace(/<\/?(?:i|em)\s*>/gi, "*")
+    .replace(/<\/?u\s*>/gi, "")
+    .replace(/\n{3,}/g, "\n\n");
+}
 
 /** Split a `| a | b |` row into trimmed cells (leading/trailing pipes stripped). */
 function splitTableRow(line: string): string[] {
@@ -92,20 +116,43 @@ function isTableSeparator(line: string): boolean {
 }
 
 /**
- * Render a small subset of markdown: paragraphs, line breaks, `**bold**`,
- * ATX headings (`#`..`######`), bullet lines ("- "), numbered lists ("1. "),
- * and GitHub-style tables (`| a | b |` + `|---|---|`).
+ * Render a lightweight subset of markdown covering everything the Copilot
+ * agent emits: paragraphs, line breaks, `**bold**`, `*italic*`, `` `code` ``,
+ * `[links](url)`, ATX headings (`#`..`######`), bullet lists ("- "), numbered
+ * lists ("1. "), blockquotes ("> "), horizontal rules ("---"), fenced code
+ * blocks (```), and GitHub-style tables (`| a | b |` + `|---|---|`).
  * Tables matter because the Copilot agent formats tabular answers as markdown
  * tables — Copilot Studio's own UI renders them, so this custom renderer must
- * too (otherwise the web-app chat shows mangled pipes). Kept lightweight (no
- * react-markdown dependency).
+ * too (otherwise the web-app chat shows mangled pipes). Kept dependency-free
+ * (no react-markdown) while matching the corporate AI chat's rendered look.
  */
 export function MarkdownText({ text }: { text: string }) {
-  const lines = text.split(/\r?\n/);
+  const lines = normalizeMarkdown(text).split(/\r?\n/);
   const blocks: MdBlock[] = [];
   let i = 0;
   while (i < lines.length) {
     const line = lines[i].trimEnd();
+
+    // Fenced code block: ``` … ``` (optional language after the opening fence).
+    const fence = /^\s*```/.test(line);
+    if (fence) {
+      const code: string[] = [];
+      i++; // consume opening fence
+      while (i < lines.length && !/^\s*```/.test(lines[i])) {
+        code.push(lines[i]);
+        i++;
+      }
+      i++; // consume closing fence
+      blocks.push({ type: "code", content: code });
+      continue;
+    }
+
+    // Horizontal rule: a line that is only ---, *** or ___ (3+).
+    if (/^\s*([-*_])\1{2,}\s*$/.test(line)) {
+      blocks.push({ type: "hr" });
+      i++;
+      continue;
+    }
 
     // Table: a row containing "|" immediately followed by a separator row.
     if (line.includes("|") && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
@@ -122,6 +169,16 @@ export function MarkdownText({ text }: { text: string }) {
         i++;
       }
       blocks.push({ type: "table", header, rows });
+      continue;
+    }
+
+    // Blockquote: consecutive "> " lines fold into one quote block.
+    if (/^\s*>\s?/.test(line)) {
+      const item = line.replace(/^\s*>\s?/, "");
+      const last = blocks[blocks.length - 1];
+      if (last && last.type === "quote") last.content.push(item);
+      else blocks.push({ type: "quote", content: [item] });
+      i++;
       continue;
     }
 
@@ -188,6 +245,33 @@ export function MarkdownText({ text }: { text: string }) {
             </div>
           );
         }
+        if (b.type === "hr") {
+          return <hr key={bi} className="my-2 border-border/60" />;
+        }
+        if (b.type === "code") {
+          return (
+            <pre
+              key={bi}
+              className="overflow-x-auto rounded-lg bg-muted/60 border border-border/50 px-3 py-2 text-[12px] leading-relaxed"
+            >
+              <code className="font-mono whitespace-pre">{b.content.join("\n")}</code>
+            </pre>
+          );
+        }
+        if (b.type === "quote") {
+          return (
+            <blockquote
+              key={bi}
+              className="border-l-2 border-border pl-3 text-muted-foreground italic space-y-0.5"
+            >
+              {b.content.map((c, j) => (
+                <p key={j}>
+                  <Inline text={c} />
+                </p>
+              ))}
+            </blockquote>
+          );
+        }
         if (b.type === "h") {
           // Scale the three sensible heading levels down to chat-bubble size;
           // deeper levels collapse onto the smallest so nothing looks oversized.
@@ -240,23 +324,70 @@ export function MarkdownText({ text }: { text: string }) {
   );
 }
 
-/** Render a single line, applying `**bold**` segments. */
+// One tokenizer pass over inline markdown. Order matters: inline code first
+// (its content is never re-formatted), then links, then bold, then italic.
+const INLINE_RE =
+  /(`[^`]+`)|(\[[^\]]+\]\([^)\s]+\))|(\*\*[^*]+\*\*)|(\*[^*\n]+\*)|(_[^_\n]+_)/g;
+
+/** Render a single line, applying inline `code`, [links](url), **bold** and *italic*. */
 function Inline({ text }: { text: string }) {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
-  return (
-    <>
-      {parts.map((p, i) => {
-        if (/^\*\*[^*]+\*\*$/.test(p)) {
-          return (
-            <strong key={i} className="font-semibold text-foreground">
-              {p.slice(2, -2)}
-            </strong>
-          );
-        }
-        return <span key={i}>{p}</span>;
-      })}
-    </>
-  );
+  const nodes: ReactNode[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  INLINE_RE.lastIndex = 0;
+  let key = 0;
+  while ((m = INLINE_RE.exec(text)) !== null) {
+    if (m.index > last) nodes.push(text.slice(last, m.index));
+    const tok = m[0];
+    if (m[1]) {
+      // `inline code`
+      nodes.push(
+        <code
+          key={key++}
+          className="rounded bg-muted/70 px-1 py-0.5 font-mono text-[0.85em]"
+        >
+          {tok.slice(1, -1)}
+        </code>
+      );
+    } else if (m[2]) {
+      // [text](url) — only allow safe schemes, else fall back to raw text.
+      const close = tok.indexOf("](");
+      const label = tok.slice(1, close);
+      const url = tok.slice(close + 2, -1);
+      if (/^(https?:|mailto:)/i.test(url)) {
+        nodes.push(
+          <a
+            key={key++}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium underline-offset-2 hover:underline"
+            style={{ color: "#4338ca" }}
+          >
+            {label}
+          </a>
+        );
+      } else {
+        nodes.push(tok);
+      }
+    } else if (m[3]) {
+      nodes.push(
+        <strong key={key++} className="font-semibold text-foreground">
+          {tok.slice(2, -2)}
+        </strong>
+      );
+    } else {
+      // *italic* or _italic_
+      nodes.push(
+        <em key={key++} className="italic">
+          {tok.slice(1, -1)}
+        </em>
+      );
+    }
+    last = m.index + tok.length;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return <>{nodes}</>;
 }
 
 /* ─────────── Pending state ─────────── */

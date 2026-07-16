@@ -6,7 +6,9 @@ import {
   ConnectionSettings,
 } from "@microsoft/agents-copilotstudio-client";
 import type { Activity } from "@microsoft/agents-activity";
-import { ArrowUp } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowUp, Copy, Check } from "lucide-react";
+import { toast } from "sonner";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { BubbleChatIcon } from "@hugeicons/core-free-icons";
 import { shouldUseMock } from "@/lib/dataverse";
@@ -54,6 +56,16 @@ interface ProjectWebChatProps {
  * mounted (mock mode or incomplete auth config).
  */
 export function ProjectWebChat(props: ProjectWebChatProps) {
+  // Dev-only visual preview — bypasses auth so the redesigned chat can be
+  // eyeballed without a Copilot/MSAL login. Open with `?chatpreview=1`.
+  // Stripped from production builds (import.meta.env.DEV is false there).
+  if (
+    import.meta.env.DEV &&
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).has("chatpreview")
+  ) {
+    return <ChatPreview />;
+  }
   if (shouldUseMock() || !isAuthConfigured) {
     return (
       <div className="h-full flex items-center justify-center px-8 text-center">
@@ -511,65 +523,9 @@ function ProjectWebChatCore({ projectContext, userContext }: ProjectWebChatProps
   return (
     <div className="h-full flex flex-col bg-slate-50/40">
       {/* Message list */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
         {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={cn("flex gap-2 items-end", msg.role === "user" ? "justify-end" : "justify-start")}
-          >
-            {msg.role === "bot" && (
-              <span
-                className="size-7 rounded-xl grid place-items-center shrink-0 text-white shadow-sm"
-                style={{
-                  background: TYRO_CHAT_TONE.gradient,
-                  boxShadow: `0 4px 12px -4px ${TYRO_CHAT_TONE.ring}, inset 0 1px 0 0 rgba(255,255,255,0.25)`,
-                }}
-              >
-                <HugeiconsIcon icon={BubbleChatIcon} size={13} strokeWidth={2} />
-              </span>
-            )}
-            <div
-              className={cn(
-                "max-w-[82%] rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed",
-                msg.role === "user"
-                  ? "text-white rounded-br-sm shadow-sm"
-                  : "bg-white border border-border/50 text-slate-800 rounded-bl-sm shadow-sm"
-              )}
-              style={msg.role === "user" ? {
-                background: TYRO_CHAT_TONE.gradient,
-                boxShadow: `0 4px 16px -4px ${TYRO_CHAT_TONE.ring}`,
-              } : undefined}
-            >
-              {msg.pending ? (
-                <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                  <span className="text-[12px]">TYRO düşünüyor</span>
-                  <span className="inline-flex gap-0.5">
-                    {[0, 150, 300].map((delay) => (
-                      <span
-                        key={delay}
-                        className="size-1 rounded-full bg-current animate-pulse"
-                        style={{ animationDelay: `${delay}ms` }}
-                      />
-                    ))}
-                  </span>
-                </span>
-              ) : (
-                <>
-                  {msg.role === "bot" ? (
-                    <MarkdownText text={msg.text} />
-                  ) : (
-                    <span className="whitespace-pre-wrap">{msg.text}</span>
-                  )}
-                  {msg.streaming && (
-                    <span
-                      className="inline-block w-0.5 h-[1em] ml-0.5 align-middle animate-pulse rounded-full"
-                      style={{ background: msg.role === "user" ? "rgba(255,255,255,0.7)" : TYRO_CHAT_TONE.solid }}
-                    />
-                  )}
-                </>
-              )}
-            </div>
-          </div>
+          <MessageBubble key={msg.id} msg={msg} />
         ))}
         <div ref={bottomRef} />
       </div>
@@ -578,9 +534,10 @@ function ProjectWebChatCore({ projectContext, userContext }: ProjectWebChatProps
       <div className="shrink-0 border-t border-border/40 px-3 py-3 bg-white/80 backdrop-blur-sm">
         <div
           className={cn(
-            "flex items-center gap-2 rounded-2xl border border-border/50 bg-white px-3 py-1.5",
+            "flex items-end gap-2 rounded-2xl border border-border/60 bg-white px-3 py-2",
+            "shadow-[0_2px_8px_-2px_rgba(15,23,42,0.08)]",
             "transition-all duration-150",
-            "focus-within:border-[#6366f1]/40 focus-within:shadow-[0_0_0_3px_rgba(99,102,241,0.08)]"
+            "focus-within:border-[#6366f1]/45 focus-within:shadow-[0_0_0_3px_rgba(99,102,241,0.08)]"
           )}
         >
           <textarea
@@ -610,14 +567,208 @@ function ProjectWebChatCore({ projectContext, userContext }: ProjectWebChatProps
             type="button"
             onClick={() => void handleSend()}
             disabled={!input.trim() || busy}
-            className="size-8 rounded-xl grid place-items-center shrink-0 text-white transition-all hover:scale-[1.06] active:scale-95 disabled:opacity-35 disabled:pointer-events-none shadow-sm"
+            className="size-8 rounded-full grid place-items-center shrink-0 text-white transition-all hover:brightness-110 active:scale-95 disabled:opacity-35 disabled:pointer-events-none shadow-sm"
             style={{
               background: TYRO_CHAT_TONE.gradient,
               boxShadow: `0 4px 12px -4px ${TYRO_CHAT_TONE.ring}`,
             }}
           >
-            <ArrowUp className="size-3.5" />
+            <ArrowUp className="size-4" />
           </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Modern chat sub-components (mirror the corporate AI chat) ──────────── */
+
+/**
+ * One chat row — user (right, soft-tint bubble) or bot (left, gradient
+ * avatar + "TYRO" label + card bubble with markdown, streaming cursor and a
+ * copy action). Shared by the live chat and the dev preview.
+ */
+function MessageBubble({ msg }: { msg: ChatMessage }) {
+  if (msg.role === "user") {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+        className="flex justify-end"
+      >
+        <div
+          className="max-w-[85%] rounded-2xl rounded-tr-md px-3.5 py-2.5 text-[13px] leading-relaxed"
+          style={{
+            // Soft accent tint (matches the corporate AI chat's user
+            // bubble) instead of a heavy solid gradient — lighter, calmer.
+            background: "rgba(99,102,241,0.10)",
+            border: "1px solid rgba(99,102,241,0.28)",
+            color: "#0f172a",
+          }}
+        >
+          <span className="whitespace-pre-wrap">{msg.text}</span>
+        </div>
+      </motion.div>
+    );
+  }
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+      className="flex gap-2 items-start"
+    >
+      <span
+        className="size-7 rounded-full grid place-items-center shrink-0 text-white mt-0.5"
+        style={{
+          background: TYRO_CHAT_TONE.gradient,
+          boxShadow: `0 4px 12px -4px ${TYRO_CHAT_TONE.ring}, inset 0 1px 0 0 rgba(255,255,255,0.25)`,
+        }}
+      >
+        <HugeiconsIcon icon={BubbleChatIcon} size={13} strokeWidth={2} />
+      </span>
+      <div className="flex flex-col items-start min-w-0 max-w-[calc(100%-2.25rem)]">
+        <span className="mb-1 text-[11px] font-semibold text-slate-500">TYRO</span>
+        <div className="rounded-2xl rounded-tl-md border border-border/60 bg-white px-3.5 py-2.5 text-[13px] leading-relaxed text-slate-800 shadow-sm">
+          {msg.pending ? (
+            <TypingIndicator />
+          ) : (
+            <>
+              <MarkdownText text={msg.text} />
+              {msg.streaming && (
+                <span
+                  className="inline-block w-0.5 h-[1em] ml-0.5 align-middle animate-pulse rounded-full"
+                  style={{ background: TYRO_CHAT_TONE.solid }}
+                />
+              )}
+            </>
+          )}
+        </div>
+        {!msg.pending && !msg.streaming && msg.text && msg.text !== "…" && (
+          <div className="mt-1">
+            <CopyButton text={msg.text} />
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+const TYPING_PHRASES = ["Düşünüyor", "Yanıt hazırlanıyor", "Neredeyse hazır"];
+
+/**
+ * "Yazıyor" indicator — a brand-gradient shimmer sweeping across a status
+ * word that crossfades through a natural progression, plus a soft dot wave.
+ * Loops so the indicator stays alive even if the reply is slow.
+ */
+function TypingIndicator() {
+  const [step, setStep] = React.useState(0);
+  React.useEffect(() => {
+    const id = setTimeout(() => setStep((s) => (s + 1) % TYPING_PHRASES.length), 1600);
+    return () => clearTimeout(id);
+  }, [step]);
+  return (
+    <span className="inline-flex items-center gap-1.5 py-0.5">
+      <span className="grid">
+        <AnimatePresence initial={false}>
+          <motion.span
+            key={step}
+            initial={{ opacity: 0, y: 5, filter: "blur(3px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            exit={{ opacity: 0, y: -5, filter: "blur(3px)" }}
+            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            className="chat-shimmer-text text-[12.5px] font-medium tracking-tight [grid-area:1/1] whitespace-nowrap"
+          >
+            {TYPING_PHRASES[step]}
+          </motion.span>
+        </AnimatePresence>
+      </span>
+      <span className="inline-flex items-end gap-[3px]">
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className="chat-typing-dot size-1 rounded-full"
+            style={{ background: "rgba(67,56,202,0.6)", animationDelay: `${i * 0.2}s` }}
+          />
+        ))}
+      </span>
+    </span>
+  );
+}
+
+/** Copy-to-clipboard control shown under each finished assistant message. */
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = React.useState(false);
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      toast.success("Kopyalandı");
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      toast.error("Kopyalanamadı");
+    }
+  }
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      aria-label="Kopyala"
+      className="inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[11px] text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+    >
+      {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+      <span>{copied ? "Kopyalandı" : "Kopyala"}</span>
+    </button>
+  );
+}
+
+/* ─── Dev-only preview (no auth) ────────────────────────────────────────── */
+
+const PREVIEW_ANSWER = `## 🚢 AMANI — P&L Özeti
+Proje: **CORN // 40KMT** · \`PRJ000002292\` · Segment: Iraq
+
+### 📊 P&L Tablosu (USD)
+
+| Kalem | Tahmini | Gerçekleşen | Sapma |
+|---|---|---|---|
+| Satış | +16.255.395 | +16.255.395 | 0 |
+| Alım | −12.366.315 | −12.366.315 | 0 |
+| Gider | −2.397.330 | −2.356.971 | −40.359 |
+| **Kar / Zarar** | **+1.491.750** | **+1.532.109** | **+40.359** |
+
+### 🔍 Temel Fiyatlar
+- Satış: **277,87 $/MT**
+- Alım: **211,39 $/MT**
+- Gider: *40,98 $/MT* (tahmini)
+
+> ✅ Gerçekleşen kâr tahminin **+40.359 $** üzerinde — giderler bütçenin altında kaldı.`;
+
+const PREVIEW_MESSAGES: ChatMessage[] = [
+  { id: "p-greet", role: "bot", text: "Merhaba 👋 Ben TYRO. Projeler, gemiler ve P&L hakkında soru sorabilirsin." },
+  { id: "p-user", role: "user", text: "AMANI gemisinin P&L'ini ver" },
+  { id: "p-bot", role: "bot", text: PREVIEW_ANSWER },
+  { id: "p-typing", role: "bot", text: "", pending: true },
+];
+
+/** Renders the chat shell with canned messages + a static composer. */
+function ChatPreview() {
+  return (
+    <div className="h-full flex flex-col bg-slate-50/40">
+      <div className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
+        {PREVIEW_MESSAGES.map((msg) => (
+          <MessageBubble key={msg.id} msg={msg} />
+        ))}
+      </div>
+      <div className="shrink-0 border-t border-border/40 px-3 py-3 bg-white/80 backdrop-blur-sm">
+        <div className="flex items-end gap-2 rounded-2xl border border-border/60 bg-white px-3 py-2 shadow-[0_2px_8px_-2px_rgba(15,23,42,0.08)]">
+          <span className="flex-1 py-1.5 text-[13px] text-muted-foreground/50">Bir şey sorun…</span>
+          <span
+            className="size-8 rounded-full grid place-items-center shrink-0 text-white shadow-sm"
+            style={{ background: TYRO_CHAT_TONE.gradient, boxShadow: `0 4px 12px -4px ${TYRO_CHAT_TONE.ring}` }}
+          >
+            <ArrowUp className="size-4" />
+          </span>
         </div>
       </div>
     </div>

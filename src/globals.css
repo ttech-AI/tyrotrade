@@ -147,6 +147,44 @@
   animation: row-shimmer 1.2s ease-in-out infinite;
 }
 
+/* Chat "typing" indicator — a brand-gradient shimmer sweeping across the
+ * status word, plus a soft dot wave. Mirrors the corporate AI chat so the
+ * two products share one motion vocabulary. */
+@keyframes chat-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.chat-shimmer-text {
+  background: linear-gradient(90deg, #94a3b8 20%, #4338ca 50%, #94a3b8 80%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: chat-shimmer 2.4s linear infinite;
+}
+
+@keyframes chat-typing-dot {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+.chat-typing-dot {
+  animation: chat-typing-dot 1.2s ease-in-out infinite;
+}
+
 @layer base {
   *,
   *::before,
