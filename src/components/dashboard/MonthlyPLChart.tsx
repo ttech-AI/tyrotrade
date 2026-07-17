@@ -20,7 +20,7 @@ import type { MonthlyPLPoint } from "@/lib/selectors/monthlyPL";
 /** Estimated (tahmini) = brand blue · Realized (gerçekleşen) = emerald.
  *  Fixed semantic colours (theme-independent). Blue tracks the tyrotrade
  *  wordmark/logo (sky-navy `#2563eb`); profit reads green. A NEGATIVE
- *  K/Z (zarar) overrides the hue with red/bordo so loss months pop —
+ *  P&L (zarar) overrides the hue with red/bordo so loss months pop —
  *  estimated-loss = red, realized-loss = bordo, keeping the
  *  tahmini-lighter / gerçekleşen-darker pairing intact below zero too. */
 const COLOR_EST = "#2563eb"; // blue-600 — tyrotrade brand
@@ -53,7 +53,7 @@ interface MonthlyPLChartProps {
 }
 
 /**
- * E.M Bakış "Aylık K/Z Performansı" — one financial-year (Jul→Jun) of
+ * E.M Bakış "Aylık P&L Performansı" — one financial-year (Jul→Jun) of
  * estimated vs. realized net P&L, two bars per month. Future months
  * render as faint "buffer" bars (no realized data yet) so past/current
  * vs. forecast read at a glance. Realized bars only appear once the
@@ -195,7 +195,7 @@ interface TooltipProps {
   payload?: Array<{ payload: MonthlyPLPoint }>;
 }
 
-/** Custom tooltip — month header, estimated + realized K/Z rows with
+/** Custom tooltip — month header, estimated + realized P&L rows with
  *  USD amounts, and the contributing realized project count. */
 function MonthlyTooltip({ active, payload }: TooltipProps) {
   const t = useT();

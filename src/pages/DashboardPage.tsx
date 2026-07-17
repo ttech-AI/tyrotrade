@@ -271,7 +271,7 @@ export function DashboardPage() {
     [projects, realizedExpenseByProject, realizedCoversFilter, filters.fyKey]
   );
 
-  // Realized headline K/Z + margin for the Dönem Performansı card —
+  // Realized headline P&L + margin for the Dönem Performansı card —
   // only meaningful once the rollup covers the filtered set.
   const realizedAgg = React.useMemo(
     () => aggregateRealizedPL(projects, realizedExpenseByProject),
@@ -288,7 +288,7 @@ export function DashboardPage() {
   );
   const fyShortLabel = selectedFy.label;
 
-  // Aylık K/Z Performansı grafiği — seçili FY'nin PBI export'u varsa (24-25,
+  // Aylık P&L Performansı grafiği — seçili FY'nin PBI export'u varsa (24-25,
   // 25-26) onun aylık Projected/Realized P&L'i; yoksa canlı aggregateMonthlyPL.
   const monthlyUsesPbi = hasPowerBIPL(selectedFy.label);
   const monthlyPoints = React.useMemo(
@@ -586,7 +586,7 @@ export function DashboardPage() {
           </div>
         </GlassPanel>
 
-        {/* 1. satır — hero kartlar: Dönem Performansı + Aylık K/Z. */}
+        {/* 1. satır — hero kartlar: Dönem Performansı + Aylık P&L. */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-stretch">
           <PeriodPerformanceTile
             projects={projects}

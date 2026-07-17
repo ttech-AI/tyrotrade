@@ -33,7 +33,7 @@ const ENTITY_SETS = {
   salesAggregate: "salesAggregateByProject",
   /** Synthetic key — realized PURCHASE aggregate (mirror of salesAggregate)
    *  produced by the "Satınalma Toplamları" refresh step. Enriches each
-   *  project with `purchaseActualUsd` for realized K/Z. */
+   *  project with `purchaseActualUsd` for realized P&L. */
   purchaseAggregate: "purchaseAggregateByProject",
 } as const;
 

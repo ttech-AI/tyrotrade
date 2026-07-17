@@ -1056,7 +1056,7 @@ export async function refreshAllEntities(
         // client-side, then re-aggregate on (projid, currency) to match
         // the salesAggregate cache shape the composer expects.
         // USD-only flows into purchaseActualUsd downstream (same as the
-        // sales side) so realized K/Z reconciles with BudgetSalesCard.
+        // sales side) so realized P&L reconciles with BudgetSalesCard.
         const projids = readAllScopedProjids();
         const result = await applyByInChunked<Record<string, unknown>>(
           client,

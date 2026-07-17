@@ -610,7 +610,7 @@ interface RealizedRow {
 
 const EMPTY_EXPENSE_MAP = new Map<string, number>();
 
-/** Realized-K/Z palette — emerald (kâr) / rose (zarar) / slate (nötr). */
+/** Realized-P&L palette — emerald (kâr) / rose (zarar) / slate (nötr). */
 function plColor(v: number): string {
   return v > 0 ? "rgb(4 120 87)" : v < 0 ? "rgb(190 24 93)" : "rgb(71 85 105)";
 }
@@ -627,8 +627,8 @@ function signedCompact(v: number): string {
 }
 
 /**
- * Dönem Performansı drawer — per-project **realized** (gerçekleşen) K/Z.
- * Each row leads with the realized K/Z + margin (sign-coloured), shows
+ * Dönem Performansı drawer — per-project **realized** (gerçekleşen) P&L.
+ * Each row leads with the realized P&L + margin (sign-coloured), shows
  * the full untruncated project name, and breaks the figure down into its
  * Satış / Alış / Gider components so the number is legible at a glance.
  * Realized values require the expense rollup; until it covers the set the
@@ -651,7 +651,7 @@ export function PeriodPerformanceBreakdown({
       .filter((p) => filterProject(p, query))
       .map((p) => {
         // All three sides realized — matches BudgetSalesCard so the
-        // panel reconciles with the project-detail K/Z.
+        // panel reconciles with the project-detail P&L.
         const salesUsd = p.salesActualUsd ?? 0;
         const purchaseUsd = p.purchaseActualUsd ?? 0;
         const expenseUsd = expMap.get(p.projectNo) ?? 0;
@@ -795,7 +795,7 @@ function RealizedPLRow({
         "transition-colors"
       )}
     >
-      {/* Top — projectNo + segment (left) · realized K/Z + margin (right) */}
+      {/* Top — projectNo + segment (left) · realized P&L + margin (right) */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
@@ -834,7 +834,7 @@ function RealizedPLRow({
           )}
         </div>
       </div>
-      {/* Components — makes the K/Z derivation legible at a glance */}
+      {/* Components — makes the P&L derivation legible at a glance */}
       <div className="mt-2 flex items-center gap-x-3 gap-y-1 flex-wrap text-[10px]">
         <Component
           label={t("dash.bk.period.sales")}

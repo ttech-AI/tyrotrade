@@ -5,20 +5,20 @@ import { toUsdAtDate } from "@/lib/finance/fxRates";
 import { getFinancialYear, type FinancialYear } from "@/lib/dashboard/financialPeriod";
 
 /**
- * Monthly estimated × realized P&L (K/Z) — powers the E.M Bakış
- * "Aylık K/Z Performansı" dual-bar chart.
+ * Monthly estimated × realized P&L (P&L) — powers the E.M Bakış
+ * "Aylık P&L Performansı" dual-bar chart.
  *
  * One point per financial-year month (Jul → Jun, Tiryaki convention).
  * Each project is bucketed into the month of its execution date
  * (`operationPeriod` → `projectDate` fallback), the same date the rest
  * of the dashboard keys FY/period math on.
  *
- * Estimated K/Z (per project, FX-converted at the execution date):
+ * Estimated P&L (per project, FX-converted at the execution date):
  *   estSalesUsd − estPurchaseUsd − estExpenseUsd
  * mirrors `aggregateEstimatedPL` exactly so the monthly bars sum back to
  * the Dönem Performansı headline.
  *
- * Realized K/Z (per project) — matches the project-detail BudgetSalesCard:
+ * Realized P&L (per project) — matches the project-detail BudgetSalesCard:
  *   realizedSalesUsd − realizedPurchaseUsd − realizedExpenseUsd
  * All three are realized figures: sales from `salesActualUsd`, purchase
  * from `purchaseActualUsd` (both server-aggregated, USD-only), expense
@@ -34,9 +34,9 @@ export interface MonthlyPLPoint {
   monthKey: string;
   /** Short localized month label, e.g. "Tem". */
   monthLabel: string;
-  /** Σ estimated K/Z (USD) for projects in this month. */
+  /** Σ estimated P&L (USD) for projects in this month. */
   estPL: number;
-  /** Σ realized K/Z (USD); null when the rollup hasn't covered the set. */
+  /** Σ realized P&L (USD); null when the rollup hasn't covered the set. */
   realizedPL: number | null;
   /** Projects with a realized signal that fed `realizedPL`. */
   realizedCount: number;
@@ -48,7 +48,7 @@ export interface MonthlyPLPoint {
 const KNOWN_CURRENCIES = new Set(["USD", "EUR", "TRY", "RUB", "GBP"]);
 
 export interface RealizedPLAggregate {
-  /** Σ realized K/Z (USD) across contributing projects. */
+  /** Σ realized P&L (USD) across contributing projects. */
   pl: number;
   /** Σ realized invoiced sales (USD) — the margin denominator. */
   salesUsd: number;
@@ -143,7 +143,7 @@ export function aggregateMonthlyPL(
       ? toUsdAtDate(pl.purchaseTotal, cur, fxDate)
       : pl.purchaseTotal;
 
-    // Estimated K/Z — only projects with priced lines contribute
+    // Estimated P&L — only projects with priced lines contribute
     // (matches aggregateEstimatedPL's gate).
     if (pl.salesTotal > 0 || pl.purchaseTotal > 0) {
       const estSalesUsd = KNOWN_CURRENCIES.has(cur)
@@ -152,7 +152,7 @@ export function aggregateMonthlyPL(
       points[idx].estPL += estSalesUsd - estPurchaseUsd - pl.expenseTotal;
     }
 
-    // Realized K/Z — realized sales − realized purchase − realized
+    // Realized P&L — realized sales − realized purchase − realized
     // expense (mirrors BudgetSalesCard). BOTH sides must have posted:
     // a half-done voyage (bought but not sold, e.g. 2646 → purchase 20M,
     // sales 0) would otherwise show a phantom −20M realized bar. Same

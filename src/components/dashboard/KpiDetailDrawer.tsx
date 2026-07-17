@@ -48,7 +48,7 @@ interface KpiDetailDrawerProps {
    *  the search/sort state because it changes per-KPI. */
   toolbar?: React.ReactNode;
   /** Tailwind max-width class for the drawer panel. Defaults to a
-   *  narrow 480px; pass a wider one (e.g. the realized-K/Z breakdown)
+   *  narrow 480px; pass a wider one (e.g. the realized-P&L breakdown)
    *  for content that needs room to breathe. */
   widthClass?: string;
   children?: React.ReactNode;

@@ -195,7 +195,7 @@ export function composeProjects(input: ComposeInput): ComposeResult {
 
   // Per-projid realized PURCHASE totals (mirror of sales). One entry per
   // (projid, currency) keyed on `mserp_purchtable_etgtryprojid`. USD only
-  // flows into purchaseActualUsd so realized K/Z stays on the same axis
+  // flows into purchaseActualUsd so realized P&L stays on the same axis
   // as salesActualUsd.
   const purchaseByProjid = new Map<
     string,
@@ -1000,7 +1000,7 @@ function num(v: unknown): number {
  * Σ over a currency→amount map, each bucket FX-converted to USD at
  * `fxDate`. Realized sales/purchase must include EVERY currency (a
  * EUR-invoiced voyage's realized sales are real revenue) — summing only
- * the USD bucket collapsed non-USD sales to ~0 and dragged realized K/Z
+ * the USD bucket collapsed non-USD sales to ~0 and dragged realized P&L
  * down to ≈ −(purchase). Uses the project's execution date as the FX
  * anchor (the aggregate cache doesn't carry per-invoice dates), matching
  * the estimated side; the per-project BudgetSalesCard converts each

@@ -100,7 +100,7 @@ export function getPowerBISegments(
   return POWERBI_PL_BY_FY[fy]?.segments[monthKey] ?? [];
 }
 
-/** Monthly estimated-vs-realized P&L points for the "Aylık K/Z Performansı"
+/** Monthly estimated-vs-realized P&L points for the "Aylık P&L Performansı"
  *  chart, sourced from the PBI export for `fy`. null when there's no export
  *  (the caller then falls back to the live `aggregateMonthlyPL`). Projected
  *  P&L → estPL, Live Realized P&L → realizedPL. Everything is historical

@@ -244,7 +244,7 @@ export interface Project {
    *  `mserp_lineamount` where currency=USD) — the realized "Alım" twin
    *  of `salesActualUsd`. Server-side aggregation over
    *  `mserp_tryaivendinvoicetransentities`, financing-order rows
-   *  stripped. Used for realized K/Z so the dashboard reconciles with
+   *  stripped. Used for realized P&L so the dashboard reconciles with
    *  the project-detail BudgetSalesCard. */
   purchaseActualUsd?: number;
   /** Same purchase totals broken out by currency code (no FX). */

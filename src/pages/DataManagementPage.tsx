@@ -730,7 +730,7 @@ export function DataManagementPage() {
         // Toplamları" on the vendor-invoice entity. MUST stay in sync
         // with the identical step in `refreshAll.ts` (both refresh
         // paths have to populate `purchaseAggregateByProject`, else the
-        // dashboard's realized K/Z drops the Alım side). FK is
+        // dashboard's realized P&L drops the Alım side). FK is
         // `mserp_purchtable_etgtryprojid`; financing-order rows stripped
         // client-side via `mserp_purchid`.
         label: "Satınalma Toplamları",

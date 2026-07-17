@@ -309,7 +309,7 @@ function ProjectRow({
           </span>
         </div>
       </div>
-      {/* Headline K/Z */}
+      {/* Headline P&L */}
       <div className="shrink-0 text-right flex items-center gap-1">
         <div>
           <div className="text-[9px] uppercase tracking-wider text-muted-foreground/70">

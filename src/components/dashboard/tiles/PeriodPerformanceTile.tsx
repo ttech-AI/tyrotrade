@@ -37,7 +37,7 @@ interface PeriodPerformanceTileProps {
   span?: string;
   rowSpan?: string;
   onClick?: () => void;
-  /** Realized (gerçekleşen) net K/Z (USD) for the filtered set — null
+  /** Realized (gerçekleşen) net P&L (USD) for the filtered set — null
    *  until the scoped expense rollup has covered it. */
   realizedPL?: number | null;
   /** Realized margin % (pl / realized sales). null when uncovered. */
@@ -45,7 +45,7 @@ interface PeriodPerformanceTileProps {
   /** Projects that fed the realized figures (for the tooltip). */
   realizedContributingCount?: number;
   /** Scoped realized-expense rollup fetch in flight. While true AND the
-   *  realized P&L hasn't landed yet, the Gerçekleşen K/Z value slot shows
+   *  realized P&L hasn't landed yet, the Gerçekleşen P&L value slot shows
    *  a spinner (same "veri geliyor" cue as the Sefer Takibi expense card)
    *  instead of the static "—" placeholder. */
   realizedFetching?: boolean;

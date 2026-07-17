@@ -39,7 +39,7 @@ function plColor(v: number) {
 }
 
 /**
- * E.M Bakış "Gerçekleşen × Tahmini K/Z" monthly table — Power BI
+ * E.M Bakış "Gerçekleşen × Tahmini P&L" monthly table — Power BI
  * "LIVE REALIZED – PROJECTED P&L" replica. Months are FY-scoped and
  * dynamic with the page filter; each month row is clickable to open the
  * per-project drill-down. Projected (tahmini) column group reads blue,
