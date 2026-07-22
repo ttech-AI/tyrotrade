@@ -789,17 +789,9 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
             {showTyping ? (
               <TypingIndicator />
             ) : (
-              <>
-                <RenderBoundary fallback={msg.text}>
-                  <MarkdownText text={msg.text} />
-                </RenderBoundary>
-                {msg.streaming && (
-                  <span
-                    className="inline-block w-0.5 h-[1em] ml-0.5 align-middle animate-pulse rounded-full"
-                    style={{ background: TYRO_CHAT_TONE.solid }}
-                  />
-                )}
-              </>
+              <RenderBoundary fallback={msg.text}>
+                <MarkdownText text={msg.text} />
+              </RenderBoundary>
             )}
           </div>
         )}
