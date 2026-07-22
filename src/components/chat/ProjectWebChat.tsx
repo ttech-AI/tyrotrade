@@ -770,6 +770,10 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
       </motion.div>
     );
   }
+  // Keep "Yazıyor…" visible until real text actually arrives. The stream can
+  // flip pending→false on an empty first chunk; without this the bubble would
+  // briefly go blank ("as if no answer is coming").
+  const showTyping = (msg.pending || msg.streaming) && !msg.text;
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -780,9 +784,9 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
       <OrbAvatar size={28} className="mt-0.5" />
       <div className="flex flex-col items-start min-w-0 max-w-[calc(100%-2.25rem)]">
         <span className="mb-1 text-[11px] font-semibold text-muted-foreground">TYRO</span>
-        {(msg.pending || msg.text) && (
+        {(showTyping || msg.text) && (
           <div className="min-w-0 max-w-full rounded-2xl rounded-tl-md border border-border/60 bg-card px-3.5 py-2.5 text-[13px] leading-relaxed text-foreground shadow-sm">
-            {msg.pending ? (
+            {showTyping ? (
               <TypingIndicator />
             ) : (
               <>
