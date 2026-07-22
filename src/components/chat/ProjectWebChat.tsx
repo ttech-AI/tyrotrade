@@ -62,10 +62,53 @@ function attachmentDownloadUrl(att: ChatAttachment): string | null {
   return null;
 }
 
-/** Extract renderable (downloadable) attachments from a Copilot activity. */
+/** Depth-first search for a downloadable URL inside structured content (e.g. an
+ *  Adaptive Card): prefers Action.OpenUrl and download/url keys; skips icons. */
+function findDownloadUrl(node: unknown, depth = 0): string | null {
+  if (node == null || depth > 6) return null;
+  if (typeof node === "string") {
+    return /^(https?:|data:)/i.test(node) && !/icon/i.test(node) ? node : null;
+  }
+  if (Array.isArray(node)) {
+    for (const v of node) {
+      const u = findDownloadUrl(v, depth + 1);
+      if (u) return u;
+    }
+    return null;
+  }
+  if (typeof node === "object") {
+    const o = node as Record<string, unknown>;
+    if (o.type === "Action.OpenUrl" && typeof o.url === "string") return o.url;
+    for (const k of ["downloadUrl", "contentUrl", "url", "href"]) {
+      const v = o[k];
+      if (typeof v === "string" && /^(https?:|data:)/i.test(v)) return v;
+    }
+    for (const [k, v] of Object.entries(o)) {
+      if (/icon/i.test(k)) continue;
+      const u = findDownloadUrl(v, depth + 1);
+      if (u) return u;
+    }
+  }
+  return null;
+}
+
+/** Extract renderable (downloadable) attachments from a Copilot activity —
+ *  direct file attachments AND files linked inside an Adaptive Card. */
 function extractAttachments(activity: { attachments?: unknown }): ChatAttachment[] {
-  const raw = (activity?.attachments as ChatAttachment[]) || [];
-  return raw.filter((a) => attachmentDownloadUrl(a));
+  const raw = (activity?.attachments as Array<Record<string, unknown>>) || [];
+  const out: ChatAttachment[] = [];
+  for (const a of raw) {
+    const url = attachmentDownloadUrl(a as ChatAttachment) || findDownloadUrl(a?.content);
+    if (url) {
+      const content = a?.content as { name?: string; title?: string } | undefined;
+      out.push({
+        name: (a?.name as string) || content?.name || content?.title || "Dosya",
+        contentType: a?.contentType as string,
+        contentUrl: url,
+      });
+    }
+  }
+  return out;
 }
 
 interface ProjectWebChatProps {
@@ -373,6 +416,14 @@ function ProjectWebChatCore({ projectContext, userContext }: ProjectWebChatProps
 
       for await (const reply of clientRef.current.sendActivityStreaming(activity)) {
         if (abortGenRef.current !== gen) break;
+        // TEMP DEBUG — inspect the real activity shape (esp. how PDFs arrive).
+        if (reply?.type !== "typing") {
+          try { console.debug("[tyro-chat] activity", JSON.stringify(reply)); }
+          catch { console.debug("[tyro-chat] activity keys", Object.keys(reply || {})); }
+        }
+        if ((reply as { attachments?: unknown[] })?.attachments?.length) {
+          console.debug("[tyro-chat] attachments", JSON.stringify((reply as { attachments?: unknown }).attachments));
+        }
         if (isStreamingChunk(reply) && reply.text != null) {
           hadStreamingChunks = true;
           setMessages((prev) =>
