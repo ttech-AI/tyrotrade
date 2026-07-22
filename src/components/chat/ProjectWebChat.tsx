@@ -7,7 +7,7 @@ import {
 } from "@microsoft/agents-copilotstudio-client";
 import type { Activity } from "@microsoft/agents-activity";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowUp, Copy, Check } from "lucide-react";
+import { ArrowUp, Copy, Check, FileText, Download } from "lucide-react";
 import { toast } from "sonner";
 import { shouldUseMock } from "@/lib/dataverse";
 import { MarkdownText } from "./ChatMessage";
@@ -36,12 +36,36 @@ export interface UserContext {
   email: string;
 }
 
+/** File/card attachment carried on a Copilot activity (e.g. a generated PDF). */
+interface ChatAttachment {
+  name?: string;
+  contentType?: string;
+  contentUrl?: string;
+  content?: { downloadUrl?: string; url?: string; name?: string } | unknown;
+}
+
 interface ChatMessage {
   id: string;
   role: "user" | "bot";
   text: string;
   pending?: boolean;   // waiting for first token — show dots
   streaming?: boolean; // tokens arriving — show text + cursor
+  attachments?: ChatAttachment[]; // bot file attachments (PDF etc.)
+}
+
+/** Resolve a downloadable URL from an attachment — direct contentUrl, or a
+ *  URL nested in content (downloadUrl/url), mirroring the corporate AI chat. */
+function attachmentDownloadUrl(att: ChatAttachment): string | null {
+  if (att?.contentUrl) return att.contentUrl;
+  const c = att?.content as { downloadUrl?: string; url?: string } | undefined;
+  if (c && typeof c === "object") return c.downloadUrl || c.url || null;
+  return null;
+}
+
+/** Extract renderable (downloadable) attachments from a Copilot activity. */
+function extractAttachments(activity: { attachments?: unknown }): ChatAttachment[] {
+  const raw = (activity?.attachments as ChatAttachment[]) || [];
+  return raw.filter((a) => attachmentDownloadUrl(a));
 }
 
 interface ProjectWebChatProps {
@@ -378,13 +402,21 @@ function ProjectWebChatCore({ projectContext, userContext }: ProjectWebChatProps
             );
           }
         }
+        // Capture file attachments (e.g. a generated PDF) regardless of text —
+        // they may arrive on an activity that carries no text at all.
+        const atts = extractAttachments(reply);
+        if (atts.length) {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === botId ? { ...m, attachments: atts, pending: false } : m))
+          );
+        }
       }
 
       if (abortGenRef.current !== gen) return;
       setMessages((prev) =>
         prev.map((m) =>
           m.id === botId
-            ? { ...m, text: m.text || "…", pending: false, streaming: false }
+            ? { ...m, text: m.text || (m.attachments?.length ? "" : "…"), pending: false, streaming: false }
             : m
         )
       );
@@ -450,9 +482,13 @@ function ProjectWebChatCore({ projectContext, userContext }: ProjectWebChatProps
             setMessages((prev) => prev.map((m) => m.id === botId ? { ...m, text: m.text + "\n" + reply.text! } : m));
           }
         }
+        const atts = extractAttachments(reply);
+        if (atts.length) {
+          setMessages((prev) => prev.map((m) => m.id === botId ? { ...m, attachments: atts, pending: false } : m));
+        }
       }
       if (abortGenRef.current !== gen) return;
-      setMessages((prev) => prev.map((m) => m.id === botId ? { ...m, text: m.text || "…", pending: false, streaming: false } : m));
+      setMessages((prev) => prev.map((m) => m.id === botId ? { ...m, text: m.text || (m.attachments?.length ? "" : "…"), pending: false, streaming: false } : m));
     } catch {
       if (abortGenRef.current !== gen) return;
       setMessages((prev) => prev.map((m) => m.id === botId ? { ...m, text: "Yanıt alınamadı.", pending: false, streaming: false } : m));
@@ -655,21 +691,30 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
       <OrbAvatar size={28} className="mt-0.5" />
       <div className="flex flex-col items-start min-w-0 max-w-[calc(100%-2.25rem)]">
         <span className="mb-1 text-[11px] font-semibold text-muted-foreground">TYRO</span>
-        <div className="min-w-0 max-w-full rounded-2xl rounded-tl-md border border-border/60 bg-card px-3.5 py-2.5 text-[13px] leading-relaxed text-foreground shadow-sm">
-          {msg.pending ? (
-            <TypingIndicator />
-          ) : (
-            <>
-              <MarkdownText text={msg.text} />
-              {msg.streaming && (
-                <span
-                  className="inline-block w-0.5 h-[1em] ml-0.5 align-middle animate-pulse rounded-full"
-                  style={{ background: TYRO_CHAT_TONE.solid }}
-                />
-              )}
-            </>
-          )}
-        </div>
+        {(msg.pending || msg.text) && (
+          <div className="min-w-0 max-w-full rounded-2xl rounded-tl-md border border-border/60 bg-card px-3.5 py-2.5 text-[13px] leading-relaxed text-foreground shadow-sm">
+            {msg.pending ? (
+              <TypingIndicator />
+            ) : (
+              <>
+                <MarkdownText text={msg.text} />
+                {msg.streaming && (
+                  <span
+                    className="inline-block w-0.5 h-[1em] ml-0.5 align-middle animate-pulse rounded-full"
+                    style={{ background: TYRO_CHAT_TONE.solid }}
+                  />
+                )}
+              </>
+            )}
+          </div>
+        )}
+        {msg.attachments && msg.attachments.length > 0 && (
+          <div className="mt-1.5 flex flex-col items-start gap-1.5">
+            {msg.attachments.map((att, i) => (
+              <AttachmentChip key={i} att={att} />
+            ))}
+          </div>
+        )}
         {!msg.pending && !msg.streaming && msg.text && msg.text !== "…" && (
           <div className="mt-1">
             <CopyButton text={msg.text} />
@@ -677,6 +722,29 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
         )}
       </div>
     </motion.div>
+  );
+}
+
+/** Download chip for a bot file attachment (e.g. a generated PDF). */
+function AttachmentChip({ att }: { att: ChatAttachment }) {
+  const url = attachmentDownloadUrl(att);
+  if (!url) return null;
+  const name =
+    att.name || (att.content as { name?: string })?.name || "Dosya";
+  return (
+    <a
+      href={url}
+      download={name}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="group inline-flex max-w-full items-center gap-2 rounded-xl border border-border/60 bg-card px-3 py-2 text-[12px] shadow-sm transition hover:border-[#6366f1]/50 hover:bg-[rgba(99,102,241,0.06)]"
+    >
+      <FileText className="size-4 shrink-0" style={{ color: TYRO_CHAT_TONE.solid }} />
+      <span className="max-w-[220px] truncate font-medium text-foreground" title={name}>
+        {name}
+      </span>
+      <Download className="size-3.5 shrink-0 text-muted-foreground transition group-hover:text-foreground" />
+    </a>
   );
 }
 
@@ -779,7 +847,9 @@ Proje: **CORN // 40KMT** · \`PRJ000002292\` · Segment: Iraq
 const PREVIEW_MESSAGES: ChatMessage[] = [
   { id: "p-greet", role: "bot", text: "Merhaba 👋 Ben TYRO. Projeler, gemiler ve P&L hakkında soru sorabilirsin." },
   { id: "p-user", role: "user", text: "AMANI gemisinin P&L'ini ver" },
-  { id: "p-bot", role: "bot", text: PREVIEW_ANSWER },
+  { id: "p-bot", role: "bot", text: PREVIEW_ANSWER,
+    attachments: [{ name: "AMANI-PnL-Raporu.pdf", contentType: "application/pdf",
+                    contentUrl: "data:application/pdf;base64,JVBERi0xLjQK" }] },
   { id: "p-typing", role: "bot", text: "", pending: true },
 ];
 
