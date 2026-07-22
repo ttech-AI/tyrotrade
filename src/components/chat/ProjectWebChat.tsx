@@ -92,6 +92,21 @@ function findDownloadUrl(node: unknown, depth = 0): string | null {
   return null;
 }
 
+/** JSON.stringify that can never throw (circular refs etc.). */
+function safeStringify(v: unknown): string {
+  try { return JSON.stringify(v); } catch { try { return String(v); } catch { return "<unserializable>"; } }
+}
+
+/** Log a Copilot activity for diagnostics — wrapped so logging can NEVER
+ *  break the streaming loop (a throwing console call would kill the reply). */
+function debugActivity(reply: unknown): void {
+  try {
+    const r = reply as { type?: string; attachments?: unknown[] };
+    if (r?.type !== "typing") console.debug("[tyro-chat] activity", r?.type, safeStringify(reply));
+    if (r?.attachments?.length) console.debug("[tyro-chat] attachments", safeStringify(r.attachments));
+  } catch { /* never throw */ }
+}
+
 /** Extract renderable (downloadable) attachments from a Copilot activity —
  *  direct file attachments AND files linked inside an Adaptive Card. */
 function extractAttachments(activity: { attachments?: unknown }): ChatAttachment[] {
@@ -416,14 +431,7 @@ function ProjectWebChatCore({ projectContext, userContext }: ProjectWebChatProps
 
       for await (const reply of clientRef.current.sendActivityStreaming(activity)) {
         if (abortGenRef.current !== gen) break;
-        // TEMP DEBUG — inspect the real activity shape (esp. how PDFs arrive).
-        if (reply?.type !== "typing") {
-          try { console.debug("[tyro-chat] activity", JSON.stringify(reply)); }
-          catch { console.debug("[tyro-chat] activity keys", Object.keys(reply || {})); }
-        }
-        if ((reply as { attachments?: unknown[] })?.attachments?.length) {
-          console.debug("[tyro-chat] attachments", JSON.stringify((reply as { attachments?: unknown }).attachments));
-        }
+        debugActivity(reply);  // safe: never throws
         if (isStreamingChunk(reply) && reply.text != null) {
           hadStreamingChunks = true;
           setMessages((prev) =>
@@ -455,11 +463,15 @@ function ProjectWebChatCore({ projectContext, userContext }: ProjectWebChatProps
         }
         // Capture file attachments (e.g. a generated PDF) regardless of text —
         // they may arrive on an activity that carries no text at all.
-        const atts = extractAttachments(reply);
-        if (atts.length) {
-          setMessages((prev) =>
-            prev.map((m) => (m.id === botId ? { ...m, attachments: atts, pending: false } : m))
-          );
+        try {
+          const atts = extractAttachments(reply);
+          if (atts.length) {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === botId ? { ...m, attachments: atts, pending: false } : m))
+            );
+          }
+        } catch (e) {
+          console.error("[tyro-chat] extractAttachments error", e);
         }
       }
 
@@ -522,6 +534,7 @@ function ProjectWebChatCore({ projectContext, userContext }: ProjectWebChatProps
       let firstMsg = true;
       for await (const reply of clientRef.current.sendActivityStreaming(activity)) {
         if (abortGenRef.current !== gen) break;
+        debugActivity(reply);
         if (isStreamingChunk(reply) && reply.text != null) {
           hadChunks = true;
           setMessages((prev) => prev.map((m) => m.id === botId ? { ...m, text: reply.text!, pending: false, streaming: true } : m));
@@ -533,9 +546,13 @@ function ProjectWebChatCore({ projectContext, userContext }: ProjectWebChatProps
             setMessages((prev) => prev.map((m) => m.id === botId ? { ...m, text: m.text + "\n" + reply.text! } : m));
           }
         }
-        const atts = extractAttachments(reply);
-        if (atts.length) {
-          setMessages((prev) => prev.map((m) => m.id === botId ? { ...m, attachments: atts, pending: false } : m));
+        try {
+          const atts = extractAttachments(reply);
+          if (atts.length) {
+            setMessages((prev) => prev.map((m) => m.id === botId ? { ...m, attachments: atts, pending: false } : m));
+          }
+        } catch (e) {
+          console.error("[tyro-chat] extractAttachments error", e);
         }
       }
       if (abortGenRef.current !== gen) return;
@@ -705,6 +722,27 @@ function OrbAvatar({ size = 28, className }: { size?: number; className?: string
 }
 
 /**
+ * Error boundary so a markdown-render exception can never blank the whole
+ * chat — it logs the error + the offending text and falls back to plain text.
+ */
+class RenderBoundary extends React.Component<
+  { fallback: string; children: React.ReactNode },
+  { failed: boolean }
+> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(error: unknown, info: unknown) {
+    console.error("[tyro-chat] render error:", error, info, "| text:", this.props.fallback);
+  }
+  render() {
+    if (this.state.failed) {
+      return <span className="whitespace-pre-wrap">{this.props.fallback}</span>;
+    }
+    return this.props.children;
+  }
+}
+
+/**
  * One chat row — user (right, soft-tint bubble) or bot (left, gradient
  * avatar + "TYRO" label + card bubble with markdown, streaming cursor and a
  * copy action). Shared by the live chat and the dev preview.
@@ -748,7 +786,9 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
               <TypingIndicator />
             ) : (
               <>
-                <MarkdownText text={msg.text} />
+                <RenderBoundary fallback={msg.text}>
+                  <MarkdownText text={msg.text} />
+                </RenderBoundary>
                 {msg.streaming && (
                   <span
                     className="inline-block w-0.5 h-[1em] ml-0.5 align-middle animate-pulse rounded-full"
