@@ -108,11 +108,20 @@ const EXCLUDED_EXPENSE_IDS = new Set<string>([
 ]);
 
 /** Voucher-level exclusions replicated from the Power BI report's own
- *  "ExpenseNum is not …" filter — 9 hand-picked vouchers PBI's realised
+ *  "ExpenseNum is not …" filter — hand-picked vouchers PBI's realised
  *  measures never count. Found live: TMESMSN000216 is a 980.087 USD
  *  broker-commission voucher on PRJ000002060 that flipped its realised
  *  P&L sign (−369k vs PBI +617k) until excluded. Keep in sync with
- *  `actualExpenseRollup.ts`. */
+ *  `actualExpenseRollup.ts`.
+ *
+ *  NOTE: DMESMSN002503 ("ABIGAIL FREIGHT INCOME" on PRJ000002005, a 720089
+ *  Customer line, raw +177.737 → signed −177.737) was REMOVED here. It sits
+ *  in PBI's DETAIL-table ExpenseNum filter (so the detail breakdown hides it,
+ *  totalling 2.728.967), but PBI's "Realized Project" SUMMARY measure DOES
+ *  net it in (Realized Expense 2.551.230 / Realized P&L 1.694.150 for 2005).
+ *  Excluding it made this card/dashboard show 1.516.413 — matching PBI's
+ *  detail table but NOT the summary the QA compares against (nor the MCP,
+ *  which never excluded it). Re-including it aligns card + MCP + PBI summary. */
 const EXCLUDED_EXPENSE_NUMS = new Set<string>([
   "TMESMSN000216",
   "TMESMSN000217",
@@ -121,7 +130,6 @@ const EXCLUDED_EXPENSE_NUMS = new Set<string>([
   "DMESMSN002207",
   "DMESMSN002696",
   "DMESMSN002697",
-  "DMESMSN002503",
   "AFZEMSN001374",
 ]);
 
