@@ -228,7 +228,7 @@ function DesktopChatSlot({
         >
           <span
             aria-hidden
-            className="absolute left-0 top-1/2 h-10 w-1 -translate-y-1/2 rounded-full bg-border/70 transition-colors group-hover:bg-[#6366f1]"
+            className="absolute left-0 top-1/2 h-10 w-1 -translate-y-1/2 rounded-full bg-[#6366f1]"
           />
         </div>
       )}
