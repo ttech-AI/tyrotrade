@@ -131,6 +131,12 @@ const EXCLUDED_EXPENSE_NUMS = new Set<string>([
   "DMESMSN002696",
   "DMESMSN002697",
   "AFZEMSN001374",
+  // Two standalone "SATIŞ FİYAT FARKLARI" (710041) lines on PRJ000002395
+  // (+528,356 / +161,610) with no offsetting 720089 reflection — PBI's
+  // ExpenseNum filter drops them. Counting them overstated 2395 realised
+  // expense by 689,966 (P&L 374,912 vs PBI 1,064,878). Verified single-project.
+  "DTRKMSN043271",
+  "DTRKMSN045008",
 ]);
 
 /** Fixing / booking projects (e.g. `FFIX001145`) are out-of-`PROJECTS_FILTER`-
