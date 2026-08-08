@@ -119,6 +119,33 @@ boyamadan önce 2 sn'lik yarışla yapılır.
 - Dataverse şema adları (`tyro_launcherapp`, `tyro_name`, `tyro_type`…) ve şirket
   adları (Tiryaki, TTECH) markalamanın DIŞINDADIR.
 
+## Sessiz SSO (prompt=none)
+
+Açılışta, tarayıcıda yaşayan bir Entra oturumu varsa kullanıcı login ekranını
+görmeden içeri alınır. Mantık `src/lib/silentSso.js` + `src/main.jsx` (React
+mount edilmeden ÖNCE karar verilir — login flash'i bu yüzden yapısal olarak
+imkânsız). `ssoSilent()` BİLEREK kullanılmıyor: MSAL v5'te gizli iframe yanıtı
+ancak redirect URI'de barındırılan redirect-bridge sayfasıyla dönebiliyor; köprü
+olmadığı için her açılış timeout bekletirdi. Bunun yerine tam sayfa
+`loginRedirect({ prompt: "none" })`.
+
+Korumalar (sırayla kontrol edilir, hepsini `silentSso.js` uygular):
+kill-switch (`VITE_DISABLE_SILENT_SSO=1` veya URL'de `?nosso=1`) →
+`handleRedirectPromise` hatası (kullanıcının Entra'da vazgeçmesi `access_denied`
+döndürür; sessiz tekrar deneme onu aynı ekrana geri fırlatır) → sekme başına
+tek deneme (`tyrotrade-sso-attempted`, sessionStorage, yönlendirmeden ÖNCE
+yazılır; yazılamazsa deneme iptal) → bilinçli çıkış işareti
+(`tyrotrade-signed-out`, localStorage; `NavUser.handleSignOut`
+`logoutRedirect`'ten önce koyar, SADECE LoginPage'deki elle giriş temizler —
+cache'te hesap görünce temizleme, başka sekmenin yenilenmesi çıkışı iptal eder)
+→ offline'da deneme yok (PWA'da ağ hatası sayfasında kilitlenme) → iframe
+içinde deneme yok (dönüş bacağı renewal-frame kısa devresine yakalanır) →
+cache'te hesap varsa gerek yok. Sessiz denemenin başarısız dönmesi (örn.
+`login_required`) BEKLENEN durumdur: console.info ile loglanır, kullanıcıya
+hata gösterilmez, mevcut login ekranına düşülür. bfcache geri dönüşleri de
+korunur: `main.jsx` boş `#root`'lu restore'da reload eder, LoginPage donmuş
+"dissolving" fazını `pageshow`'da sıfırlar.
+
 ## Deploy
 
 `main`'e push → `.github/workflows/deploy.yml` → GitHub Pages (SPA fallback:

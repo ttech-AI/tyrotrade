@@ -27,6 +27,7 @@ import {
 import { useLocale } from "@/hooks/useLocale"
 import { useMe } from "@/hooks/useMe"
 import { isMsalConfigured, MOCK_LOGGED_IN_KEY } from "@/lib/msal"
+import { markSignedOut } from "@/lib/silentSso"
 
 export function NavUser() {
   const { isMobile } = useSidebar()
@@ -38,6 +39,11 @@ export function NavUser() {
   async function handleSignOut() {
     if (isMsalConfigured) {
       const account = instance.getActiveAccount() ?? undefined
+      // BEFORE the redirect: persist that this sign-out was deliberate. The
+      // Entra session outlives our app logout, so without this marker the
+      // silent-SSO boot on /login would sign the user straight back in —
+      // logout would be impossible. Only a manual login clears it.
+      markSignedOut()
       // logoutRedirect navigates the whole page to AAD then back to
       // postLogoutRedirectUri (/login). Don't navigate manually — the redirect
       // handles it, and any manual nav before it kicks in is a race.

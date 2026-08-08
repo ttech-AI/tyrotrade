@@ -11,6 +11,7 @@ import { useLocale } from "@/hooks/useLocale"
 import { useTheme } from "@/hooks/useTheme"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { isMsalConfigured, loginRequest, MOCK_LOGGED_IN_KEY } from "@/lib/msal"
+import { clearSignedOut, isSignedOut, markSignedOut } from "@/lib/silentSso"
 import { cn } from "@/lib/utils"
 
 // Ocean Breeze v2 — the app's default brand colors. Values mirror the
@@ -300,6 +301,21 @@ export function LoginPage() {
     }
   }, [])
 
+  // bfcache: backing out of the Entra account picker restores this page
+  // mid-"dissolving" — React state survives the restore, so the chrome sits at
+  // opacity 0, the CTA is disabled and the fired timers won't come back. Reset
+  // to idle explicitly so the page is interactive again.
+  useEffect(() => {
+    function handlePageShow(e) {
+      if (!e.persisted) return
+      connectTimers.current.forEach(clearTimeout)
+      connectTimers.current.length = 0
+      setPhase("idle")
+    }
+    window.addEventListener("pageshow", handlePageShow)
+    return () => window.removeEventListener("pageshow", handlePageShow)
+  }, [])
+
   async function handleConnect() {
     if (isSpinning) return
     if (activityTimer.current) clearTimeout(activityTimer.current)
@@ -319,7 +335,15 @@ export function LoginPage() {
     if (isMsalConfigured) {
       connectTimers.current.push(
         setTimeout(() => {
+          // The ONE place the deliberate sign-out marker may be cleared: the
+          // user explicitly clicked connect. Cleared here (not on cache hits)
+          // so silent SSO works again on their next visit. If the redirect
+          // fails to even START, the click didn't become a login — restore
+          // the marker as it was so an abandoned attempt can't un-sign-out.
+          const wasSignedOut = isSignedOut()
+          clearSignedOut()
           instance.loginRedirect(loginRequest).catch((err) => {
+            if (wasSignedOut) markSignedOut()
             console.warn("[MSAL] login failed:", err?.errorCode || err?.message || err)
             setPhase("idle")
             toast.error(t("login.error"))
