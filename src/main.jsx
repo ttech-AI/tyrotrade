@@ -5,7 +5,8 @@ import { MsalProvider } from "@azure/msal-react"
 import "@fontsource/kanit/700.css"
 import "./index.css"
 import App from "./App.jsx"
-import { msalInstance, ensureMsalInitialized } from "@/lib/msal"
+import { msalInstance, ensureMsalInitialized, isMsalConfigured, loginRequest } from "@/lib/msal"
+import { shouldAttemptSilentSso, attemptSilentSso, isExpectedSilentError } from "@/lib/silentSso"
 import { onNotificationAction } from "@/lib/notify/browserNotify"
 import { requestOpenChat } from "@/lib/chatBus"
 import { ThemeProvider } from "@/providers/ThemeProvider"
@@ -43,7 +44,48 @@ if (!isMsalRenewalFrame()) {
   // happens to be mounted when the click arrives.
   onNotificationAction((action) => requestOpenChat({ focusComposer: action === "reply" }))
 
-  ensureMsalInitialized()
+  // bfcache: the document that starts the silent-SSO hop never rendered
+  // (#root empty) yet stays in session history. The Back button can restore
+  // it as-is — module scripts do NOT re-run on a bfcache restore — leaving a
+  // permanent white page. Reload to re-boot; the per-tab attempt flag in
+  // sessionStorage guarantees the reload cannot re-trigger the hop.
+  window.addEventListener("pageshow", (e) => {
+    if (e.persisted && !document.getElementById("root")?.hasChildNodes()) {
+      window.location.reload()
+    }
+  })
+
+  let rendered = false
+  function renderApp() {
+    if (rendered) return // a throw after render must not createRoot twice
+    rendered = true
+    createRoot(document.getElementById("root")).render(
+      <StrictMode>
+        <BrowserRouter basename={basename}>
+          <MsalProvider instance={msalInstance}>
+            <ThemeProvider>
+              <PaletteProvider>
+                <LocaleProvider>
+                  <ConfigProvider>
+                    <TooltipProvider delayDuration={150}>
+                      <App />
+                    </TooltipProvider>
+                  </ConfigProvider>
+                </LocaleProvider>
+              </PaletteProvider>
+            </ThemeProvider>
+          </MsalProvider>
+        </BrowserRouter>
+      </StrictMode>,
+    )
+  }
+
+  // Promise.resolve().then(...) converts a SYNCHRONOUS throw from
+  // ensureMsalInitialized (config regression, MSAL validating eagerly) into a
+  // rejection the .catch below already handles — a bare call would escape the
+  // chain and leave a blank page with renderApp never reached.
+  Promise.resolve()
+    .then(() => ensureMsalInitialized())
     .then(() => msalInstance.handleRedirectPromise())
     .then((result) => {
       if (result?.account) {
@@ -53,29 +95,36 @@ if (!isMsalRenewalFrame()) {
         // useIsAuthenticated catches up after the redirect callback.
         window.history.replaceState(null, "", import.meta.env.BASE_URL + "dashboard")
       }
+      return null
     })
     .catch((err) => {
-      console.warn("[MSAL] redirect handler failed:", err?.errorCode || err?.message || err)
+      // A rejected redirect is the NORMAL return path of a failed silent SSO
+      // attempt (login_required & friends) — log quietly and fall through to
+      // the login screen. Anything else (user backed out of an Entra prompt →
+      // access_denied, config errors, …) is worth a warn. Either way the error
+      // is passed down so the SSO decision can see it — never chain a silent
+      // attempt onto a boot that already returned an auth error.
+      const log = isExpectedSilentError(err) ? "info" : "warn"
+      console[log]("[MSAL] redirect returned an error:", err?.errorCode || err?.message || err)
+      // Always truthy — a falsy rejection value (throw undefined somewhere)
+      // must still block the silent attempt in shouldAttemptSilentSso.
+      return err || new Error("redirect failed with no error object")
     })
-    .finally(() => {
-      createRoot(document.getElementById("root")).render(
-        <StrictMode>
-          <BrowserRouter basename={basename}>
-            <MsalProvider instance={msalInstance}>
-              <ThemeProvider>
-                <PaletteProvider>
-                  <LocaleProvider>
-                    <ConfigProvider>
-                      <TooltipProvider delayDuration={150}>
-                        <App />
-                      </TooltipProvider>
-                    </ConfigProvider>
-                  </LocaleProvider>
-                </PaletteProvider>
-              </ThemeProvider>
-            </MsalProvider>
-          </BrowserRouter>
-        </StrictMode>,
-      )
+    .then(async (redirectError) => {
+      // Silent SSO (prompt=none, full-page redirect — see src/lib/silentSso.js
+      // for why not ssoSilent and for every guard). Decided BEFORE React mounts:
+      // on attempt the page navigates away without ever rendering, so the login
+      // screen cannot flash; on success the next boot lands authenticated.
+      if (isMsalConfigured && shouldAttemptSilentSso({ msalInstance, redirectError })) {
+        const navigating = await attemptSilentSso(msalInstance, loginRequest)
+        if (navigating) return
+      }
+      renderApp()
+    })
+    // Terminal backstop, restoring the old .finally(render) guarantee: no
+    // matter what threw above, the user gets the app instead of a white page.
+    .catch((err) => {
+      console.warn("[boot] unexpected failure:", err?.message || err)
+      renderApp()
     })
 }
