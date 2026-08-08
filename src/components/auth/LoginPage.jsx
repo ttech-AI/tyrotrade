@@ -13,16 +13,20 @@ import { useIsMobile } from "@/hooks/use-mobile"
 import { isMsalConfigured, loginRequest, MOCK_LOGGED_IN_KEY } from "@/lib/msal"
 import { cn } from "@/lib/utils"
 
-const INSTA_COLORS = {
-  gradStart: "#feda77",
-  gradEnd: "#dd2a7b",
-  fillA: "#ad339d",
-  fillB: "#8134af",
-  fillC: "#8134af",
+// Ocean Breeze v2 — the app's default brand colors. Values mirror the
+// :root[data-palette="ocean-breeze-v2"] --brand-logo-1..5 tokens in index.css
+// (kept literal here because the login page pins its own look regardless of
+// the palette the user later picks in the app).
+const BRAND_COLORS = {
+  gradStart: "#48cae4",
+  gradEnd: "#00b4d8",
+  fillA: "#0077b6",
+  fillB: "#00b4d8",
+  fillC: "#03045e",
 }
 
-const INSTA_GRADIENT =
-  "linear-gradient(135deg, #feda77 0%, #dd2a7b 50%, #8134af 100%)"
+const BRAND_GRADIENT =
+  "linear-gradient(135deg, #48cae4 0%, #00b4d8 50%, #0077b6 100%)"
 
 const LOGIN_INIT_FLAG = "tyrotrade-login-initialized"
 const LOGIN_MUTED_KEY = "tyrotrade-login-muted"
@@ -106,12 +110,12 @@ export function LoginPage() {
         ? "listening"
         : "idle"
 
-  // First-time defaults: light + tr (only on first ever login visit)
+  // First-time defaults: light + en (only on first ever login visit)
   useEffect(() => {
     if (typeof window === "undefined") return
     if (!window.localStorage.getItem(LOGIN_INIT_FLAG)) {
       setTheme("light")
-      setLocale("tr")
+      setLocale("en")
       window.localStorage.setItem(LOGIN_INIT_FLAG, "1")
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -422,13 +426,13 @@ export function LoginPage() {
       >
         {/* Brand block left */}
         <div className="flex min-w-0 items-center gap-2.5 sm:gap-4">
-          <TyroLogo size={36} className="size-[34px] shrink-0 sm:size-[42px]" themeColors={INSTA_COLORS} />
+          <TyroLogo size={36} className="size-[34px] shrink-0 sm:size-[42px]" themeColors={BRAND_COLORS} />
           <div className="flex min-w-0 flex-col leading-none">
             <span className={cn("inline-flex items-baseline text-lg font-bold tracking-tight sm:text-2xl", isDark ? "text-white" : "text-[#1a1a1a]")}>
               <span>tyro</span>
               <span
                 style={{
-                  backgroundImage: INSTA_GRADIENT,
+                  backgroundImage: BRAND_GRADIENT,
                   WebkitBackgroundClip: "text",
                   backgroundClip: "text",
                   color: "transparent",
@@ -636,7 +640,7 @@ export function LoginPage() {
               <span
                 className="ml-1.5"
                 style={{
-                  backgroundImage: INSTA_GRADIENT,
+                  backgroundImage: BRAND_GRADIENT,
                   WebkitBackgroundClip: "text",
                   backgroundClip: "text",
                   color: "transparent",
@@ -886,7 +890,7 @@ function TyroScramble({ active, isDark }) {
                 : isDark
                   ? "rgba(255,255,255,0.85)"
                   : "rgba(26,26,26,0.78)",
-              backgroundImage: locked ? INSTA_GRADIENT : undefined,
+              backgroundImage: locked ? BRAND_GRADIENT : undefined,
               WebkitBackgroundClip: locked ? "text" : undefined,
               backgroundClip: locked ? "text" : undefined,
               WebkitTextFillColor: locked ? "transparent" : undefined,
@@ -988,7 +992,7 @@ function CtaButton({ onClick, disabled, label, isDark }) {
       <span
         aria-hidden="true"
         className="absolute inset-0 -z-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
-        style={{ backgroundImage: INSTA_GRADIENT }}
+        style={{ backgroundImage: BRAND_GRADIENT }}
       />
       <span className="relative z-10 transition-colors duration-300 group-hover:text-white">
         {label}

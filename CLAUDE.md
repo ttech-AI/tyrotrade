@@ -54,6 +54,15 @@ Komutlar: `npm run dev` (5173) · `npm run build` · `npm run lint`. Test yok.
 - Görünen ad **tyroTrade** ("tyro" + `text-brand` renkli "Trade" — `BrandText.jsx`
   ve `LoginPage.jsx` header/footer'ında). Login'deki dev "HI, I'M TYRO" başlığı
   asistan personasıdır, bilinçli olarak tutuldu (daha uzun metin masaüstünde taşar).
+- Varsayılanlar: dil **en** (`LocaleProvider` DEFAULT + LoginPage ilk-ziyaret
+  efekti), palet **ocean-breeze-v2** (`palettes.js` DEFAULT_PALETTE). Marka
+  renkleri Ocean Breeze v2 (#48cae4 → #00b4d8 → #0077b6, koyu: #03045e):
+  favicon/pwa SVG'leri, manifest `theme_color`, index.html theme-color (light)
+  ve LoginPage `BRAND_COLORS`/`BRAND_GRADIENT` sabitleri bu setten. Uygulama
+  içi logo/`text-brand` palet CSS token'larını kullanır, otomatik uyar.
+  Login'deki pastel orb bilinçli olarak palet dışıdır (index.css'teki
+  `--voiceorb-*` spec yorumuna bak). Renk seti değişirse `public/*.svg` +
+  `apple-touch-icon.png` + manifest/meta + `BRAND_*` birlikte güncellenmeli.
 - Storage anahtarları `tyrotrade-*` önekli (tyro ile localhost'ta çakışmasın diye).
   Yeni anahtar eklerken aynı öneki kullan ve `src/data/appMeta.js` +
   `GeneralTab.jsx` storage registry'sini güncelle.

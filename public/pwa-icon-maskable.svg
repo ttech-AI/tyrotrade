@@ -1,14 +1,14 @@
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="tyroTrade">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#feda77"/>
-      <stop offset="0.4" stop-color="#dd2a7b"/>
-      <stop offset="0.75" stop-color="#8134af"/>
-      <stop offset="1" stop-color="#515bd4"/>
+      <stop offset="0" stop-color="#48cae4"/>
+      <stop offset="0.4" stop-color="#0077b6"/>
+      <stop offset="0.75" stop-color="#03045e"/>
+      <stop offset="1" stop-color="#023e8a"/>
     </linearGradient>
     <linearGradient id="tyro-grad" x1="61.29" y1="116.53" x2="14.04" y2="47.15" gradientTransform="translate(0 150.55) scale(1 -1)" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="1" stop-color="#ffe6f5"/>
+      <stop offset="1" stop-color="#caf0f8"/>
     </linearGradient>
   </defs>
   <rect width="512" height="512" fill="url(#bg)"/>

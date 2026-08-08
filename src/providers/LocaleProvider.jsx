@@ -15,7 +15,7 @@ export const LOCALES = ["tr", "en", "ru", "ar"]
 // containers via the browser's bidi algorithm — no `dir="rtl"` needed
 // globally. Per user request: "arapçada sidebar filan yeri değiştirme
 // sadece yazıları değiştir çeviri yap".
-const DEFAULT = "tr"
+const DEFAULT = "en"
 
 export const LocaleContext = createContext(null)
 

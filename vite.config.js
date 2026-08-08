@@ -21,7 +21,7 @@ export default defineConfig(() => ({
         short_name: "tyroTrade",
         description:
           "tyroTrade - Tiryaki Agro / TTECH'in ticaret operasyonları platformu.",
-        theme_color: "#dd2a7b",
+        theme_color: "#0077b6",
         background_color: "#0a1628",
         display: "standalone",
         orientation: "portrait",
