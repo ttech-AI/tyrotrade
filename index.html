@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <script>
+      // MSAL runs silent token renewal in a hidden iframe pointed at this app's
+      // redirect URI (the SPA root). Rendering the full app there is wasteful and the
+      // in-app router can navigate the iframe off the auth-response hash that the
+      // parent MSAL polls for — breaking renewal. Detect that case BEFORE the React
+      // bundle runs, flag it, and window.stop() so main.jsx skips bootstrapping.
+      (function () {
+        try {
+          var inIframe = window.parent && window.parent !== window;
+          var hasAuth = /[?#].*(code=|error=|state=)/.test(window.location.href);
+          if (inIframe && hasAuth) {
+            window.__MSAL_RENEWAL_FRAME__ = true;
+            document.title = "Signing you in…";
+            try { window.stop(); } catch (_) {}
+          }
+        } catch (_) {}
+      })();
+    </script>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="tyroTrade - Tiryaki Agro / TTECH'in ticaret operasyonları platformu." />
+    <meta name="theme-color" content="#dd2a7b" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0a1628" media="(prefers-color-scheme: dark)" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="tyroTrade" />
+    <meta name="format-detection" content="telephone=no" />
+    <title>tyroTrade - Ticaret Operasyonları Platformu</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

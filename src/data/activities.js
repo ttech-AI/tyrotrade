@@ -1,0 +1,42 @@
+export const activities = [
+  {
+    id: "a1",
+    appId: "tyrosign",
+    actor: "Arzu Örsel",
+    actionKey: "activities.approved",
+    target: { tr: "sözleşmeyi", en: "the contract" },
+    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
+  },
+  {
+    id: "a2",
+    appId: "tyrostrategy",
+    actor: null,
+    actionKey: "activities.goalUpdated",
+    target: { tr: "Q3 ihracat hedefi", en: "Q3 export target" },
+    timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
+  },
+  {
+    id: "a3",
+    appId: "tyrotrade",
+    actor: "HACI HIL MUL",
+    actionKey: "activities.nobReceived",
+    target: { tr: "için NOB alındı", en: "NOB received" },
+    timestamp: new Date(Date.now() - 12 * 60 * 60 * 1000),
+  },
+  {
+    id: "a4",
+    appId: "tyrowms",
+    actor: "Mehmet Kılıç",
+    actionKey: "activities.shiftAssigned",
+    target: { tr: "vardiyaya atandı", en: "assigned to shift" },
+    timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000),
+  },
+  {
+    id: "a5",
+    appId: "tyro-aiops",
+    actor: null,
+    actionKey: "activities.alertResolved",
+    target: { tr: "P2 uyarısı çözüldü", en: "P2 alert resolved" },
+    timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000),
+  },
+]

@@ -1,0 +1,108 @@
+export const seedAgents = [
+  {
+    id: "tyroHR",
+    name: "TYRO HR",
+    description: "İK süreçleri, izinler, performans ve eğitim asistanı",
+    tenantId: "",
+    clientId: "",
+    agentId: "",
+    iconName: "Robot01Icon",
+    logo: null,
+  },
+  {
+    id: "tyroTrader",
+    name: "TYRO Trader",
+    description: "Emtia fiyatları, pozisyon yönetimi ve piyasa analizi",
+    tenantId: "",
+    clientId: "",
+    agentId: "",
+    iconName: "CargoShipIcon",
+    logo: null,
+  },
+]
+
+export const seedAiApps = [
+  {
+    id: "tyrosign",
+    name: "tyroSign",
+    description: "Dijital imza ve onay akışları",
+    url: "#",
+    iconName: "SignatureIcon",
+    logo: null,
+  },
+  {
+    id: "tyrostrategy",
+    name: "tyroStrategy",
+    description: "Stratejik hedef ve aksiyon takibi",
+    url: "#",
+    iconName: "Target02Icon",
+    logo: null,
+  },
+  {
+    id: "tyrostock",
+    name: "tyroStock",
+    description: "Stok ve envanter yönetimi · D365 FO",
+    url: "#",
+    iconName: "Package01Icon",
+    logo: null,
+  },
+  {
+    id: "tyrotrade",
+    name: "tyroTrade",
+    description: "Vessel ve trade operasyonları",
+    url: "#",
+    iconName: "CargoShipIcon",
+    logo: null,
+  },
+  {
+    id: "tyroforecast",
+    name: "tyroForecast",
+    description: "Talep ve satış tahminleme",
+    url: "#",
+    iconName: "Telescope02Icon",
+    logo: null,
+  },
+  {
+    id: "tyro-aiops",
+    name: "tyroAIOps",
+    description: "Merkezi IT operasyon platformu",
+    url: "#",
+    iconName: "AiChipIcon",
+    logo: null,
+  },
+]
+
+export const seedBusinessApps = [
+  {
+    id: "d365-erp",
+    name: "D365 ERP",
+    description: "Microsoft Dynamics 365 Finance & Operations",
+    url: "#",
+    iconName: "Office365Icon",
+    logo: null,
+  },
+  {
+    id: "tibot",
+    name: "Tibot",
+    description: "Tiryaki kurumsal asistan",
+    url: "#",
+    iconName: "AiBrain02Icon",
+    logo: null,
+  },
+  {
+    id: "power-bi",
+    name: "Power BI",
+    description: "Kurumsal raporlama ve analiz",
+    url: "#",
+    iconName: "ChartHistogramIcon",
+    logo: null,
+  },
+  {
+    id: "paperwork",
+    name: "Paperwork",
+    description: "Belge ve evrak takibi",
+    url: "#",
+    iconName: "DocumentValidationIcon",
+    logo: null,
+  },
+]

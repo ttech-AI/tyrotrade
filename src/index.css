@@ -1,0 +1,1217 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/roboto";
+@import "@fontsource-variable/outfit";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+
+@custom-variant dark (&:is(.dark *));
+/* Installed-PWA (standalone) variant — mirrors the JS readStandalone() check.
+   Use `pwa:` to apply styles only when launched from the home screen. */
+@custom-variant pwa (@media (display-mode: standalone));
+
+@theme inline {
+    --font-heading: var(--font-sans);
+    --font-sans: 'Inter Variable', 'Roboto Variable', sans-serif;
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+    --color-brand-from: var(--brand-from);
+    --color-brand-via: var(--brand-via);
+    --color-brand-to: var(--brand-to);
+    --color-brand-soft: var(--brand-soft);
+    --color-brand-deep: var(--brand-deep);
+    --color-brand: var(--brand-text);
+}
+
+/* Marka paleti — Ocean Breeze (default) */
+:root,
+:root[data-palette="ocean-breeze"] {
+    --brand-from: oklch(0.755 0.143 226);
+    --brand-via: oklch(0.785 0.123 195);
+    --brand-to: oklch(0.745 0.103 184);
+    --brand-soft: oklch(0.92 0.045 200);
+    --brand-deep: oklch(0.45 0.085 215);
+    --brand-text: oklch(0.56 0.13 220);
+    --brand-orb-0: #fdfeff;
+    --brand-orb-1: #e6faff;
+    --brand-orb-2: #a5f3fc;
+    --brand-orb-3: #22d3ee;
+    --brand-orb-4: #0e7490;
+    --brand-logo-1: #38bdf8;
+    --brand-logo-2: #0ea5e9;
+    --brand-logo-3: #0891b2;
+    --brand-logo-4: #22d3ee;
+    --brand-logo-5: #0e7490;
+    --chart-1: var(--brand-via);
+    --chart-2: var(--brand-deep);
+}
+
+:root[data-palette="ocean-breeze-v2"] {
+    --brand-from: #03045e;
+    --brand-via: #0077b6;
+    --brand-to: #48cae4;
+    --brand-soft: #caf0f8;
+    --brand-deep: #03045e;
+    --brand-text: #0077b6;
+    --brand-orb-0: #ffffff;
+    --brand-orb-1: #90e0ef;
+    --brand-orb-2: #48cae4;
+    --brand-orb-3: #00b4d8;
+    --brand-orb-4: #03045e;
+    --brand-logo-1: #48cae4;
+    --brand-logo-2: #00b4d8;
+    --brand-logo-3: #0077b6;
+    --brand-logo-4: #00b4d8;
+    --brand-logo-5: #03045e;
+    --chart-1: #00b4d8;
+    --chart-2: #03045e;
+}
+
+/* Marka paleti — Peach Sorbet (peach-dominant; lavender 3. renk accent) */
+:root[data-palette="peach-sorbet"] {
+    --brand-from: #ff835d;
+    --brand-via: #ffa583;
+    --brand-to: #ffd2c2;
+    --brand-soft: #fff0e8;
+    --brand-deep: #c25540;
+    --brand-text: #c25540;
+    --brand-orb-0: #ffffff;
+    --brand-orb-1: #ffd2c2;
+    --brand-orb-2: #ffa583;
+    --brand-orb-3: #ff835d;
+    --brand-orb-4: #db9df5;
+    --brand-logo-1: #ffd2c2;
+    --brand-logo-2: #ffa583;
+    --brand-logo-3: #ff835d;
+    --brand-logo-4: #c25540;
+    --brand-logo-5: #8c3a2c;
+    --chart-1: #ff835d;
+    --chart-2: #db9df5;
+}
+
+/* Marka paleti — Sunset Gradient */
+:root[data-palette="sunset-gradient"] {
+    --brand-from: #ff7b00;
+    --brand-via: #ffaa00;
+    --brand-to: #ffea00;
+    --brand-soft: #fff5cc;
+    --brand-deep: #cc5500;
+    --brand-text: #cc5500;
+    --brand-orb-0: #ffffff;
+    --brand-orb-1: #ffea00;
+    --brand-orb-2: #ffc300;
+    --brand-orb-3: #ffaa00;
+    --brand-orb-4: #ff7b00;
+    --brand-logo-1: #ffea00;
+    --brand-logo-2: #ffc300;
+    --brand-logo-3: #ffaa00;
+    --brand-logo-4: #ff7b00;
+    --brand-logo-5: #cc5500;
+    --chart-1: #ff9500;
+    --chart-2: #ff7b00;
+}
+
+/* Marka paleti — Pastel Lavender */
+:root[data-palette="pastel-lavender"] {
+    --brand-from: #6247aa;
+    --brand-via: #b185db;
+    --brand-to: #c19ee0;
+    --brand-soft: #dec9e9;
+    --brand-deep: #6247aa;
+    --brand-text: #815ac0;
+    --brand-orb-0: #ffffff;
+    --brand-orb-1: #c19ee0;
+    --brand-orb-2: #b185db;
+    --brand-orb-3: #a06cd5;
+    --brand-orb-4: #6247aa;
+    --brand-logo-1: #c19ee0;
+    --brand-logo-2: #b185db;
+    --brand-logo-3: #a06cd5;
+    --brand-logo-4: #815ac0;
+    --brand-logo-5: #6247aa;
+    --chart-1: #b185db;
+    --chart-2: #6247aa;
+}
+
+/* Marka paleti — Green Garden */
+:root[data-palette="green-garden"] {
+    --brand-from: #31572c;
+    --brand-via: #90a955;
+    --brand-to: #c5d566;
+    --brand-soft: #ecf39e;
+    --brand-deep: #132a13;
+    --brand-text: #4f772d;
+    --brand-orb-0: #ffffff;
+    --brand-orb-1: #c5d566;
+    --brand-orb-2: #90a955;
+    --brand-orb-3: #4f772d;
+    --brand-orb-4: #132a13;
+    --brand-logo-1: #c5d566;
+    --brand-logo-2: #90a955;
+    --brand-logo-3: #4f772d;
+    --brand-logo-4: #31572c;
+    --brand-logo-5: #132a13;
+    --chart-1: #4f772d;
+    --chart-2: #132a13;
+}
+
+/* Marka paleti — Fiery Red */
+:root[data-palette="fiery-red"] {
+    --brand-from: #621708;
+    --brand-via: #bc3908;
+    --brand-to: #f6aa1c;
+    --brand-soft: #f6aa1c;
+    --brand-deep: #220901;
+    --brand-text: #941b0c;
+    --brand-orb-0: #ffffff;
+    --brand-orb-1: #f6aa1c;
+    --brand-orb-2: #bc3908;
+    --brand-orb-3: #941b0c;
+    --brand-orb-4: #220901;
+    --brand-logo-1: #f6aa1c;
+    --brand-logo-2: #bc3908;
+    --brand-logo-3: #941b0c;
+    --brand-logo-4: #621708;
+    --brand-logo-5: #220901;
+    --chart-1: #bc3908;
+    --chart-2: #941b0c;
+}
+
+/* Marka paleti — Fiesta (Instagram gradient: blue-purple → pink → yellow) */
+:root[data-palette="fiesta"] {
+    --brand-from: #515bd4;
+    --brand-via: #dd2a7b;
+    --brand-to: #feda77;
+    --brand-soft: #fff3d0;
+    --brand-deep: #4f1d8f;
+    --brand-text: #8134af;
+    --brand-orb-0: #ffffff;
+    --brand-orb-1: #feda77;
+    --brand-orb-2: #f58529;
+    --brand-orb-3: #dd2a7b;
+    --brand-orb-4: #515bd4;
+    --brand-logo-1: #feda77;
+    --brand-logo-2: #dd2a7b;
+    --brand-logo-3: #ad339d;
+    --brand-logo-4: #8134af;
+    --brand-logo-5: #8134af;
+    --brand-orb-1: #feda77;
+    --brand-orb-2: #dd2a7b;
+    --brand-orb-3: #8134af;
+    --brand-orb-4: #515bd4;
+    --chart-1: #dd2a7b;
+    --chart-2: #515bd4;
+}
+
+/* Marka paleti — Chocolate Delight (dark→light brown) */
+:root[data-palette="chocolate-delight"] {
+    --brand-from: #210f04;
+    --brand-via: #690500;
+    --brand-to: #bb6b00;
+    --brand-soft: #f5e0c0;
+    --brand-deep: #210f04;
+    --brand-text: #690500;
+    --brand-orb-0: #ffffff;
+    --brand-orb-1: #bb6b00;
+    --brand-orb-2: #934b00;
+    --brand-orb-3: #690500;
+    --brand-orb-4: #210f04;
+    --brand-logo-1: #bb6b00;
+    --brand-logo-2: #934b00;
+    --brand-logo-3: #690500;
+    --brand-logo-4: #452103;
+    --brand-logo-5: #210f04;
+    --chart-1: #934b00;
+    --chart-2: #210f04;
+}
+
+:root[data-palette="black"] {
+    --brand-from: #000000;
+    --brand-via: #000000;
+    --brand-to: #000000;
+    --brand-soft: #ededed;
+    --brand-deep: #000000;
+    --brand-text: #000000;
+    --brand-orb-0: #ffffff;
+    --brand-orb-1: #d4d4d4;
+    --brand-orb-2: #737373;
+    --brand-orb-3: #262626;
+    --brand-orb-4: #000000;
+    --brand-logo-1: #000000;
+    --brand-logo-2: #000000;
+    --brand-logo-3: #000000;
+    --brand-logo-4: #000000;
+    --brand-logo-5: #000000;
+    --chart-1: #404040;
+    --chart-2: #000000;
+}
+
+:root[data-palette="amber"] {
+    --brand-from: #d97706;
+    --brand-via: #d97706;
+    --brand-to: #d97706;
+    --brand-soft: #fef3c7;
+    --brand-deep: #d97706;
+    --brand-text: #92400e;
+    --brand-orb-0: #ffffff;
+    --brand-orb-1: #fcd34d;
+    --brand-orb-2: #f59e0b;
+    --brand-orb-3: #d97706;
+    --brand-orb-4: #92400e;
+    --brand-logo-1: #d97706;
+    --brand-logo-2: #d97706;
+    --brand-logo-3: #d97706;
+    --brand-logo-4: #d97706;
+    --brand-logo-5: #d97706;
+    --chart-1: #f59e0b;
+    --chart-2: #92400e;
+}
+
+:root[data-palette="navy"] {
+    --brand-from: #1e40af;
+    --brand-via: #1e40af;
+    --brand-to: #1e40af;
+    --brand-soft: #dbeafe;
+    --brand-deep: #1e40af;
+    --brand-text: #1e3a8a;
+    --brand-orb-0: #ffffff;
+    --brand-orb-1: #bfdbfe;
+    --brand-orb-2: #60a5fa;
+    --brand-orb-3: #1e40af;
+    --brand-orb-4: #1e3a8a;
+    --brand-logo-1: #1e40af;
+    --brand-logo-2: #1e40af;
+    --brand-logo-3: #1e40af;
+    --brand-logo-4: #1e40af;
+    --brand-logo-5: #1e40af;
+    --chart-1: #60a5fa;
+    --chart-2: #1e3a8a;
+}
+
+:root[data-palette="sky"] {
+    --brand-from: #0ea5e9;
+    --brand-via: #0ea5e9;
+    --brand-to: #0ea5e9;
+    --brand-soft: #e0f2fe;
+    --brand-deep: #0ea5e9;
+    --brand-text: #0369a1;
+    --brand-orb-0: #ffffff;
+    --brand-orb-1: #bae6fd;
+    --brand-orb-2: #38bdf8;
+    --brand-orb-3: #0ea5e9;
+    --brand-orb-4: #0369a1;
+    --brand-logo-1: #0ea5e9;
+    --brand-logo-2: #0ea5e9;
+    --brand-logo-3: #0ea5e9;
+    --brand-logo-4: #0ea5e9;
+    --brand-logo-5: #0ea5e9;
+    --chart-1: #38bdf8;
+    --chart-2: #0369a1;
+}
+
+:root[data-palette="violet"] {
+    --brand-from: #8b5cf6;
+    --brand-via: #8b5cf6;
+    --brand-to: #8b5cf6;
+    --brand-soft: #ede9fe;
+    --brand-deep: #8b5cf6;
+    --brand-text: #6d28d9;
+    --brand-orb-0: #ffffff;
+    --brand-orb-1: #ddd6fe;
+    --brand-orb-2: #a78bfa;
+    --brand-orb-3: #8b5cf6;
+    --brand-orb-4: #6d28d9;
+    --brand-logo-1: #8b5cf6;
+    --brand-logo-2: #8b5cf6;
+    --brand-logo-3: #8b5cf6;
+    --brand-logo-4: #8b5cf6;
+    --brand-logo-5: #8b5cf6;
+    --chart-1: #a78bfa;
+    --chart-2: #6d28d9;
+}
+
+/* Avatar baş harf rengi — açık orb'lu paletlerde orb-4 (palet koyu rengi),
+   koyu orb'lu paletlerde orb-1 (palet açık tonu) kullanılır */
+:root { --avatar-text: var(--brand-orb-4); }
+:root[data-palette="pastel-lavender"],
+:root[data-palette="green-garden"],
+:root[data-palette="fiery-red"],
+:root[data-palette="fiesta"],
+:root[data-palette="chocolate-delight"],
+:root[data-palette="black"],
+:root[data-palette="navy"],
+:root[data-palette="violet"] {
+    --avatar-text: var(--brand-orb-1);
+}
+
+/* PastelVoiceOrb renk değişkenleri */
+/* Ocean Breeze v2, Peach Sorbet ve Pastel Lavender'da spec pastel renkleri korunur (default :root). */
+/* Diğer paletlerde orb, palet renklerine adapte olur. */
+:root {
+    --voiceorb-c1: 255, 131, 93;   /* warm peach / coral */
+    --voiceorb-c2: 196, 111, 236;  /* lavender wave */
+    --voiceorb-c3: 175, 79, 232;   /* deep violet */
+    --voiceorb-c4: 244, 142, 132;  /* warm salmon */
+    --voiceorb-c5: 250, 220, 236;  /* soft pink */
+}
+:root[data-palette="sunset-gradient"] {
+    --voiceorb-c1: 255, 123, 0;
+    --voiceorb-c2: 255, 170, 0;
+    --voiceorb-c3: 204, 85, 0;
+    --voiceorb-c4: 255, 195, 0;
+    --voiceorb-c5: 255, 247, 208;
+}
+:root[data-palette="green-garden"] {
+    --voiceorb-c1: 144, 169, 85;
+    --voiceorb-c2: 79, 119, 45;
+    --voiceorb-c3: 19, 42, 19;
+    --voiceorb-c4: 197, 213, 102;
+    --voiceorb-c5: 245, 248, 208;
+}
+:root[data-palette="fiery-red"] {
+    --voiceorb-c1: 188, 57, 8;
+    --voiceorb-c2: 246, 170, 28;
+    --voiceorb-c3: 98, 23, 8;
+    --voiceorb-c4: 148, 27, 12;
+    --voiceorb-c5: 254, 240, 214;
+}
+:root[data-palette="fiesta"] {
+    --voiceorb-c1: 245, 133, 41;
+    --voiceorb-c2: 221, 42, 123;
+    --voiceorb-c3: 81, 91, 212;
+    --voiceorb-c4: 254, 218, 119;
+    --voiceorb-c5: 255, 243, 208;
+}
+:root[data-palette="chocolate-delight"] {
+    --voiceorb-c1: 147, 75, 0;
+    --voiceorb-c2: 187, 107, 0;
+    --voiceorb-c3: 33, 15, 4;
+    --voiceorb-c4: 69, 33, 3;
+    --voiceorb-c5: 245, 224, 192;
+}
+:root[data-palette="black"] {
+    --voiceorb-c1: 64, 64, 64;
+    --voiceorb-c2: 115, 115, 115;
+    --voiceorb-c3: 38, 38, 38;
+    --voiceorb-c4: 0, 0, 0;
+    --voiceorb-c5: 237, 237, 237;
+}
+:root[data-palette="amber"] {
+    --voiceorb-c1: 245, 158, 11;
+    --voiceorb-c2: 217, 119, 6;
+    --voiceorb-c3: 146, 64, 14;
+    --voiceorb-c4: 120, 53, 15;
+    --voiceorb-c5: 253, 230, 138;
+}
+:root[data-palette="navy"] {
+    --voiceorb-c1: 96, 165, 250;
+    --voiceorb-c2: 59, 130, 246;
+    --voiceorb-c3: 30, 64, 175;
+    --voiceorb-c4: 30, 58, 138;
+    --voiceorb-c5: 191, 219, 254;
+}
+:root[data-palette="sky"] {
+    --voiceorb-c1: 56, 189, 248;
+    --voiceorb-c2: 14, 165, 233;
+    --voiceorb-c3: 3, 105, 161;
+    --voiceorb-c4: 12, 74, 110;
+    --voiceorb-c5: 224, 242, 254;
+}
+:root[data-palette="violet"] {
+    --voiceorb-c1: 167, 139, 250;
+    --voiceorb-c2: 139, 92, 246;
+    --voiceorb-c3: 109, 40, 217;
+    --voiceorb-c4: 76, 29, 149;
+    --voiceorb-c5: 237, 233, 254;
+}
+
+.dark {
+    --brand-text: oklch(0.84 0.085 215);
+}
+
+.dark[data-palette="ocean-breeze-v2"] {
+    --brand-text: #90e0ef;
+}
+
+.dark[data-palette="peach-sorbet"] {
+    --brand-text: #ffb59e;
+}
+
+.dark[data-palette="sunset-gradient"] {
+    --brand-text: #ffc300;
+}
+
+.dark[data-palette="pastel-lavender"] {
+    --brand-text: #c19ee0;
+}
+
+.dark[data-palette="green-garden"] {
+    --brand-text: #90a955;
+}
+
+.dark[data-palette="fiery-red"] {
+    --brand-text: #f6aa1c;
+}
+
+.dark[data-palette="fiesta"] {
+    --brand-text: #c9a3eb;
+}
+
+.dark[data-palette="chocolate-delight"] {
+    --brand-text: #bb6b00;
+}
+
+.dark[data-palette="black"] {
+    --brand-text: #ffffff;
+    --brand-from: #ffffff;
+    --brand-via: #ffffff;
+    --brand-to: #ffffff;
+    --brand-deep: #ffffff;
+    --brand-logo-1: #ffffff;
+    --brand-logo-2: #ffffff;
+    --brand-logo-3: #ffffff;
+    --brand-logo-4: #ffffff;
+    --brand-logo-5: #ffffff;
+    --brand-soft: #1f1f1f;
+}
+
+.dark[data-palette="amber"] {
+    --brand-text: #f59e0b;
+    --brand-soft: #451a03;
+}
+
+.dark[data-palette="navy"] {
+    --brand-from: #3b82f6;
+    --brand-via: #3b82f6;
+    --brand-to: #3b82f6;
+    --brand-deep: #3b82f6;
+    --brand-text: #93c5fd;
+    --brand-logo-1: #3b82f6;
+    --brand-logo-2: #3b82f6;
+    --brand-logo-3: #3b82f6;
+    --brand-logo-4: #3b82f6;
+    --brand-logo-5: #3b82f6;
+    --brand-soft: #1e3a8a;
+}
+
+.dark[data-palette="sky"] {
+    --brand-text: #38bdf8;
+    --brand-soft: #082f49;
+}
+
+.dark[data-palette="violet"] {
+    --brand-text: #a78bfa;
+    --brand-soft: #2e1065;
+}
+
+:root {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.145 0 0);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.145 0 0);
+    --primary: oklch(0.5 0.134 242.749);
+    --primary-foreground: oklch(0.977 0.013 236.62);
+    --secondary: oklch(0.967 0.001 286.375);
+    --secondary-foreground: oklch(0.21 0.006 285.885);
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.556 0 0);
+    --accent: oklch(0.97 0 0);
+    --accent-foreground: oklch(0.205 0 0);
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: oklch(0.922 0 0);
+    --input: oklch(0.922 0 0);
+    --ring: oklch(0.708 0 0);
+    --chart-1: oklch(0.879 0.169 91.605);
+    --chart-2: oklch(0.769 0.188 70.08);
+    --chart-3: oklch(0.666 0.179 58.318);
+    --chart-4: oklch(0.555 0.163 48.998);
+    --chart-5: oklch(0.473 0.137 46.201);
+    --radius: 0.625rem;
+    --sidebar: oklch(0.985 0 0);
+    --sidebar-foreground: oklch(0.145 0 0);
+    --sidebar-primary: oklch(0.588 0.158 241.966);
+    --sidebar-primary-foreground: oklch(0.977 0.013 236.62);
+    --sidebar-accent: oklch(0.97 0 0);
+    --sidebar-accent-foreground: oklch(0.205 0 0);
+    --sidebar-border: oklch(0.922 0 0);
+    --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+    --background: oklch(0.145 0 0);
+    --foreground: oklch(0.985 0 0);
+    --card: oklch(0.205 0 0);
+    --card-foreground: oklch(0.985 0 0);
+    --popover: oklch(0.205 0 0);
+    --popover-foreground: oklch(0.985 0 0);
+    --primary: oklch(0.443 0.11 240.79);
+    --primary-foreground: oklch(0.977 0.013 236.62);
+    --secondary: oklch(0.274 0.006 286.033);
+    --secondary-foreground: oklch(0.985 0 0);
+    --muted: oklch(0.269 0 0);
+    --muted-foreground: oklch(0.708 0 0);
+    --accent: oklch(0.269 0 0);
+    --accent-foreground: oklch(0.985 0 0);
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: oklch(1 0 0 / 10%);
+    --input: oklch(1 0 0 / 15%);
+    --ring: oklch(0.556 0 0);
+    --chart-1: oklch(0.879 0.169 91.605);
+    --chart-2: oklch(0.769 0.188 70.08);
+    --chart-3: oklch(0.666 0.179 58.318);
+    --chart-4: oklch(0.555 0.163 48.998);
+    --chart-5: oklch(0.473 0.137 46.201);
+    --sidebar: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: oklch(0.685 0.169 237.323);
+    --sidebar-primary-foreground: oklch(0.293 0.066 243.157);
+    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    /* Kill iOS Safari's auto-zoom on inputs; let users still pinch-zoom */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Kill the blue tap-flash on iOS / Android Chrome */
+    -webkit-tap-highlight-color: transparent;
+    /* PWA standalone: the html root paints the safe-area gutters (under
+       the notch / home indicator regions where viewport-fit=cover lets
+       content show through). Without this they default to white. */
+    background-color: var(--background);
+  }
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Prevent Android Chrome pull-to-refresh from reloading the SPA + iOS
+       rubber-band revealing white background. Per-surface scrollers use
+       Tailwind's `overscroll-contain` for the same effect. */
+    overscroll-behavior-y: none;
+    /* Fill the full viewport — otherwise the safe-area gutters can paint
+       white when the page content is dark. Browser tabs use 100dvh (tracks
+       the URL bar); the standalone override below switches to 100vh because
+       iOS miscomputes the DYNAMIC viewport (dvh) on a freshly-launched PWA's
+       first paint, leaving a bottom gap until the first scroll — whereas the
+       static LARGEST viewport (vh) equals the full screen from the first
+       frame. (Proven by the tyrostrategy PWA, which uses h-screen/100vh.) */
+    min-height: 100dvh;
+  }
+  /* PWA standalone: there's no URL bar for dvh to track, and dvh's first-paint
+     miscalculation is exactly what caused the bottom gap. 100vh is the stable
+     full-screen height here. Pairs with the `h-[100dvh] pwa:h-screen` shells
+     in DashboardLayout / LoginPage. */
+  @media (display-mode: standalone) {
+    body {
+      min-height: 100vh;
+    }
+  }
+  button:not(:disabled), [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  /* Anything clickable: disable the 300ms tap delay and prevent double-tap
+     to zoom on buttons/links (pinch-zoom on the page still works). */
+  button, [role="button"], a, label, input[type="checkbox"], input[type="radio"] {
+    touch-action: manipulation;
+  }
+}
+
+/* ── Composer focus beam ─────────────────────────────────────────────
+   A thin gradient "comet" orbits the composer's border when the user
+   focuses the textarea or attachments tray. Color derives from the
+   active palette's three brand stops (--brand-from/via/to), so the
+   effect inherits Insta on login, Ocean Breeze on default, whatever
+   the user picks. Used to communicate "this is the active surface,
+   write here" without yelling. Pairs with a soft outer halo via
+   box-shadow so the surface lifts a hair off the background. */
+
+@property --beam-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.composer-beam {
+  position: relative;
+  transition: box-shadow 240ms ease-out;
+  /* Default beam-rotation period. Overridden via JS (setProperty) when
+     the user starts typing — see ChatComposer.jsx — so the beam speeds
+     up with the user's keystrokes and decays back to this idle pace
+     within ~1.5 s of pausing. 8 s is the "calmly orbiting" baseline. */
+  --beam-duration: 8s;
+}
+
+/* The beam is a rotating conic gradient masked to a thin ring via
+   `mask-composite: exclude`. inset: -2 px puts the ring 2 px OUTSIDE
+   the inner chrome's border so the orbit reads as an OUTER ring
+   (Stripe-style focused-input glow), not a re-paint of the border line.
+   The outer .composer-beam wrapper must NOT have overflow:hidden — its
+   inner sibling does — otherwise the negative-inset ring is clipped. */
+.composer-beam::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  /* Match inner rounded-2xl + the 2 px outset so the ring's corners
+     stay perfectly round at the offset. */
+  border-radius: calc(var(--radius-2xl) + 2px);
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--beam-angle),
+    transparent 0deg,
+    transparent 250deg,
+    var(--brand-from) 280deg,
+    var(--brand-via) 320deg,
+    var(--brand-to) 350deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 320ms ease-out;
+}
+
+.composer-beam:focus-within::before {
+  opacity: 1;
+  animation: composer-beam-spin var(--beam-duration, 8s) linear infinite;
+}
+
+/* Soft palette-tinted drop-halo under the composer when focused. Sits
+   wider than the beam so the two layers don't compete — beam is the
+   thin orbiting accent, halo is the broad ambient lift. */
+.composer-beam:focus-within {
+  box-shadow: 0 12px 38px -10px color-mix(in oklab, var(--brand-via) 32%, transparent);
+}
+
+@keyframes composer-beam-spin {
+  to {
+    --beam-angle: 360deg;
+  }
+}
+
+/* Respect reduced motion — keep the halo, kill the orbit. */
+@media (prefers-reduced-motion: reduce) {
+  .composer-beam:focus-within::before {
+    animation: none;
+  }
+}
+
+/* ── Mic listening pulse ───────────────────────────────────────────
+   Single soft brand-via ring that scales outward while the dictate
+   recognizer is active. The button itself owns its own brand-via/15
+   fill — this ring is purely a "we are recording" affordance on top.
+   Gated by prefers-reduced-motion so the fill alone communicates
+   state for motion-sensitive users. */
+.mic-listening-pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background-color: color-mix(in oklab, var(--brand-via) 35%, transparent);
+  opacity: 0.45;
+  animation: mic-listening-pulse 1.6s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes mic-listening-pulse {
+  0% { transform: scale(1); opacity: 0.45; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mic-listening-pulse { animation: none; opacity: 0; }
+}
+
+/* ── Mic listening equalizer bars ──────────────────────────────────
+   Replaces the static mic icon while the recognizer is active so the
+   user has a strong "I am being heard" signal. 4 vertical bars bounce
+   on a staggered cycle; reduced-motion users get a static mid-height
+   row so the affordance is still visually distinct from the idle icon. */
+.mic-bars {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 18px;
+  width: 18px;
+}
+.mic-bars > span {
+  width: 2px;
+  height: 90%;
+  background: currentColor;
+  border-radius: 1px;
+  display: inline-block;
+  transform: scaleY(0.3);
+  transform-origin: center;
+  animation: mic-bars-bounce 1.1s ease-in-out infinite;
+}
+.mic-bars > span:nth-child(1) { animation-delay: -0.45s; }
+.mic-bars > span:nth-child(2) { animation-delay: -0.15s; }
+.mic-bars > span:nth-child(3) { animation-delay: -0.30s; }
+.mic-bars > span:nth-child(4) { animation-delay: 0s; }
+
+/* transform-only animation — Layout/Paint stays out, only Composite. */
+@keyframes mic-bars-bounce {
+  0%, 100% { transform: scaleY(0.3); }
+  50% { transform: scaleY(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mic-bars > span {
+    animation: none;
+    transform: scaleY(0.6);
+  }
+}
+
+/* ── Scrollbars — premium chrome treatment ─────────────────────────
+   8 px pill thumb on a transparent track, color-mixed from --foreground
+   so it inherits light/dark theme and palette swaps automatically.
+   2 px inset border via background-clip gives a "floating" look (Stripe /
+   Vercel pattern). Hidden entirely on coarse pointers (phones/tablets)
+   so the OS overlay takes over. scrollbar-gutter: stable on declared
+   internal scrollers prevents 8 px content reflow when long content
+   arrives. Opt-outs (.no-scrollbar, anything that sets scrollbar-width:
+   none inline like the chat chips row + dashboard launcher) are honored. */
+
+/* Firefox + spec — thin tinted thumb, transparent track. */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--foreground) 18%, transparent) transparent;
+}
+.dark {
+  scrollbar-color: color-mix(in oklab, var(--foreground) 22%, transparent) transparent;
+}
+
+/* WebKit — full visual treatment via universal selector so dropdowns,
+   sheets, dialogs, sidebar, and every overflow:auto region inherit. */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  background: transparent;
+}
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklab, var(--foreground) 18%, transparent);
+  border-radius: 9999px;
+  /* Inset transparent border = 4 px effective stroke centered in the 8 px channel. */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 160ms ease-out;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklab, var(--foreground) 36%, transparent);
+}
+*::-webkit-scrollbar-thumb:active {
+  background-color: color-mix(in oklab, var(--foreground) 48%, transparent);
+}
+
+/* Dark mode — needs slightly more opacity to stay visible on dark surfaces. */
+.dark *::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklab, var(--foreground) 22%, transparent);
+}
+.dark *::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklab, var(--foreground) 40%, transparent);
+}
+.dark *::-webkit-scrollbar-thumb:active {
+  background-color: color-mix(in oklab, var(--foreground) 55%, transparent);
+}
+
+/* Stable gutter on real internal scrollers — no 8 px content reflow
+   when long content arrives. Scoped (not on html) so it doesn't push
+   the centered launcher off-axis when the page itself doesn't scroll. */
+[class*="overflow-y-auto"],
+[class*="overflow-auto"],
+[class*="overflow-y-scroll"] {
+  scrollbar-gutter: stable;
+}
+
+/* Touch / coarse pointers — hide our custom bar entirely so the OS
+   overlay is the only thing visible. Phones + tablets stay chrome-free. */
+@media (hover: none) and (pointer: coarse) {
+  html {
+    scrollbar-width: none;
+  }
+  *::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+}
+
+/* Opt-out preservation — re-assert hidden state for elements that
+   explicitly want NO bar (chat chips row, dashboard launcher, etc).
+   Universal selectors above would otherwise re-show them. */
+.no-scrollbar,
+[class*="[scrollbar-width:none]"] {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar,
+[class*="[scrollbar-width:none]"]::-webkit-scrollbar,
+[class*="[&::-webkit-scrollbar]:hidden"]::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+/* ── Mobile / PWA utilities ───────────────────────────────────────
+   Reusable helpers for safe-area insets and tap targets. Apply to
+   bottom-sticky chrome (composer, footer, toaster) and any 32–40 px
+   icon button that's reachable on a touch device. */
+@layer utilities {
+  /* Vertical safe-area padding (notch / home indicator). Pure env() with
+     NO minimum — browser tabs (insets=0) get zero padding, only PWA
+     standalone gets the actual indicator/notch height. Previous max()
+     with 0.5rem minimum was leaving a visible white strip in the browser
+     where there was no system chrome to push past. For sticky chrome
+     that needs a base padding even in browser, combine .pb-safe with a
+     regular py-X class on the same element. */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  /* Landscape safe-area lateral padding (Dynamic Island, edge sensors). */
+  .pl-safe {
+    padding-left: env(safe-area-inset-left);
+  }
+  .pr-safe {
+    padding-right: env(safe-area-inset-right);
+  }
+  /* Hit-area expander — keep the icon visually 16-20 px but make the
+     interactive box >= 44 px on coarse pointers (Apple HIG / WCAG 2.5.5). */
+  @media (pointer: coarse) {
+    .touch-target {
+      min-width: 44px;
+      min-height: 44px;
+    }
+  }
+}
+
+/* ── Adaptive Cards (Copilot Studio) ────────────────────────────────
+   The official adaptivecards renderer injects inline styles for layout +
+   colors (driven by our HostConfig), but interactive controls only get
+   class names. We restyle those to match the app's inputs/buttons and
+   add palette-aware accents. Container bg is transparent (the bubble
+   wrapper supplies the card surface). */
+.ac-host {
+  font-size: 0.875rem;
+}
+.ac-host p {
+  margin: 0.25rem 0;
+}
+.ac-host a {
+  color: var(--brand-via);
+  text-decoration: none;
+}
+.ac-host a:hover {
+  text-decoration: underline;
+}
+/* Text + number + date + time inputs */
+.ac-host .ac-input.ac-textInput,
+.ac-host .ac-input.ac-numberInput,
+.ac-host .ac-input.ac-dateInput,
+.ac-host .ac-input.ac-timeInput,
+.ac-host input.ac-input,
+.ac-host textarea.ac-input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--background);
+  color: var(--foreground);
+  padding: 0.4rem 0.65rem;
+  font-size: 0.875rem;
+  outline: none;
+}
+.ac-host .ac-input:focus,
+.ac-host input.ac-input:focus,
+.ac-host select.ac-input:focus,
+.ac-host textarea.ac-input:focus {
+  border-color: var(--brand-via);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--brand-via) 30%, transparent);
+}
+/* Dropdown (ChoiceSet compact) */
+.ac-host select.ac-input,
+.ac-host .ac-multichoiceInput {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--background);
+  color: var(--foreground);
+  padding: 0.4rem 0.65rem;
+  font-size: 0.875rem;
+}
+/* ── Lookup/ChoiceSet açılır-ok ikonu ──────────────────────────────
+   compact ChoiceSet → <select>: native oku kaldırıp kendi chevron'umuzu
+   koyuyoruz (select her platformda native açılır, appearance:none bunu bozmaz). */
+.ac-host select.ac-input {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+  background-size: 1.1rem;
+  padding-right: 2rem;
+}
+.dark .ac-host select.ac-input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+}
+/* filtered/typeahead lookup (Kategori gibi): dropdown'ı AÇAN native ok-
+   göstergesine HİÇ DOKUNMUYORUZ — onu gizlemek (display:none / opacity:0)
+   iOS'ta tıklanabilirliği bozup açılmayı engelliyordu. Masaüstünde Chrome
+   kendi okunu zaten çiziyor; yalnızca DOKUNMATİK cihazlarda (iOS native ok'u
+   göstermiyor) kendi chevron'umuzu ARKA PLAN görseli olarak ekliyoruz —
+   arka plan görseli tıklamayı engellemez, dolayısıyla alana dokununca dropdown
+   yine açılır. Böylece çift ok da olmaz (desktop=native, touch=bizimki). */
+@media (hover: none) and (pointer: coarse) {
+  .ac-host input.ac-choiceSetInput-filtered,
+  .ac-host input.ac-choiceSetInput-filtered-textbox {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.6rem center;
+    background-size: 1.1rem;
+    padding-right: 2rem;
+  }
+  .dark .ac-host input.ac-choiceSetInput-filtered,
+  .dark .ac-host input.ac-choiceSetInput-filtered-textbox {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  }
+}
+/* Checkboxes + radios (expanded ChoiceSet, Toggle) */
+.ac-host input[type="checkbox"],
+.ac-host input[type="radio"] {
+  accent-color: var(--brand-via);
+  width: 1rem;
+  height: 1rem;
+}
+.ac-host .ac-choiceSetInput-expanded label,
+.ac-host .ac-toggleInput label {
+  font-size: 0.875rem;
+  color: var(--foreground);
+  cursor: pointer;
+}
+/* Input labels */
+.ac-host .ac-input-label {
+  font-size: 0.8rem;
+  color: var(--muted-foreground);
+  margin-bottom: 0.2rem;
+}
+/* Action buttons */
+.ac-host .ac-pushButton {
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: var(--muted);
+  color: var(--foreground);
+  padding: 0.45rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+}
+.ac-host .ac-pushButton:hover {
+  background: var(--accent);
+}
+.ac-host .ac-pushButton.style-positive {
+  background: var(--brand-via);
+  color: #fff;
+  border-color: transparent;
+}
+.ac-host .ac-pushButton.style-positive:hover {
+  opacity: 0.9;
+  background: var(--brand-via);
+}
+.ac-host .ac-pushButton.style-destructive {
+  background: var(--destructive);
+  color: #fff;
+  border-color: transparent;
+}
+.ac-host .ac-pushButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+/* Fluent SVG ikonları sabit koyu (#212121) dolgulu gelir; renkli (positive/
+   destructive) butonda ve dark modda görünmez kalmasın diye beyaza çevir.
+   Açık moddaki nötr butonda koyu ikon zaten okunur, dokunma. */
+.ac-host .ac-pushButton.style-positive img,
+.ac-host .ac-pushButton.style-destructive img,
+.dark .ac-host .ac-pushButton img {
+  filter: brightness(0) invert(1);
+}
+/* Action row spacing */
+.ac-host .ac-actionSet {
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+/* ── Mobil responsive ───────────────────────────────────────────────
+   Resmi renderer ColumnSet/Column/Image'ı sabit genişlikli inline
+   stillerle basıyor. Flex çocuklarının varsayılan min-width:auto'su
+   içeriğin altına küçülmesini engellediğinden dar ekranda yatay taşma
+   olur. Aşağısı kartı balon genişliğine sığdırır. */
+.ac-host,
+.ac-host .ac-adaptiveCard {
+  max-width: 100%;
+  min-width: 0 !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+/* Görseller asla balon genişliğini aşmaz */
+.ac-host img {
+  max-width: 100% !important;
+  height: auto !important;
+}
+/* Flex kapsayıcılar + çocukları içeriğin altına küçülebilsin (min-width:auto
+   kilidini açar — taşmanın asıl sebebi budur). */
+.ac-host .ac-columnSet,
+.ac-host .ac-container {
+  min-width: 0;
+  max-width: 100%;
+}
+.ac-host .ac-column {
+  min-width: 0 !important;
+}
+/* Aksiyon butonları sığmazsa alt satıra dök */
+.ac-host .ac-actionSet {
+  flex-wrap: wrap;
+}
+/* Dar ekranda çok-sütunlu yerleşimleri dikey istifle (mobil standardı) */
+@media (max-width: 640px) {
+  .ac-host .ac-columnSet {
+    flex-wrap: wrap !important;
+  }
+  .ac-host .ac-columnSet > .ac-column {
+    flex: 1 1 100% !important;
+    max-width: 100% !important;
+  }
+  /* iOS, font-size'ı 16px'ten KÜÇÜK bir input'a odaklanınca sayfayı otomatik
+     zoom'lar (textfield'a tıklayınca yakınlaşma). Kart input'ları 14px olduğu
+     için tetikleniyordu — mobilde tam 16px'e sabitleyip zoom'u engelliyoruz.
+     viewport'a maximum-scale eklemiyoruz (erişilebilirlik için zoom açık kalsın). */
+  .ac-host input.ac-input,
+  .ac-host textarea.ac-input,
+  .ac-host select.ac-input,
+  .ac-host .ac-input.ac-textInput,
+  .ac-host .ac-input.ac-numberInput,
+  .ac-host .ac-input.ac-dateInput,
+  .ac-host .ac-input.ac-timeInput,
+  .ac-host .ac-multichoiceInput {
+    font-size: 16px;
+  }
+}
+
+/* ── Chat "yazıyor" üç-nokta göstergesi ─────────────────────────── */
+/* Noktalar sırayla yansır (1 → 2 → 3). Gecikme döngünün 1/3'ü (0.4s @ 1.2s)
+   olduğu için her an yalnızca bir nokta öne çıkar ve dalga kesintisiz döner.
+   Tepe %20'de; sonra %40'tan itibaren sönük kalır. */
+@keyframes chat-typing {
+  0%, 40%, 100% { transform: translateY(0) scale(1); opacity: 0.25; }
+  20% { transform: translateY(-3px) scale(1.35); opacity: 1; }
+}
+.chat-typing-dot {
+  animation: chat-typing 1.2s infinite ease-in-out;
+}
+
+/* Premium "yazıyor" kelimesi — nötr harflerin üzerinden parlak marka rengi
+   bir FLASH bandının soldan sağa süzülmesi (glint/shine efekti). Klasik
+   skeleton-shimmer tekniği: %200 boyut + tile (repeat) ile dikişsiz gri zemin,
+   ortadaki tek parlak bant döngü başına bir kez metnin üzerinden geçer. */
+.chat-shimmer-text {
+  background-image: linear-gradient(
+    90deg,
+    var(--muted-foreground) 0%,
+    var(--muted-foreground) 35%,
+    var(--brand-via) 50%,
+    var(--muted-foreground) 65%,
+    var(--muted-foreground) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: chat-shimmer 1.8s linear infinite;
+}
+@keyframes chat-shimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: -200% 50%; }
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* "Yazıyor" göstergesi bir ilerleme sinyali — donması yanıltıcı olur.
+     Reduced-motion altında bile büyük hareket olmadan (sadece opaklık)
+     sürekli döner. ÖNEMLİ: shorthand `animation` yazmıyoruz — kısayol
+     `animation-delay`'i 0'a sıfırlar ve !important ile inline per-dot
+     stagger'ı (0/0.4/0.8s) ezerdi, noktalar aynı anda yanardı. Longhand
+     ile yalnızca name/duration/iteration/timing'i ezip delay'i inline'a
+     bırakıyoruz → sıralı 1→2→3 reduced-motion'da da korunur. */
+  .chat-typing-dot {
+    animation-name: chat-typing-fade !important;
+    animation-duration: 1.4s !important;
+    animation-iteration-count: infinite !important;
+    animation-timing-function: ease-in-out !important;
+  }
+  /* Flash da bir ilerleme sinyali — reduced-motion altında bile renk geçişi
+     sürsün (büyük hareket yok, yalnızca renk bandı süzülür). */
+  .chat-shimmer-text {
+    animation: chat-shimmer 2.2s linear infinite !important;
+  }
+}
+@keyframes chat-typing-fade {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
