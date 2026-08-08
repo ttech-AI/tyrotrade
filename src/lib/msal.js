@@ -45,22 +45,19 @@ export const msalConfig = {
 export const COPILOT_STUDIO_SCOPE = "https://api.powerplatform.com/CopilotStudio.Copilots.Invoke"
 
 export const loginRequest = {
-  // GroupMember.Read.All is here so the consent prompt at first login also
-  // covers the Graph /me/checkMemberGroups fallback in useIsInGroup. Without
-  // it, the silent-token-acquisition would throw InteractionRequired and the
-  // hook would fail-closed (= no admin tabs even for real admins). Still
-  // requires admin consent on the app registration to take effect tenant-wide.
-  //
-  // `User.Read.All` (useIsUnderManager, manager chain) is deliberately NOT
-  // here. It requires admin consent, and an unconsented admin-consent scope
-  // in the LOGIN request turns the whole sign-in into an "Approval required"
-  // wall — nobody gets into the app at all. The hook asks for it on its own
-  // via acquireTokenSilent instead: once admin consent is granted the silent
-  // call succeeds tenant-wide with no user prompt, and until then it throws
-  // InteractionRequired and the hook fails closed (restricted agent stays
-  // locked). Feature degrades; login never breaks. Same reasoning applies to
-  // any future admin-consent scope — keep them out of loginRequest.
-  scopes: ["User.Read", "GroupMember.Read.All", "openid", "profile", "email"],
+  // `GroupMember.Read.All` and `User.Read.All` (useIsInGroup / useIsUnderManager)
+  // are deliberately NOT here. Both require admin consent, and an unconsented
+  // admin-consent scope in the LOGIN request turns the whole sign-in into an
+  // "Approval required" wall — nobody gets into the app at all. The "TYRO Trade
+  // Web App" registration (31e375e5-…) does not have them granted. The hooks ask
+  // for them on their own via acquireTokenSilent: until admin consent is granted
+  // they throw InteractionRequired and the hooks fail closed (admin tabs hidden,
+  // restricted agent stays locked). Feature degrades; login never breaks. To
+  // enable the admin tabs: add the Graph delegated permission + Grant admin
+  // consent in the portal (or configure a groups claim under Token
+  // configuration, which the primary idTokenClaims.groups path reads). Keep any
+  // future admin-consent scope out of loginRequest for the same reason.
+  scopes: ["User.Read", "openid", "profile", "email"],
   prompt: "select_account",
   extraScopesToConsent: [COPILOT_STUDIO_SCOPE],
 }
