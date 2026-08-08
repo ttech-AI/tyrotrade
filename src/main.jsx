@@ -51,7 +51,22 @@ if (!isMsalRenewalFrame()) {
 
   ensureMsalInitialized()
     .then(() => msalInstance.handleRedirectPromise())
-    .then((result) => {
+    .then(async (result) => {
+      // The freight pages (Vessel Ops / E.M Overview / Data Management) read
+      // their Dataverse entities out of an IndexedDB-backed mirror. Hydrating
+      // it BEFORE first paint keeps them from flashing their "no data yet"
+      // empty state on every reload. Raced against a 2s cap so a slow or
+      // blocked IndexedDB can never hold the whole app hostage — the pages
+      // re-render when it lands either way.
+      try {
+        const { hydrateEntityCache } = await import("@/freight/lib/storage/entityCache")
+        await Promise.race([
+          hydrateEntityCache(),
+          new Promise((resolve) => setTimeout(resolve, 2000)),
+        ])
+      } catch {
+        // cache unavailable — the pages fall back to their empty state
+      }
       if (result?.account) {
         msalInstance.setActiveAccount(result.account)
         // Redirect URI is root; route the freshly-authed user straight to

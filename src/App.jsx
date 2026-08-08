@@ -19,6 +19,19 @@ const ChartAreaInteractive = lazy(() =>
     default: m.ChartAreaInteractive,
   })),
 )
+// Freight pages ported from tyrofreight. Lazy — between them they pull
+// maplibre-gl, turf and searoute-ts, none of which belong in the entry chunk
+// for a user who only opens the launcher or the chat.
+const VesselOpsPage = lazy(() =>
+  import("@/freight/pages/ProjectsPage").then((m) => ({ default: m.ProjectsPage })),
+)
+const EMOverviewPage = lazy(() =>
+  import("@/freight/pages/DashboardPage").then((m) => ({ default: m.DashboardPage })),
+)
+const DataManagementPage = lazy(() =>
+  import("@/freight/pages/DataManagementPage").then((m) => ({ default: m.DataManagementPage })),
+)
+
 import { HeroSection } from "@/components/dashboard/HeroSection"
 import { AppLauncher } from "@/components/dashboard/AppLauncher"
 import { ChatScreen } from "@/components/chat/ChatScreen"
@@ -39,6 +52,9 @@ const PATH_TO_ID = {
   "/analytics": "analytics",
   "/settings": "settings",
   "/help": "help",
+  "/vessels": "vessels",
+  "/em-overview": "em-overview",
+  "/data": "data",
 }
 
 const ID_TO_PATH = {
@@ -47,6 +63,34 @@ const ID_TO_PATH = {
   analytics: "/analytics",
   settings: "/settings",
   help: "/help",
+  vessels: "/vessels",
+  "em-overview": "/em-overview",
+  data: "/data",
+}
+
+/**
+ * Routes whose sub-paths still belong to the same nav entry — Vessel Ops
+ * deep-links to /vessels/:projectNo, and an exact PATH_TO_ID lookup would
+ * drop the sidebar highlight the moment a project is selected.
+ */
+const PATH_PREFIX_TO_ID = [["/vessels", "vessels"]]
+
+function resolveActiveId(pathname) {
+  const exact = PATH_TO_ID[pathname]
+  if (exact) return exact
+  const prefixed = PATH_PREFIX_TO_ID.find(([prefix]) => pathname.startsWith(`${prefix}/`))
+  return prefixed ? prefixed[1] : "dashboard"
+}
+
+/** Reserved-height placeholder so the shell doesn't collapse while a freight
+ *  page chunk downloads. */
+function FreightPageFallback() {
+  return (
+    <div
+      aria-hidden="true"
+      className="m-4 h-[calc(100%-2rem)] animate-pulse rounded-xl bg-muted/30"
+    />
+  )
 }
 
 function AnalyticsContent() {
@@ -161,7 +205,7 @@ function App() {
     ? isMsalAuthenticated || !!instance.getActiveAccount()
     : readMockLoggedIn()
 
-  const activeId = PATH_TO_ID[location.pathname] ?? "dashboard"
+  const activeId = resolveActiveId(location.pathname)
   const isChat = location.pathname === "/chat"
 
   // "Take me back to the conversation" — fired by an answer notification or
@@ -231,6 +275,39 @@ function App() {
               catch-all redirect. */}
           <Route path="/chat" element={null} />
           <Route path="/analytics" element={<AnalyticsContent />} />
+          <Route
+            path="/vessels"
+            element={
+              <Suspense fallback={<FreightPageFallback />}>
+                <VesselOpsPage />
+              </Suspense>
+            }
+          />
+          {/* Deep link to a single voyage — same page, project preselected. */}
+          <Route
+            path="/vessels/:projectId"
+            element={
+              <Suspense fallback={<FreightPageFallback />}>
+                <VesselOpsPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/em-overview"
+            element={
+              <Suspense fallback={<FreightPageFallback />}>
+                <EMOverviewPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/data"
+            element={
+              <Suspense fallback={<FreightPageFallback />}>
+                <DataManagementPage />
+              </Suspense>
+            }
+          />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

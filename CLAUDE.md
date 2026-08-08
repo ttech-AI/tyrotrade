@@ -54,6 +54,46 @@ Komutlar: `npm run dev` (5173) · `npm run build` · `npm run lint`. Test yok.
 - `src/lib/constants.js` — TYRO Trader agent görünürlük kuralları (Entra manager
   hiyerarşisi). Launcher'dan miras; home aynen kaldığı için korunuyor.
 
+## Freight sayfaları (`src/freight/`)
+
+Sefer Takibi (`/vessels`), E.M Bakış (`/em-overview`) ve Veri Yönetimi
+(`/data`) sayfaları `../tyrofreight/tyrotrade` uygulamasından taşındı
+(2026-08-08). Kaynak TypeScript'ti ve **tipleriyle birlikte** taşındı: Vite
+TS'i tip kontrolü yapmadan derler, bu yüzden `npm run build`'i asla bir tip
+hatası düşüremez; kontrol `npm run typecheck` ile opt-in'dir. Mevcut `.jsx`
+dosyalarının hiçbiri dönüştürülmedi.
+
+**Neden `src/freight/` altında?** Uygulamada zaten `src/lib/dataverse.js`
+adlı bir DOSYA var; kaynağın `lib/dataverse/` DİZİNİ onun yanına konsaydı
+`@/lib/dataverse` belirsizleşir ve sessizce launcher sarmalayıcısına
+çözülürdü. Namespace bunu yapısal olarak imkânsız kılar.
+
+Uyarlama katmanları (port kodu bunlara bakar, tersi değil):
+
+- `src/freight/icons.tsx` — kaynak lucide-react kullanıyordu; bu dosya lucide
+  ADLARIYLA export edip Hugeicons çizer. İkon eşlemesi tek yerde denetlenir.
+- `src/freight/hooks/useBrandAccent.ts` — kaynağın sabit üç temalı
+  `useThemeAccent`'inin yerine geçer, aynı şekli döner ama değerler CSS
+  değişkeni İFADESİDİR; palet/tema değişince React işi olmadan yeniden boyanır.
+  MapLibre ve recharts `var()` kabul etmediği için `useResolvedBrandAccent()`
+  bunları `rgb()`e çözer ve `data-palette`/`class` MutationObserver'ıyla tazeler.
+- `src/freight/lib/auth/acquireToken.ts` — freight Dataverse'i **ayrı bir
+  ortamdır** (`operations-tiryaki`, launcher `tyro` ortamında). Ayrı kaynak =
+  ayrı token; `src/lib/msal.js`'teki `freightRequest` ile sessizce alınır,
+  `loginRequest`'e EKLENMEZ (giriş duvarı riski).
+- i18n: kaynağın `useT()`'si `useLocale().t`'ye yeniden yazıldı. 451 anahtar
+  TR+EN olarak dört dosyaya işlendi; RU/AR bilinçli olarak İngilizceye düşer
+  (D365/denizcilik jargonunda makine çevirisi anlamsız çıkıyor).
+- Mock modu taşınmadı: kaynakta env değişkeni tanımsızsa mock AÇIK'tı
+  (fail-open) — üretimde uydurma rakam gösterebilirdi.
+
+Veri akışı: Veri Yönetimi'ndeki **Yenile** düğmesi Dataverse'ten entity
+kümelerini çekip IndexedDB aynasına (`tyrotrade-freight-cache`) yazar; diğer
+iki sayfa yalnızca bu aynadan okur (`composeProjects` türetmesi). Yani önce
+Veri Yönetimi'nden yenilemeden Sefer Takibi ve E.M Bakış boş görünür — bu
+tasarım gereğidir, arıza değil. Aynanın hidratlanması `main.jsx`'te ilk
+boyamadan önce 2 sn'lik yarışla yapılır.
+
 ## Marka kuralları
 
 - Görünen ad **tyroTrade** ("tyro" + `text-brand` renkli "Trade" — `BrandText.jsx`

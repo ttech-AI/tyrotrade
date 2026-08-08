@@ -39,6 +39,9 @@ const PAGE_LABEL_KEY = {
   analytics: "nav.analytics",
   settings: "nav.settings",
   help: "nav.help",
+  vessels: "nav.vessels",
+  "em-overview": "nav.emOverview",
+  data: "nav.data",
 }
 
 export function Header({ activeId = "dashboard", onOpenSearch, onNavigate, onNewChat }) {

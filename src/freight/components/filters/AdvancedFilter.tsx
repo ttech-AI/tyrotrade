@@ -1,0 +1,935 @@
+import * as React from "react";
+import { Check } from "@/freight/icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import {
+  FilterIcon,
+  FilterResetIcon,
+} from "@hugeicons/core-free-icons";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@/components/ui/toggle-group";
+import { Button } from "@/components/ui/button";
+import {
+  MultiSelectCombobox,
+  type MultiSelectOption,
+} from "@/freight/components/ui/multi-select-combobox";
+import { useBrandAccent } from "@/freight/hooks/useBrandAccent";
+import {
+  extractAvailableOptions,
+  projectFilterCount,
+  type ProjectFilterState,
+} from "@/freight/lib/filters/projectFilters";
+import { PERIODS, type PeriodKey } from "@/freight/lib/dashboard/periods";
+import {
+  getCurrentFyKey,
+  lastNFinancialYears,
+} from "@/freight/lib/dashboard/financialPeriod";
+import { cn } from "@/lib/utils";
+import { useLocale } from "@/hooks/useLocale";
+import type { Project } from "@/freight/lib/dataverse/entities";
+
+/** Map a period key to its `filter.period.*` translation key. The
+ *  `PERIODS` data module keeps Turkish `label`s for legacy callers;
+ *  the filter UI resolves the localized label through this map. */
+const PERIOD_LABEL_KEY: Record<PeriodKey, string> = {
+  monthly: "filter.period.monthly",
+  quarterly: "filter.period.quarterly",
+  yearly: "filter.period.yearly",
+  fy: "filter.period.fy",
+  all: "filter.period.all",
+};
+
+interface AdvancedFilterProps {
+  /** Source projects — used to extract distinct option values per
+   *  combobox section. Pass the unfiltered list. */
+  projects: Project[];
+  filters: ProjectFilterState;
+  onChange: (next: ProjectFilterState) => void;
+  /** Per-page default for the includeWithoutShipPlan toggle —
+   *  determines what counts as "active filter" for the badge. */
+  shipPlanDefault?: boolean;
+  /** Per-page default for the "Arasa Satınalma Seferleri" toggle —
+   *  E.M Bakış passes `false` (exclude by default). Determines the
+   *  active-filter baseline + clearAll reset value. */
+  arasaDefault?: boolean;
+  /** Per-page default for the period chip — used to decide whether
+   *  the current period selection counts toward the active-filter
+   *  badge. Trade Cost ships with `"all"` so its default doesn't
+   *  show as an active filter; other pages stay on the FY default. */
+  periodDefault?: import("@/freight/lib/dashboard/periods").PeriodKey;
+  /** Number of projects after filters applied — shown in footer. */
+  resultCount?: number;
+  /** Total before filters — shown in footer. */
+  totalCount?: number;
+  /** Render a compact 36×36 icon-only square trigger instead of the
+   *  full "Filtre" labelled pill. Used by ProjectList where the
+   *  search input + a labelled pill would crowd the panel header. */
+  iconOnly?: boolean;
+  /** When true, render the dashboard's glassy white-pill variant —
+   *  always-open (no collapse animation), 3D-lifted shadow stack,
+   *  navy filter icon + "Filtre" wordmark in navy ink. Width is
+   *  capped to match TYRO Chat / TYRO AI siblings so the topbar +
+   *  dashboard CTAs read as a symmetric set. Mutually exclusive with
+   *  `iconOnly`. (Prop name kept for API stability — was previously
+   *  a hover-collapse variant that flipped to always-open after the
+   *  user asked for size parity with the chat buttons.) */
+  collapsible?: boolean;
+  /** Trigger paint (only honoured when `collapsible=false`):
+   *  - `"accent"` (default) → live brand palette gradient (matches AskAi)
+   *  - `"muted"` → cool neutral --foreground gradient (palette-neutral,
+   *    calmer next to the AI button on the dashboard topbar). Active-count
+   *    badge keeps neutral ink so it reads against the pill.
+   *  - `"ghost"` → card-surface pill with accent-colored ink and an outer
+   *    drop shadow (no fill). Used on Trade Cost where the toolbar
+   *    already carries a coloured accent on neighbouring controls
+   *    and the filter should read as a quiet companion, not a
+   *    second CTA. */
+  tone?: "accent" | "muted" | "ghost";
+  className?: string;
+}
+
+/** Cool light-to-dark neutral gradient — used when `tone="muted"`. Same
+ *  3-stop sweep dialect as the brand gradient, but built purely from
+ *  --foreground mixed toward --background so the dashboard's filter
+ *  pill reads as a calm sibling rather than a competing accent — and
+ *  so it INVERTS in dark mode (light-mode dark-slate pill becomes a
+ *  light-neutral pill on a dark page) instead of staying a fixed
+ *  slate. Ink on top is therefore --background, not literal white. */
+const MUTED_TONE = {
+  gradient:
+    "linear-gradient(135deg, color-mix(in oklab, var(--foreground) 42%, var(--background)) 0%, color-mix(in oklab, var(--foreground) 62%, var(--background)) 55%, color-mix(in oklab, var(--foreground) 88%, var(--background)) 100%)",
+  ring: "color-mix(in oklab, var(--foreground) 55%, transparent)",
+  solid: "color-mix(in oklab, var(--foreground) 88%, var(--background))",
+};
+
+/**
+ * Page-agnostic Advanced Filter popover. One trigger pill matches the
+ * AskAi/Filtre topbar dialect (110px min-width, accent gradient,
+ * rounded-full); inside, a stack of categorical sections in this
+ * order:
+ *
+ *   1. ShipPlan toggle
+ *   2. Sefer Durumu (chip — low cardinality)
+ *   3. Durum (chip)
+ *   4. Teslimat Koşulu (chip)
+ *   5. Segment (combobox)
+ *   6. Trader (combobox)
+ *   7. Şirket (combobox)
+ *   8. Gemi (combobox)
+ *   9. Tedarikçi (combobox)
+ *  10. Müşteri / Alıcı (combobox)
+ *  11. Proje Grubu (combobox)
+ *
+ * Period + FY are *not* in here — those live in `PeriodFilter` which
+ * sits at the top of the page above the bento/list. Keeping them
+ * separate means the user can change the period without re-opening
+ * the popover.
+ */
+export function AdvancedFilter({
+  projects,
+  filters,
+  onChange,
+  shipPlanDefault = true,
+  arasaDefault = true,
+  periodDefault,
+  resultCount,
+  totalCount,
+  iconOnly = false,
+  collapsible = false,
+  tone = "accent",
+  className,
+}: AdvancedFilterProps) {
+  const { t } = useLocale();
+  const accent = useBrandAccent();
+  const triggerTone = tone === "muted" ? MUTED_TONE : accent;
+  // Ink that sits ON the trigger fill. The brand gradient stays saturated
+  // in both themes so white holds; the muted gradient flips lightness with
+  // the theme, so its ink has to flip with it.
+  const triggerInk = tone === "muted" ? "var(--background)" : "white";
+  const activeCount = projectFilterCount(
+    filters,
+    shipPlanDefault,
+    periodDefault,
+    arasaDefault
+  );
+  const hasFilters = activeCount > 0;
+  // Local hover state used by the collapsible variant — mirrors the
+  // animation pattern in TyroWmsButton + AskAiButton.
+  const [hovered, setHovered] = React.useState(false);
+
+  const options = React.useMemo(
+    () => extractAvailableOptions(projects),
+    [projects]
+  );
+
+  function clearAll() {
+    onChange({
+      ...filters,
+      statuses: new Set(),
+      groups: new Set(),
+      incoterms: new Set(),
+      segments: new Set(),
+      voyageStatuses: new Set(),
+      voyageTypes: new Set(),
+      traders: new Set(),
+      mainTraders: new Set(),
+      companies: new Set(),
+      suppliers: new Set(),
+      buyers: new Set(),
+      vessels: new Set(),
+      loadingPorts: new Set(),
+      dischargePorts: new Set(),
+      projectNos: new Set(),
+      includeWithoutShipPlan: shipPlanDefault,
+      includeArasaPurchase: arasaDefault,
+    });
+  }
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        {iconOnly ? (
+          // Compact icon-only trigger — used by ProjectList where the
+          // search input is already wide and a labelled pill crowds
+          // the panel header. Square 36×36 with corner badge for the
+          // active count.
+          <button
+            type="button"
+            aria-label={t("filter.aria")}
+            className={cn(
+              "size-9 rounded-xl grid place-items-center shrink-0 shadow-sm relative transition-transform",
+              "hover:scale-[1.04] active:scale-95",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+              className
+            )}
+            style={{
+              background: triggerTone.gradient,
+              color: triggerInk,
+              boxShadow: `0 4px 12px -4px ${triggerTone.ring}, inset 0 1px 0 0 rgba(255,255,255,0.25)`,
+            }}
+          >
+            <HugeiconsIcon icon={FilterIcon} size={16} strokeWidth={2} />
+            {activeCount > 0 && (
+              <span
+                className="absolute -top-1 -right-1 size-4 grid place-items-center rounded-full text-[9px] font-bold tabular-nums"
+                style={{
+                  background: "var(--background)",
+                  color: triggerTone.solid,
+                  boxShadow: `0 0 0 1.5px ${triggerTone.solid}, 0 2px 6px -1px ${triggerTone.ring}`,
+                }}
+              >
+                {activeCount}
+              </span>
+            )}
+          </button>
+        ) : collapsible ? (
+          // Always-open glassy white pill. Same min-width + height as
+          // the TYRO Chat / TYRO AI sibling buttons so the topbar +
+          // dashboard CTAs read as a symmetric set.
+          //
+          // 3D presence comes from a stacked shadow:
+          //   - inset top highlight (rgba 1,1,1)         → glass top sheen
+          //   - inset bottom shadow (slate 0.04)         → ambient floor
+          //   - outer 1px hairline ring                  → button edge
+          //   - 1+4+12px layered drops                   → lifted feel
+          // Hover bumps the lift by translating up 1px and deepening
+          // the outer drops + adding an indigo edge tint for affordance.
+          <button
+            type="button"
+            aria-label={t("filter.aria")}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            onFocus={() => setHovered(true)}
+            onBlur={() => setHovered(false)}
+            className={cn(
+              "group relative inline-flex items-center justify-center gap-2 shrink-0",
+              "h-9 rounded-full px-3.5 min-w-[110px]",
+              "text-[13px] font-semibold tracking-tight",
+              "transition-[transform,box-shadow] duration-200 ease-out",
+              hovered && "-translate-y-px",
+              "active:translate-y-0 active:scale-[0.98]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+              className
+            )}
+            style={{
+              // Subtle vertical gradient: card at top, faintly cooler
+              // muted surface at bottom — simulates light from above so the
+              // pill reads as a 3D-lifted disc rather than a flat blob.
+              background:
+                "linear-gradient(180deg, color-mix(in oklab, var(--card) 98%, transparent) 0%, color-mix(in oklab, var(--muted) 92%, transparent) 100%)",
+              backdropFilter: "blur(12px) saturate(150%)",
+              color: MUTED_TONE.solid,
+              boxShadow: hovered
+                ? [
+                    "inset 0 1px 0 0 var(--spec-highlight)",
+                    "inset 0 -1px 1px 0 color-mix(in oklab, var(--foreground) 4%, transparent)",
+                    // Hover edge tint = the brand accent (was a fixed indigo).
+                    "0 0 0 1px color-mix(in oklab, var(--brand-via) 20%, transparent)",
+                    "0 2px 4px 0 color-mix(in oklab, var(--foreground) 8%, transparent)",
+                    "0 10px 24px -6px color-mix(in oklab, var(--foreground) 18%, transparent)",
+                  ].join(", ")
+                : [
+                    "inset 0 1px 0 0 var(--spec-highlight)",
+                    "inset 0 -1px 1px 0 color-mix(in oklab, var(--foreground) 4%, transparent)",
+                    "0 0 0 1px color-mix(in oklab, var(--foreground) 7%, transparent)",
+                    "0 1px 2px 0 color-mix(in oklab, var(--foreground) 6%, transparent)",
+                    "0 6px 14px -4px color-mix(in oklab, var(--foreground) 12%, transparent)",
+                  ].join(", "),
+            }}
+          >
+            <HugeiconsIcon
+              icon={FilterIcon}
+              size={16}
+              strokeWidth={2}
+              style={{ color: MUTED_TONE.solid }}
+            />
+            <span>{t("filter.label")}</span>
+            {activeCount > 0 && (
+              <span
+                className="ml-0.5 h-5 min-w-5 px-1.5 inline-flex items-center justify-center rounded-full text-[10.5px] font-bold tabular-nums"
+                style={{
+                  background: MUTED_TONE.solid,
+                  color: "var(--background)",
+                  boxShadow: `inset 0 1px 0 0 rgba(255,255,255,0.20), 0 2px 6px -1px ${MUTED_TONE.ring}`,
+                }}
+              >
+                {activeCount}
+              </span>
+            )}
+          </button>
+        ) : tone === "ghost" ? (
+          // Ghost variant — white pill with accent-tinted ink and a
+          // layered outer drop shadow (no fill). Reads as a quiet
+          // companion on toolbars that already carry a louder accent
+          // element next to it.
+          <button
+            type="button"
+            aria-label={t("filter.aria")}
+            className={cn(
+              "h-9 rounded-full px-3.5 min-w-[110px] inline-flex items-center justify-center gap-2 shrink-0 relative transition-transform",
+              "text-[13px] font-semibold tracking-tight",
+              "hover:scale-[1.04] active:scale-95",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+              className
+            )}
+            style={{
+              background: "var(--card)",
+              color: accent.solid,
+              // Same 3-layer outer drop shadow we use on the
+              // RefreshButton neutral state — keeps Filtre + Refresh as
+              // visually identical "neutral pill" siblings.
+              boxShadow:
+                "0 1px 2px 0 color-mix(in oklab, var(--foreground) 8%, transparent), 0 4px 12px -4px color-mix(in oklab, var(--foreground) 18%, transparent), inset 0 0 0 1px color-mix(in oklab, var(--foreground) 10%, transparent)",
+            }}
+          >
+            <HugeiconsIcon icon={FilterIcon} size={16} strokeWidth={2} />
+            <span>{t("filter.label")}</span>
+            {activeCount > 0 && (
+              <span
+                className="ml-0.5 h-5 min-w-5 px-1.5 inline-flex items-center justify-center rounded-full text-[10.5px] font-bold tabular-nums"
+                style={{
+                  background: accent.solid,
+                  // --background, not white: dark palettes give --brand-text a
+                  // LIGHT value, where white ink would disappear.
+                  color: "var(--background)",
+                  boxShadow: `0 2px 6px -1px ${accent.ring}`,
+                }}
+              >
+                {activeCount}
+              </span>
+            )}
+          </button>
+        ) : (
+          <button
+            type="button"
+            aria-label={t("filter.aria")}
+            className={cn(
+              // rounded-full + symmetric px-3.5 + min-w-[110px] mirrors
+              // AskAiButton so the topbar pair reads as identical siblings.
+              "h-9 rounded-full px-3.5 min-w-[110px] inline-flex items-center justify-center gap-2 shrink-0 shadow-sm relative transition-transform",
+              "text-[13px] font-semibold tracking-tight",
+              "hover:scale-[1.04] active:scale-95",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+              className
+            )}
+            style={{
+              background: triggerTone.gradient,
+              color: triggerInk,
+              boxShadow: `0 4px 12px -4px ${triggerTone.ring}, inset 0 1px 0 0 rgba(255,255,255,0.25)`,
+            }}
+          >
+            <HugeiconsIcon icon={FilterIcon} size={16} strokeWidth={2} />
+            <span>{t("filter.label")}</span>
+            {activeCount > 0 && (
+              <span
+                className="ml-0.5 h-5 min-w-5 px-1.5 inline-flex items-center justify-center rounded-full text-[10.5px] font-bold tabular-nums"
+                style={{
+                  background: "var(--background)",
+                  color: triggerTone.solid,
+                  boxShadow: `inset 0 0 0 1.5px ${triggerTone.solid}, 0 2px 6px -1px ${triggerTone.ring}`,
+                }}
+              >
+                {activeCount}
+              </span>
+            )}
+          </button>
+        )}
+      </PopoverTrigger>
+      <PopoverContent
+        // ProjectList sits in the left column with the map on its
+        // right — opening the popover to the right lets it land over
+        // the map rather than the (clipped) viewport edge. Other
+        // surfaces (Dashboard, Veri Yönetimi) keep the default
+        // bottom-end placement.
+        side={iconOnly ? "right" : "bottom"}
+        align={iconOnly ? "start" : "end"}
+        sideOffset={10}
+        collisionPadding={12}
+        className={cn(
+          "w-[min(22rem,calc(100vw-1rem))] p-0 overflow-hidden flex flex-col",
+          "max-h-[min(calc(100vh-120px),620px)]",
+          "bg-[color-mix(in_oklab,var(--popover)_95%,transparent)] backdrop-blur-2xl backdrop-saturate-150",
+          "ring-1 ring-[var(--spec-highlight)]",
+          "shadow-[0_28px_72px_-16px_color-mix(in_oklab,var(--foreground)_45%,transparent)]"
+        )}
+        style={
+          {
+            "--filter-active-bg": accent.tint,
+            "--filter-active-fg": accent.solid,
+            "--filter-active-border": accent.ring,
+          } as React.CSSProperties
+        }
+      >
+        {/* Header — pill always uses the live `triggerTone` so the
+            popover opens with the same accent the user just clicked.
+            Dashboard, ProjectList, and Veri Yönetimi all default to
+            the sidebar accent, so the icon + gradient inside the
+            popover match across pages. The collapsible dashboard
+            trigger paints its OWN navy stroke on the white shell
+            outside; once opened, the popover snaps back to the
+            shared accent dialect. */}
+        <div className="px-4 py-3 flex items-center gap-3 shrink-0 border-b border-border/40">
+          <span
+            className="size-9 rounded-xl grid place-items-center shrink-0 shadow-sm"
+            style={{
+              background: triggerTone.gradient,
+              color: triggerInk,
+              boxShadow: `0 4px 12px -4px ${triggerTone.ring}, inset 0 1px 0 0 rgba(255,255,255,0.25)`,
+            }}
+          >
+            <HugeiconsIcon
+              icon={FilterIcon}
+              size={16}
+              strokeWidth={2}
+            />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[14px] font-semibold tracking-tight leading-tight">
+              {t("filter.title")}
+            </div>
+            <div className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+              {hasFilters
+                ? t("filter.activeCount").replace("{count}", String(activeCount))
+                : t("filter.multiSelectSearch")}
+            </div>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 flex flex-col gap-3">
+          {/* Dönem (period + financial year) — first section so it sets
+              the time scope before the user dives into categorical
+              filters. */}
+          <PeriodSection
+            period={filters.period}
+            fyKey={filters.fyKey}
+            onChange={(period, fyKey) =>
+              onChange({ ...filters, period, fyKey })
+            }
+          />
+
+          {/* Ship-plan inclusion toggle REMOVED — `includeWithoutShipPlan`
+              is hard-locked to `true` at every page's `makeEmptyFilters`
+              call so projects without vessel plans (Karayolu, exception
+              IDs like ORGANIK01, etc.) always pass through. The field
+              stays on `ProjectFilterState` for backwards compat but the
+              user never toggles it. */}
+
+          {/* Section order (user-specified):
+                1. Segment
+                2. Sefer Durumu
+                3. Ana Trader + Trader
+                4. Kalkış Limanı + Varış Limanı
+                5. Durum + Teslimat Koşulu
+                6. Şirket / Gemi / Tedarikçi / Müşteri / Proje Grubu
+                7. Proje No (still the catchall fuzzy search at the end)
+              All sections render as a search-multiselect combobox now
+              — previously Sefer Durumu / Durum / Teslimat Koşulu were
+              chip toggles which became impractical once the user wanted
+              quick filter via typing instead of clicking through chips. */}
+
+          {/* 1. Segment */}
+          {options.segments.length > 0 && (
+            <ComboboxSection
+              title={t("filter.segment")}
+              count={filters.segments.size}
+              options={options.segments}
+              selected={filters.segments}
+              onChange={(next) => onChange({ ...filters, segments: next })}
+              placeholder={t("filter.segment.placeholder")}
+              accent={accent}
+            />
+          )}
+
+          {/* 2. Sefer Durumu — converted from chip toggle to combobox */}
+          {options.voyageStatuses.length > 0 && (
+            <ComboboxSection
+              title={t("filter.voyageStatus")}
+              count={filters.voyageStatuses.size}
+              options={options.voyageStatuses}
+              selected={filters.voyageStatuses}
+              onChange={(next) =>
+                onChange({ ...filters, voyageStatuses: next })
+              }
+              placeholder={t("filter.voyageStatus.placeholder")}
+              accent={accent}
+            />
+          )}
+
+          {/* 2b. İşlem Yönü — Satış / Satınalma / Transit (voyageType) */}
+          {options.voyageTypes.length > 0 && (
+            <ComboboxSection
+              title={t("filter.voyageType")}
+              count={filters.voyageTypes.size}
+              options={options.voyageTypes}
+              selected={filters.voyageTypes}
+              onChange={(next) => onChange({ ...filters, voyageTypes: next })}
+              placeholder={t("filter.voyageType.placeholder")}
+              accent={accent}
+            />
+          )}
+
+          {/* 3a. Ana Trader (lead/desk owner — `mserp_maintraderid`) */}
+          {options.mainTraders.length > 0 && (
+            <ComboboxSection
+              title={t("filter.mainTrader")}
+              count={filters.mainTraders.size}
+              options={options.mainTraders}
+              selected={filters.mainTraders}
+              onChange={(next) => onChange({ ...filters, mainTraders: next })}
+              placeholder={t("filter.mainTrader.placeholder")}
+              accent={accent}
+            />
+          )}
+
+          {/* 3b. Trader (per-project executor — `mserp_traderid`) */}
+          {options.traders.length > 0 && (
+            <ComboboxSection
+              title={t("filter.trader")}
+              count={filters.traders.size}
+              options={options.traders}
+              selected={filters.traders}
+              onChange={(next) => onChange({ ...filters, traders: next })}
+              placeholder={t("filter.trader.placeholder")}
+              accent={accent}
+            />
+          )}
+
+          {/* 4a. Kalkış Limanı — combobox */}
+          {options.loadingPorts.length > 0 && (
+            <ComboboxSection
+              title={t("filter.loadingPort")}
+              count={filters.loadingPorts.size}
+              options={options.loadingPorts}
+              selected={filters.loadingPorts}
+              onChange={(next) => onChange({ ...filters, loadingPorts: next })}
+              placeholder={t("filter.loadingPort.placeholder")}
+              searchPlaceholder={t("filter.port.search")}
+              accent={accent}
+            />
+          )}
+
+          {/* 4b. Varış Limanı — combobox */}
+          {options.dischargePorts.length > 0 && (
+            <ComboboxSection
+              title={t("filter.dischargePort")}
+              count={filters.dischargePorts.size}
+              options={options.dischargePorts}
+              selected={filters.dischargePorts}
+              onChange={(next) =>
+                onChange({ ...filters, dischargePorts: next })
+              }
+              placeholder={t("filter.dischargePort.placeholder")}
+              searchPlaceholder={t("filter.port.search")}
+              accent={accent}
+            />
+          )}
+
+          {/* 5a. Durum — combobox */}
+          {options.statuses.length > 0 && (
+            <ComboboxSection
+              title={t("filter.status")}
+              count={filters.statuses.size}
+              options={options.statuses}
+              selected={filters.statuses}
+              onChange={(next) => onChange({ ...filters, statuses: next })}
+              placeholder={t("filter.status.placeholder")}
+              accent={accent}
+            />
+          )}
+
+          {/* 5b. Teslimat Koşulu — combobox */}
+          {options.incoterms.length > 0 && (
+            <ComboboxSection
+              title={t("filter.incoterm")}
+              count={filters.incoterms.size}
+              options={options.incoterms}
+              selected={filters.incoterms}
+              onChange={(next) => onChange({ ...filters, incoterms: next })}
+              placeholder={t("filter.incoterm.placeholder")}
+              accent={accent}
+            />
+          )}
+
+          {/* 6a. Şirket */}
+          {options.companies.length > 0 && (
+            <ComboboxSection
+              title={t("filter.company")}
+              count={filters.companies.size}
+              options={options.companies}
+              selected={filters.companies}
+              onChange={(next) => onChange({ ...filters, companies: next })}
+              placeholder={t("filter.company.placeholder")}
+              accent={accent}
+            />
+          )}
+
+          {/* 6b. Gemi */}
+          {options.vessels.length > 0 && (
+            <ComboboxSection
+              title={t("filter.vessel")}
+              count={filters.vessels.size}
+              options={options.vessels}
+              selected={filters.vessels}
+              onChange={(next) => onChange({ ...filters, vessels: next })}
+              placeholder={t("filter.vessel.placeholder")}
+              searchPlaceholder={t("filter.vessel.search")}
+              accent={accent}
+            />
+          )}
+
+          {/* 6c. Tedarikçi */}
+          {options.suppliers.length > 0 && (
+            <ComboboxSection
+              title={t("filter.supplier")}
+              count={filters.suppliers.size}
+              options={options.suppliers}
+              selected={filters.suppliers}
+              onChange={(next) => onChange({ ...filters, suppliers: next })}
+              placeholder={t("filter.supplier.placeholder")}
+              searchPlaceholder={t("filter.supplier.search")}
+              accent={accent}
+            />
+          )}
+
+          {/* 6d. Müşteri / Alıcı */}
+          {options.buyers.length > 0 && (
+            <ComboboxSection
+              title={t("filter.buyer")}
+              count={filters.buyers.size}
+              options={options.buyers}
+              selected={filters.buyers}
+              onChange={(next) => onChange({ ...filters, buyers: next })}
+              placeholder={t("filter.buyer.placeholder")}
+              searchPlaceholder={t("filter.buyer.search")}
+              accent={accent}
+            />
+          )}
+
+          {/* 6e. Proje Grubu */}
+          {options.groups.length > 0 && (
+            <ComboboxSection
+              title={t("filter.group")}
+              count={filters.groups.size}
+              options={options.groups}
+              selected={filters.groups}
+              onChange={(next) => onChange({ ...filters, groups: next })}
+              placeholder={t("filter.group.placeholder")}
+              accent={accent}
+            />
+          )}
+
+          {/* 7. Proje No — fuzzy combobox over projectNo + name +
+              vessel + segment + group keywords. Stays at the bottom
+              as the catchall lookup. */}
+          {options.projects.length > 0 && (
+            <ComboboxSection
+              title={t("filter.projectNo")}
+              count={filters.projectNos.size}
+              options={options.projects}
+              selected={filters.projectNos}
+              onChange={(next) => onChange({ ...filters, projectNos: next })}
+              placeholder={t("filter.projectNo.placeholder")}
+              searchPlaceholder={t("filter.projectNo.search")}
+              accent={accent}
+            />
+          )}
+
+          {/* 8. Arasa Satınalma Seferleri — visible toggle for the
+              Arasa-Trabzon purchase-voyage exclusion. Checked = include,
+              unchecked = exclude (PBI ArasaPurchaseFlag=0). */}
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={filters.includeArasaPurchase ? "true" : "false"}
+            onClick={() =>
+              onChange({
+                ...filters,
+                includeArasaPurchase: !filters.includeArasaPurchase,
+              })
+            }
+            className="mt-1 w-full flex items-start gap-2.5 rounded-lg px-2 py-2 text-left hover:bg-foreground/[0.04] transition-colors"
+          >
+            <span
+              className={cn(
+                "mt-px size-[18px] rounded-[5px] border shrink-0 grid place-items-center transition-colors",
+                filters.includeArasaPurchase
+                  ? "border-transparent text-[var(--background)]"
+                  : "border-foreground/30"
+              )}
+              style={
+                filters.includeArasaPurchase
+                  ? { background: accent.solid, borderColor: accent.solid }
+                  : undefined
+              }
+            >
+              {filters.includeArasaPurchase && (
+                <Check className="size-3" strokeWidth={3.5} />
+              )}
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[12px] font-semibold text-foreground">
+                {t("filter.arasaPurchase")}
+              </span>
+              <span className="block text-[10.5px] text-muted-foreground leading-snug mt-0.5">
+                {t("filter.arasaPurchase.hint")}
+              </span>
+            </span>
+          </button>
+        </div>
+
+        {/* Sticky footer */}
+        <div className="sticky bottom-0 z-[1] px-4 py-2.5 border-t border-border/50 bg-[color-mix(in_oklab,var(--popover)_95%,transparent)] backdrop-blur-xl flex items-center justify-between gap-2 shrink-0">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={clearAll}
+            disabled={!hasFilters}
+            className={cn(
+              "h-8 px-2.5 gap-1.5 text-[11.5px] font-medium rounded-full",
+              hasFilters
+                ? "text-foreground hover:bg-foreground/[0.06]"
+                : "text-muted-foreground/60"
+            )}
+            style={hasFilters ? { color: accent.solid } : undefined}
+          >
+            <HugeiconsIcon icon={FilterResetIcon} size={13} strokeWidth={2} />
+            {t("filter.clear")}
+          </Button>
+          {resultCount !== undefined && totalCount !== undefined && (
+            <div className="text-[11px] text-muted-foreground text-right">
+              {hasFilters ? (
+                <>
+                  <span
+                    className="font-bold tabular-nums"
+                    style={{ color: accent.solid }}
+                  >
+                    {resultCount}
+                  </span>
+                  {" / "}
+                  <span className="tabular-nums">{totalCount}</span>{" "}
+                  {t("filter.resultCountSuffix")}
+                </>
+              ) : (
+                <>
+                  {t("filter.allLead")}{" "}
+                  <span className="font-semibold text-foreground tabular-nums">
+                    {totalCount}
+                  </span>{" "}
+                  {t("filter.allTail")}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+/* ─────────── Helpers ─────────── */
+
+// `toggleSet` removed — every section now uses MultiSelectCombobox which
+// emits the full next Set; we no longer need a per-value toggler.
+
+const CHIP_CLASS = cn(
+  "h-7 rounded-full text-[11.5px] px-2.5 font-medium",
+  "border-foreground/15 bg-transparent",
+  "hover:bg-foreground/[0.04] hover:border-foreground/25",
+  "data-[state=on]:bg-[var(--filter-active-bg)]",
+  "data-[state=on]:text-[var(--filter-active-fg)]",
+  "data-[state=on]:border-[var(--filter-active-border)]",
+  "data-[state=on]:shadow-[inset_0_1px_0_0_var(--spec-highlight)]",
+  "data-[state=on]:font-semibold",
+  "transition-colors"
+);
+
+function SectionHeader({ title, count }: { title: string; count: number }) {
+  return (
+    // Darker ink + slightly heavier weight so section labels (Segment,
+    // Sefer Durumu, Trader, …) read clearly above each combobox. The
+    // previous `text-muted-foreground` (~slate-500) washed out against
+    // the popover bg and made the labels feel "system noise".
+    <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.12em] text-foreground/80">
+      <span>{title}</span>
+      {count > 0 && (
+        <span
+          className="h-[18px] min-w-[18px] inline-flex items-center justify-center rounded-full px-1.5 text-[10px] font-bold tabular-nums"
+          style={{
+            backgroundColor: "var(--filter-active-bg)",
+            color: "var(--filter-active-fg)",
+          }}
+        >
+          {count}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/* PeriodSection — period (Aylık · Çeyreklik · Yıllık · Finansal
+ *  Dönem · Tüm Zamanlar) chip group + last-3-FY chip row when "fy"
+ *  is active. Lives inside the AdvancedFilter popover so the time
+ *  scope and categorical scope are managed in one surface. */
+function PeriodSection({
+  period,
+  fyKey,
+  onChange,
+}: {
+  period: PeriodKey;
+  fyKey: string | null;
+  onChange: (period: PeriodKey, fyKey: string | null) => void;
+}) {
+  const { t } = useLocale();
+  const fyOptions = React.useMemo(() => lastNFinancialYears(new Date(), 3), []);
+  const showFyOptions = period === "fy";
+  return (
+    <div className="flex flex-col gap-1.5">
+      <SectionHeader
+        title={t("filter.period")}
+        count={
+          period === "fy" && (fyKey ?? getCurrentFyKey()) === getCurrentFyKey()
+            ? 0
+            : period !== "fy" || fyKey !== getCurrentFyKey()
+              ? 1
+              : 0
+        }
+      />
+      <ToggleGroup
+        type="single"
+        value={period}
+        onValueChange={(v) => {
+          if (!v) return;
+          const next = v as PeriodKey;
+          const nextFy = next === "fy" ? fyKey ?? getCurrentFyKey() : null;
+          onChange(next, nextFy);
+        }}
+        variant="outline"
+        size="sm"
+        spacing={4}
+        className="flex-wrap"
+      >
+        {PERIODS.map((p) => (
+          <ToggleGroupItem key={p.key} value={p.key} className={CHIP_CLASS}>
+            {t(PERIOD_LABEL_KEY[p.key])}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+      {showFyOptions && (
+        <div className="mt-1.5">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-1">
+            {t("filter.financialYear")}
+          </div>
+          <ToggleGroup
+            type="single"
+            value={fyKey ?? getCurrentFyKey()}
+            onValueChange={(v) => {
+              if (!v) return;
+              onChange("fy", v);
+            }}
+            variant="outline"
+            size="sm"
+            spacing={4}
+            className="flex-wrap"
+          >
+            {fyOptions.map((fy) => (
+              <ToggleGroupItem
+                key={fy.key}
+                value={fy.key}
+                className={CHIP_CLASS}
+              >
+                {fy.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// `ChipSection` removed — all multi-select sections (Sefer Durumu,
+// Durum, Teslimat Koşulu) converted to ComboboxSection with search.
+// Chip toggling stayed on the PeriodSection only because period is
+// 5 fixed buckets, not an open set.
+
+function ComboboxSection({
+  title,
+  count,
+  options,
+  selected,
+  onChange,
+  placeholder,
+  searchPlaceholder,
+  accent,
+}: {
+  title: string;
+  count: number;
+  options: ReadonlyArray<MultiSelectOption>;
+  selected: Set<string>;
+  onChange: (next: Set<string>) => void;
+  placeholder?: string;
+  searchPlaceholder?: string;
+  accent: { solid: string; ring: string; tint: string };
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <SectionHeader title={title} count={count} />
+      <MultiSelectCombobox
+        options={options}
+        selected={selected}
+        onChange={onChange}
+        placeholder={placeholder}
+        searchPlaceholder={searchPlaceholder}
+        accent={accent}
+      />
+    </div>
+  );
+}

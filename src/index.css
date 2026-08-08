@@ -1222,3 +1222,122 @@ html {
   0%, 100% { opacity: 0.3; }
   50% { opacity: 1; }
 }
+/* ═══════════════════════════════════════════════════════════════════════
+   Freight pages (Data Management / Vessel Ops / E.M Overview)
+
+   Tokens the ported tyrofreight code needs. Two rules held throughout:
+   (1) anything brand-colored resolves to the --brand-* palette tokens, so
+       these pages follow the user's palette choice like the rest of the app;
+   (2) everything is declared for BOTH themes — the source was light-only.
+   ═══════════════════════════════════════════════════════════════════════ */
+@theme inline {
+    --color-success: var(--success);
+    --color-warning: var(--warning);
+}
+
+:root {
+    /* Semantic status — the source used raw emerald/amber/rose literals. */
+    --success: oklch(0.62 0.15 155);
+    --success-foreground: oklch(0.98 0.01 155);
+    --warning: oklch(0.75 0.16 70);
+    --warning-foreground: oklch(0.25 0.05 70);
+
+    /* Profit & loss signage. Deliberately NOT the brand color: gain/loss must
+       stay readable as gain/loss whatever palette is active. */
+    --pl-pos: oklch(0.55 0.13 158);
+    --pl-neg: oklch(0.53 0.19 15);
+    --pl-neutral: oklch(0.55 0.02 260);
+
+    /* Chart series: projected follows the brand, realized is the P&L green so
+       the two are distinguishable in every palette. */
+    --series-projected: var(--brand-via);
+    --series-realized: var(--pl-pos);
+    --series-projected-neg: oklch(0.65 0.2 15);
+    --series-realized-neg: var(--pl-neg);
+
+    /* Voyage lifecycle. Sequential lightness ramp on the brand hue for the
+       "in flight" states, semantic colors for the terminal ones. */
+    --status-tbn: oklch(0.65 0.02 260);
+    --status-nominated: var(--brand-from);
+    --status-commenced: var(--brand-via);
+    --status-completed: var(--success);
+    --status-closed: oklch(0.5 0.02 260);
+    --status-cancelled: var(--pl-neg);
+
+    /* Route geometry on the map. */
+    --route-done: var(--brand-deep);
+    --route-remain: oklch(0.7 0 0 / 0.5);
+
+    /* Frosted panels. The source's glass was hardcoded white; here it is the
+       card surface with alpha, so it inverts correctly in dark mode. */
+    --glass-tint: color-mix(in oklab, var(--card) 55%, transparent);
+    --glass-tint-strong: color-mix(in oklab, var(--card) 82%, transparent);
+    --glass-tint-subtle: color-mix(in oklab, var(--card) 32%, transparent);
+    --glass-border-soft: color-mix(in oklab, var(--foreground) 8%, transparent);
+    --spec-highlight: oklch(100% 0 0 / 0.9);
+    --backdrop-glass: blur(16px) saturate(180%);
+    --shadow-glass:
+        0 1px 0 0 var(--spec-highlight) inset,
+        0 0 0 1px var(--glass-border-soft) inset,
+        0 12px 32px -12px oklch(20% 0 0 / 0.16);
+}
+
+.dark {
+    --success: oklch(0.72 0.15 155);
+    --success-foreground: oklch(0.18 0.03 155);
+    --warning: oklch(0.8 0.15 70);
+    --warning-foreground: oklch(0.2 0.04 70);
+
+    --pl-pos: oklch(0.75 0.15 158);
+    --pl-neg: oklch(0.68 0.18 15);
+    --pl-neutral: oklch(0.72 0.02 260);
+
+    --status-tbn: oklch(0.6 0.02 260);
+    --status-closed: oklch(0.55 0.02 260);
+
+    --route-done: var(--brand-from);
+    --route-remain: oklch(0.6 0 0 / 0.45);
+
+    /* Dark glass: the highlight edge would read as a white scar, so it is
+       reduced to a faint lift and the drop shadow deepens instead. */
+    --spec-highlight: oklch(100% 0 0 / 0.06);
+    --glass-border-soft: color-mix(in oklab, var(--foreground) 12%, transparent);
+    --shadow-glass:
+        0 1px 0 0 var(--spec-highlight) inset,
+        0 0 0 1px var(--glass-border-soft) inset,
+        0 12px 32px -12px oklch(0% 0 0 / 0.5);
+}
+
+.glass {
+    position: relative;
+    isolation: isolate;
+    border-radius: var(--radius);
+    background: linear-gradient(135deg, var(--glass-tint-strong) 0%, var(--glass-tint) 100%);
+    backdrop-filter: var(--backdrop-glass);
+    -webkit-backdrop-filter: var(--backdrop-glass);
+    box-shadow: var(--shadow-glass);
+}
+
+.glass::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(180deg, var(--spec-highlight) 0%, transparent 18%);
+    mix-blend-mode: overlay;
+    opacity: 0.65;
+}
+
+.glass-strong {
+    background: var(--glass-tint-strong);
+}
+
+.glass-subtle {
+    background: var(--glass-tint-subtle);
+}
+
+/* Ported code renders text-*/bg-* utilities against these tokens. */
+.text-pl-pos { color: var(--pl-pos); }
+.text-pl-neg { color: var(--pl-neg); }
+.text-pl-neutral { color: var(--pl-neutral); }

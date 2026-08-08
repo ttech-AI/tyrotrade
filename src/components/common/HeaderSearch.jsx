@@ -13,6 +13,9 @@ import {
   Sun03Icon,
   LanguageSquareIcon,
   Add01Icon,
+  ShipmentTrackingIcon,
+  ChartLineData01Icon,
+  DatabaseIcon,
 } from "@hugeicons/core-free-icons"
 import {
   Popover,
@@ -38,6 +41,9 @@ const PAGES = [
   { id: "dashboard", path: "/dashboard", labelKey: "nav.dashboard", icon: DashboardCircleIcon },
   { id: "chat", path: "/chat", labelKey: "nav.chat", icon: AiChat02Icon },
   { id: "analytics", path: "/analytics", labelKey: "nav.analytics", icon: Analytics01Icon },
+  { id: "vessels", path: "/vessels", labelKey: "nav.vessels", icon: ShipmentTrackingIcon },
+  { id: "em-overview", path: "/em-overview", labelKey: "nav.emOverview", icon: ChartLineData01Icon },
+  { id: "data", path: "/data", labelKey: "nav.data", icon: DatabaseIcon },
   { id: "settings", path: "/settings", labelKey: "nav.settings", icon: Settings02Icon },
   { id: "help", path: "/help", labelKey: "nav.help", icon: HelpCircleIcon },
 ]

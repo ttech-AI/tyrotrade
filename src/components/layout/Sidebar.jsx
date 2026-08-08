@@ -5,6 +5,9 @@ import {
   CopilotIcon,
   Settings02Icon,
   HelpCircleIcon,
+  ShipmentTrackingIcon,
+  ChartLineData01Icon,
+  DatabaseIcon,
 } from "@hugeicons/core-free-icons"
 import { toast } from "sonner"
 import { motion } from "motion/react"
@@ -28,6 +31,12 @@ const navMain = [
   { id: "dashboard", labelKey: "nav.dashboard", icon: DashboardCircleIcon, ready: true },
   { id: "chat", labelKey: "nav.chat", icon: AiChat02Icon, ready: true },
   { id: "analytics", labelKey: "nav.analytics", icon: Analytics01Icon, ready: true, showConstructionToast: true },
+  // Trade operations, ported from tyrofreight. Ordered the way an operator
+  // works: the day's voyages first, then the financial read, then the data
+  // plumbing that feeds both.
+  { id: "vessels", labelKey: "nav.vessels", icon: ShipmentTrackingIcon, ready: true },
+  { id: "em-overview", labelKey: "nav.emOverview", icon: ChartLineData01Icon, ready: true },
+  { id: "data", labelKey: "nav.data", icon: DatabaseIcon, ready: true },
   // External link: M365 Copilot lives outside TYRO. handleSelect short-circuits
   // on isExternal so it never enters the router (no PATH_TO_ID entry, no
   // breadcrumb update, no active highlight) — opens in a new tab instead.

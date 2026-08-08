@@ -1,0 +1,1712 @@
+import * as React from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { Cancel01Icon, Search01Icon } from "@hugeicons/core-free-icons";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { GlassPanel } from "@/freight/components/glass/GlassPanel";
+import { useBrandAccent } from "@/freight/hooks/useBrandAccent";
+import { cn } from "@/lib/utils";
+import { useEntityRows } from "@/freight/hooks/useEntityRows";
+import { getDataverseClient } from "@/freight/lib/dataverse";
+import { readCache, writeCache } from "@/freight/lib/storage/entityCache";
+import {
+  applyByInChunked,
+  ESTIMATED_EXPENSE_AGGREGATE_CACHE,
+  reconcileEstimatedExpense,
+  fetchFinancingOrderIds,
+  fetchVesselMasterAndEnrichShipCache,
+  FINANCING_PURCH_IDS_CACHE,
+  FINANCING_SALES_IDS_CACHE,
+  getFinancingPurchIdSet,
+  getFinancingSalesIdSet,
+  listAllByInChunked,
+  NON_INTERCOMPANY_FILTER,
+  PROJECTS_FILTER,
+} from "@/freight/lib/dataverse/refreshAll";
+import {
+  EntityRowsTable,
+  sortRows,
+  type SortState,
+} from "@/freight/components/data-management/EntityRowsTable";
+import { RefreshAllButton } from "@/freight/components/data-management/RefreshAllButton";
+import { ExcelExportButton } from "@/freight/components/data-management/ExcelExportButton";
+import type { ExcelSheetSpec } from "@/freight/lib/export/excelExport";
+import { TabStrip, type TabItem } from "@/freight/components/data-management/TabStrip";
+import { AdvancedFilter } from "@/freight/components/filters/AdvancedFilter";
+import {
+  applyProjectFilter,
+  makeEmptyFilters,
+  type ProjectFilterState,
+} from "@/freight/lib/filters/projectFilters";
+import { useProjects } from "@/freight/hooks/useProjects";
+import {
+  PROJECT_COLUMNS,
+  PROJECT_LINE_COLUMNS,
+  SUB_PROJECT_COLUMNS,
+  SUB_PROJECT_DETAIL_COLUMNS,
+  SHIP_COLUMNS,
+  SHIP_DISPLAY_COLUMNS,
+  EXPENSE_COLUMNS,
+  EXPENSE_LINE_COLUMNS,
+  PURCHASE_COLUMNS,
+  SALES_COLUMNS,
+  BUDGET_COLUMNS,
+} from "@/freight/lib/dataverse/columnOrder";
+import {
+  SEGMENT_BUDGET_BY_MONTH_CACHE,
+  aggregateSegmentBudgetByMonth,
+} from "@/freight/lib/dataverse/segmentBudget";
+import { useProjectExpenseLines } from "@/freight/hooks/useProjectExpenseLines";
+import { useProjectEstimatedExpense } from "@/freight/hooks/useProjectEstimatedExpense";
+import { useProjectPurchases } from "@/freight/hooks/useProjectPurchases";
+import { useSegmentBudget } from "@/freight/hooks/useSegmentBudget";
+import { useLocale } from "@/hooks/useLocale";
+
+/* ─────────── Entity sets + filters ─────────── */
+
+const ENTITY_SETS = {
+  projects: "mserp_etgtryprojecttableentities",
+  // Sub-project rows — projeyi sefer/dönem leg'lerine bölen alt
+  // satırlar. FK = `mserp_projid`. Scope: cache'teki projeler.
+  subProject: "mserp_trysubprojectentities",
+  // Sub-project detail rows — alt-projenin itinerary/leg satırları.
+  // FK = `mserp_subprojectid`. Scope: cache'teki alt-projeler.
+  subProjectDetail: "mserp_trysubprojectdetailsentities",
+  ship: "mserp_tryaiprojectshiprelationentities",
+  lines: "mserp_tryaiprojectlineentities",
+  // Estimated expense — source entity for the "Tahmini Gider Toplamı"
+  // refresh-time aggregate. The aggregate is the only thing cached
+  // tenant-wide (composer's `costEstimate.totalUsd` reads it). Raw
+  // line lists (per project) come on-demand from
+  // `useProjectEstimatedExpense`.
+  expense: "mserp_tryaiotherexpenseentities",
+  // Realised expense distribution lines — fetched per-selected-project
+  // on-demand via the 3-step chain in `useProjectExpenseLines`.
+  actualExpense: "mserp_tryaifrtexpenselinedistlineentities",
+  // Realised project purchases — vendor invoice transactions. Fetched
+  // per-selected-project on-demand via `useProjectPurchases`. Master
+  // cache retired (sub-project union scope pushed it past quota).
+  purchase: "mserp_tryaivendinvoicetransentities",
+  // Customer invoice transactions (posted invoices), filtered per-project.
+  // Replaced earlier salesline entity which mostly carried the same data
+  // but in unposted form; invoice trans are the realised "actual" sales.
+  sales: "mserp_tryaicustinvoicetransentities",
+  // Sales / purchase order header tables — joined to invoice trans
+  // rows on `mserp_salesid` / `mserp_purchid` to identify financing
+  // (mserp_etgordertype === 'Finansman') orders, whose invoice rows
+  // are excluded from realised totals.
+  salesTable: "mserp_tryaisalestableentities",
+  purchTable: "mserp_tryaipurchtableentities",
+  // Vessel master — joined to ship rows via `mserp_vessel` (RecID)
+  // → `mserp_vesseltable_recid` to enrich each ship-relation row
+  // with a real vessel name + IMO. The fetch + ship-cache
+  // enrichment lives in `fetchVesselMasterAndEnrichShipCache`.
+  vesselTable: "mserp_tryvlxvesseltableentities",
+  // Segment-bazlı bütçe — fetched per-selected-segment on-demand via
+  // `useSegmentBudget`. Master cache retired.
+  budget: "mserp_tryaiprojectbudgetlineentities",
+} as const;
+
+/* ─────────── Page ─────────── */
+
+type TopTabKey = "projects" | "sub-projects" | "budget";
+type ChildTabKey =
+  | "lines"
+  | "ship"
+  | "expense"
+  | "actualExpense"
+  | "sales"
+  | "purchase";
+// Sub-project child tabs — same join surface as parent projects MINUS
+// "lines" (sub-projects don't carry their own line catalogue; that
+// belongs to the parent project). PLUS the "details" tab for the
+// sub-project's own itinerary detail rows from
+// `mserp_trysubprojectdetailsentities`.
+type SubChildTabKey =
+  | "details"
+  | "ship"
+  | "expense"
+  | "actualExpense"
+  | "sales"
+  | "purchase";
+
+
+export function DataManagementPage() {
+  const { t } = useLocale();
+  const [topTab, setTopTab] = React.useState<TopTabKey>("projects");
+  const [childTab, setChildTab] = React.useState<ChildTabKey>("lines");
+  // Sub-project child tab — independent state from the project child
+  // tab so each top-level tab remembers its own pane on switch.
+  const [subChildTab, setSubChildTab] =
+    React.useState<SubChildTabKey>("details");
+
+  // Unified Advanced Filter state — same shape as Dashboard / Vessel
+  // Projects. Veri Yönetimi defaults to "all projects in" (no
+  // ship-plan gate, no period cull) since the page is for raw-row
+  // inspection — operators expect to see the entire fetched scope by
+  // default and narrow down with explicit filter chips.
+  const [projectFilters, setProjectFilters] = React.useState<ProjectFilterState>(
+    () => makeEmptyFilters({ includeWithoutShipPlan: true, period: "all" })
+  );
+  // Free-text search applied across the projects master table AND
+  // the ship-plan child rows. Independent of the categorical
+  // AdvancedFilter — the two compose: filter narrows rows by
+  // dimension chips, search narrows by substring.
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const matchesSearch = React.useCallback(
+    (row: Record<string, unknown>): boolean => {
+      const q = searchQuery.trim().toLowerCase();
+      if (!q) return true;
+      // Substring match on every value in the row, cast to string —
+      // dates, numbers, codes, FormattedValue annotations all caught.
+      // `Object.values` walks the row in one pass; rows with hundreds
+      // of fields stay fast because we early-return on first hit.
+      for (const value of Object.values(row)) {
+        if (value == null) continue;
+        if (String(value).toLowerCase().includes(q)) return true;
+      }
+      return false;
+    },
+    [searchQuery]
+  );
+
+  // Domain Project[] (already-composed) — used to derive the allowed
+  // projectNo set after applying the unified filter, then narrow the
+  // raw `projects.rows` accordingly. Keeps the Dataverse Inspector's
+  // raw-row display unchanged while reusing the page-agnostic filter UI.
+  const { projects: domainProjects } = useProjects();
+  // Default sort: contractdate desc (newest first)
+  const [projectSort, setProjectSort] = React.useState<SortState | null>({
+    field: "mserp_contractdate",
+    direction: "desc",
+  });
+  // Selection by stable project ID — survives filter/sort/tab changes so the
+  // child panels + budget filter keep working when user explores other tabs.
+  const [selectedProjId, setSelectedProjId] = React.useState<string | null>(
+    null
+  );
+  // Same idea for Alt Projeler: clicking a row in the sub-project
+  // master table filters the bottom detail panel by this ID.
+  const [selectedSubProjectId, setSelectedSubProjectId] = React.useState<
+    string | null
+  >(null);
+
+  // 🔒 5 entity hooks — read-only, manual trigger via "Verileri Güncelle".
+  // Projects scope: dlvmode=Gemi + segment ne null. Mirrors
+  // `PROJECTS_FILTER` in refreshAll.ts so the inspector and the
+  // auto-refresh see the same working set.
+  const projects = useEntityRows<Record<string, unknown>>({
+    entitySet: ENTITY_SETS.projects,
+    query: {
+      $filter: PROJECTS_FILTER,
+      // Only fetch the columns we display — drops mserp_isorganic and below
+      // (sub-contract flags, financial dimensions, payment specs, etc.)
+      $select: PROJECT_COLUMNS.join(","),
+      $count: true,
+    },
+  });
+  // $select on each child entity — only priority columns + their formatted-value
+  // annotations come back. Reduces fetch payload + localStorage cache size so we
+  // don't blow past the 5–10 MB browser quota (lines table alone has ~3000 rows).
+  const ship = useEntityRows<Record<string, unknown>>({
+    entitySet: ENTITY_SETS.ship,
+    query: { $select: SHIP_COLUMNS.join(","), $count: true },
+  });
+  const lines = useEntityRows<Record<string, unknown>>({
+    entitySet: ENTITY_SETS.lines,
+    query: { $select: PROJECT_LINE_COLUMNS.join(","), $count: true },
+  });
+  // Alt-proje rows — read from the cache populated by the refresh
+  // chain's "Alt Projeler" step (scoped to active projids). Same
+  // shape as the master `projects` table, surfaced as its own top
+  // tab next to "Projeler".
+  const subProjects = useEntityRows<Record<string, unknown>>({
+    entitySet: ENTITY_SETS.subProject,
+    query: { $select: SUB_PROJECT_COLUMNS.join(","), $count: true },
+  });
+  // Alt-proje DETAY satırları — alt-projenin itinerary/leg
+  // satırları. FK = `mserp_subprojectid`. Refresh chain reads the
+  // sub-project cache, fetches matching detail rows, writes here.
+  const subProjectDetails = useEntityRows<Record<string, unknown>>({
+    entitySet: ENTITY_SETS.subProjectDetail,
+    query: { $select: SUB_PROJECT_DETAIL_COLUMNS.join(","), $count: true },
+  });
+  // Resolve selected project + its segment EARLY so the budget hook
+  // below can key on segment. Both lookups read from the projects cache
+  // — undefined when projects haven't loaded yet (acceptable: hook
+  // fires when segment becomes non-null).
+  const selectedProject = React.useMemo(() => {
+    if (!selectedProjId) return null;
+    return (
+      projects.rows.find((r) => r.mserp_projid === selectedProjId) ?? null
+    );
+  }, [projects.rows, selectedProjId]);
+  const selectedSegment =
+    (selectedProject?.["mserp_tryprojectsegment"] as string | undefined) ??
+    null;
+
+  // Per-selected-project ON-DEMAND fetches (master cache retired for
+  // quota reasons). Fire when `selectedProjId` changes — pattern lifted
+  // from `useProjectInvoices`. Each accepts a parent OR sub-project ID
+  // transparently (the FK column carries either form on this tenant).
+  const expense = useProjectEstimatedExpense(selectedProjId);
+  const purchase = useProjectPurchases(selectedProjId);
+  // Realised expense LINES — fetched per-selected project via a
+  // three-step chain (see `useProjectExpenseLines`):
+  //   0. inventdimb entity (`mserp_inventdimbientities`) filtered by
+  //      `mserp_inventdimension2 eq <projectNo>` → distinct
+  //      `mserp_inventdimid` keys
+  //   1. distribution entity (`mserp_tryaifrtexpenselinedistlineentities`)
+  //      filtered by `In(mserp_inventdimid, …)` → distinct expensenums
+  //   2. expense-line entity (`mserp_tryaiexpenselineentities`)
+  //      filtered by `In(mserp_expensenum, …)` → authoritative rows
+  // The inventdimb + dist entities are project-scoping filters only;
+  // the rows we surface here come from the expense-line entity. This
+  // is also the entity dashboard calculations will read from when we
+  // wire them up later.
+  const actualExpense = useProjectExpenseLines(selectedProjId);
+  // Customer invoice transactions — per-PROJECT server-side fetch.
+  // Entity is huge tenant-wide (thousands of invoiced rows; a single
+  // project can have 600+), so we filter to the selected project and
+  // pull every matching invoice. No row cap — `listAll` paginates as
+  // needed. Sorted by invoice date desc so the table reads newest-
+  // first. Effect below auto-refetches when the user picks a different
+  // project.
+  const salesQuery = React.useMemo(() => {
+    if (!selectedProjId) return { $top: 0 };
+    // Intercompany rows excluded server-side. Financing-order rows
+    // (`mserp_salesid` in cached financing set) are stripped CLIENT-SIDE
+    // below — F&O virtual entities reject `not In(...)` filters with
+    // a 405, so we can't push that exclusion to the server.
+    return {
+      $filter: `mserp_etgtryprojid eq '${selectedProjId}' and (${NON_INTERCOMPANY_FILTER})`,
+      $select: SALES_COLUMNS.join(","),
+      $orderby: "mserp_invoicedate desc",
+      $count: true,
+    };
+  }, [selectedProjId]);
+  const sales = useEntityRows<Record<string, unknown>>({
+    entitySet: ENTITY_SETS.sales,
+    query: salesQuery,
+  });
+
+  // Auto-fetch per-selected-project sales when the project changes.
+  // (`actualExpense` uses `useProjectExpenseLines`, which has its
+  // own `useEffect` keyed on projectNo — no manual refetch needed.)
+  React.useEffect(() => {
+    if (selectedProjId) {
+      void sales.refetch();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedProjId]);
+
+  // Diagnostic: log row counts for the on-demand per-project hooks
+  // ONCE per selectedProjId change. Skipped entirely when no project
+  // is selected (otherwise stale `fetchedAt` from a previous session
+  // triggers a misleading "Fetch çalıştı ama 0 satır" warning on
+  // initial mount). Console-only; no UI.
+  React.useEffect(() => {
+    if (!selectedProjId) return;
+    const probe = (
+      label: string,
+      rows: Record<string, unknown>[],
+      fetchedAt: string | null
+    ) => {
+      if (rows.length > 0) {
+        console.log(
+          `[${label}] ${selectedProjId}: ${rows.length} satır yüklendi.`
+        );
+      } else if (fetchedAt) {
+        console.log(
+          `[${label}] ${selectedProjId}: 0 satır — bu projede bu entity'de kayıt yok.`
+        );
+      }
+    };
+    probe("Gerçekleşen Gider", actualExpense.rows, actualExpense.fetchedAt);
+    probe("Proje Satınalma", purchase.rows, purchase.fetchedAt);
+  }, [
+    selectedProjId,
+    actualExpense.rows,
+    actualExpense.fetchedAt,
+    purchase.rows,
+    purchase.fetchedAt,
+  ]);
+  // Segment-bazlı bütçe — ON-DEMAND. Selected project'in segmenti
+  // değişince fetch (sub-project'lerde parent'tan miras alınan segment).
+  // Master tenant-wide bütçe cache'i retired — `useSegmentBudget` tek
+  // segment'i sorgular, küçük payload + cache slot paylaşımı.
+  const budget = useSegmentBudget(selectedSegment);
+
+  /* Excel export sheets — yalnızca "Verileri Güncelle" ile DOLAN master
+   * cache'ler (projeye tıklayınca dolan on-demand sekmeler — Tahmini /
+   * Gerçekleşen Gider, Satış, Satınalma, Segment Bütçesi — bilinçli
+   * olarak HARİÇ). İlk sayfa Projeler; sıra bu dizinin sırasıdır.
+   * Satırlar tıklama ANINDA okunur (callback), böylece butona basmadan
+   * hemen önce koşan bir Güncelle'nin taze verisi iner. Filtre/arama
+   * uygulanmaz — Güncelle'nin çektiği TAM veri seti dışa aktarılır. */
+  const buildExcelSheets = React.useCallback(
+    (): ExcelSheetSpec[] => [
+      {
+        name: t("dm.excel.sheet.projects"),
+        rows: projects.rows,
+        columns: PROJECT_COLUMNS,
+      },
+      {
+        name: t("dm.excel.sheet.subProjects"),
+        rows: subProjects.rows,
+        columns: SUB_PROJECT_COLUMNS,
+      },
+      {
+        name: t("dm.excel.sheet.lines"),
+        rows: lines.rows,
+        columns: PROJECT_LINE_COLUMNS,
+      },
+      // Display sırası — gemi-master'dan zenginleştirilen alanlar
+      // (örn. mserp_vesselname) başa yakın gelsin diye $select listesi
+      // yerine inspector'ın görüntü dizilimi kullanılıyor.
+      {
+        name: t("dm.excel.sheet.ship"),
+        rows: ship.rows,
+        columns: SHIP_DISPLAY_COLUMNS,
+      },
+      {
+        name: t("dm.excel.sheet.subProjectDetails"),
+        rows: subProjectDetails.rows,
+        columns: SUB_PROJECT_DETAIL_COLUMNS,
+      },
+    ],
+    [
+      t,
+      projects.rows,
+      subProjects.rows,
+      lines.rows,
+      ship.rows,
+      subProjectDetails.rows,
+    ]
+  );
+
+  /* Sequential refresh steps — RefreshAllButton fires these in order.
+   *
+   * Strategy:
+   *   1. Projeler — server filter `dlvmode='Gemi' AND segment ne null`
+   *      (+ optional trader narrow when env is set).
+   *   2. Read fresh project IDs from the just-written cache.
+   *   3. Lines / Ship / Expense — `Microsoft.Dynamics.CRM.In(...)` filter
+   *      built from those IDs (~7.5KB URL, well under Dataverse limits).
+   *      Reduces tenant-wide payloads (3.3K + 0.4K + 0.65K = ~4.3K rows)
+   *      to only the rows actually linked to the in-scope projects.
+   *   4. Tahmini Bütçe — segment-based, no project filter (1267 rows).
+   *
+   * Sales (invoices) intentionally OUT — fetched per selected project via
+   * the effect above; can hit hundreds of rows for a single big project. */
+  const refreshSteps = React.useMemo(() => {
+    // Project-id IN filters get URL-encoded into ~10KB+ when we send
+    // every project as one request. Some networks (proxies / CDNs in
+    // front of Dataverse) reject those at HTTP 400/414 — auto-refresh
+    // hit it post-login while the manual click later succeeded only
+    // because the proxy state had warmed up. Solution: chunk the IN
+    // list (100/batch) via the helpers from refreshAll.ts. Both the
+    // post-login auto-refresh and this manual button now share the
+    // same code path, so success/failure modes stay aligned.
+    const readProjids = (): string[] => {
+      const cached = readCache<Record<string, unknown>>(ENTITY_SETS.projects);
+      return (cached?.value ?? [])
+        .map((p) => p.mserp_projid as string | undefined)
+        .filter((s): s is string => !!s);
+    };
+    // Union of parent projids + sub-projids — every "child entity by
+    // project FK" step (ship, expense, purchase, sales, monthly sales)
+    // must use this so the rows attached to sub-projects flow through
+    // the same caches. Mirrors `readAllScopedProjids` in refreshAll.ts.
+    // "Proje Satırları" + "Alt Projeler" stay on `readProjids()` (parent
+    // catalogue only; sub-projects don't own their own line list).
+    const readAllScopedProjids = (): string[] => {
+      const projCache = readCache<Record<string, unknown>>(
+        ENTITY_SETS.projects
+      );
+      const subCache = readCache<Record<string, unknown>>(
+        ENTITY_SETS.subProject
+      );
+      const ids = new Set<string>();
+      for (const row of projCache?.value ?? []) {
+        const id = row.mserp_projid as string | undefined;
+        if (id) ids.add(id);
+      }
+      for (const row of subCache?.value ?? []) {
+        const id = row.mserp_subprojectid as string | undefined;
+        if (id) ids.add(id);
+      }
+      return [...ids];
+    };
+    return [
+      { label: "Projeler", refetch: projects.refetch },
+      {
+        label: "Proje Satırları",
+        refetch: async () => {
+          const client = getDataverseClient();
+          const projids = readProjids();
+          const result = await listAllByInChunked<Record<string, unknown>>(
+            client,
+            ENTITY_SETS.lines,
+            "mserp_projid",
+            projids,
+            { $select: PROJECT_LINE_COLUMNS.join(","), $count: true }
+          );
+          writeCache(ENTITY_SETS.lines, {
+            fetchedAt: new Date().toISOString(),
+            value: result.value,
+            totalCount: result.totalCount,
+          });
+        },
+      },
+      {
+        label: "Alt Projeler",
+        refetch: async () => {
+          const client = getDataverseClient();
+          const projids = readProjids();
+          const result = await listAllByInChunked<Record<string, unknown>>(
+            client,
+            ENTITY_SETS.subProject,
+            "mserp_projid",
+            projids,
+            { $select: SUB_PROJECT_COLUMNS.join(","), $count: true },
+            undefined,
+            // Extra server-side filter: only sea-mode sub-projects
+            // (mirrors the parent project scope).
+            "mserp_dlvmodeid eq 'Gemi'"
+          );
+          writeCache(ENTITY_SETS.subProject, {
+            fetchedAt: new Date().toISOString(),
+            value: result.value,
+            totalCount: result.totalCount,
+          });
+        },
+      },
+      {
+        label: "Alt Proje Satırları",
+        refetch: async () => {
+          // Reads the freshly-written sub-project cache to know
+          // which IDs are in scope, then fetches detail rows with
+          // `IN(mserp_subprojectid, [...])`.
+          const client = getDataverseClient();
+          const cached = readCache<Record<string, unknown>>(
+            ENTITY_SETS.subProject
+          );
+          const subIds = (cached?.value ?? [])
+            .map((r) => r.mserp_subprojectid as string | undefined)
+            .filter((s): s is string => !!s);
+          if (subIds.length === 0) {
+            writeCache(ENTITY_SETS.subProjectDetail, {
+              fetchedAt: new Date().toISOString(),
+              value: [],
+              totalCount: 0,
+            });
+            return;
+          }
+          const result = await listAllByInChunked<Record<string, unknown>>(
+            client,
+            ENTITY_SETS.subProjectDetail,
+            "mserp_subprojectid",
+            subIds,
+            {
+              $select: SUB_PROJECT_DETAIL_COLUMNS.join(","),
+              $count: true,
+            }
+          );
+          writeCache(ENTITY_SETS.subProjectDetail, {
+            fetchedAt: new Date().toISOString(),
+            value: result.value,
+            totalCount: result.totalCount,
+          });
+        },
+      },
+      {
+        label: "Gemi Planı",
+        refetch: async () => {
+          const client = getDataverseClient();
+          // Union of parent + sub-project IDs — sub-projects own their
+          // own ship-plan rows on this tenant (joined via the same
+          // `mserp_tryshipprojid` FK).
+          const projids = readAllScopedProjids();
+          const result = await listAllByInChunked<Record<string, unknown>>(
+            client,
+            ENTITY_SETS.ship,
+            "mserp_tryshipprojid",
+            projids,
+            { $select: SHIP_COLUMNS.join(","), $count: true }
+          );
+          writeCache(ENTITY_SETS.ship, {
+            fetchedAt: new Date().toISOString(),
+            value: result.value,
+            totalCount: result.totalCount,
+          });
+        },
+      },
+      {
+        // Vessel master lookup — same helper the auto-refresh chain
+        // uses. Runs RIGHT AFTER Gemi Planı so the freshly-written
+        // ship cache is the one we enrich. Bails gracefully if the
+        // ship cache wasn't populated.
+        label: "Gemi Bilgileri",
+        refetch: async () => {
+          const client = getDataverseClient();
+          await fetchVesselMasterAndEnrichShipCache(client);
+        },
+      },
+      {
+        // Was a raw-row fetch into the master expense cache; now
+        // aggregates client-side into per-(projid, expenseTypeCode)
+        // entries BEFORE writing cache. Composer reads this aggregate
+        // and multiplies `totalUnitUsd` by project tons to derive
+        // `costEstimate` buckets. Raw expense rows (when the
+        // EstimatedExpenseCard or Veri Yönetimi inspector needs them)
+        // are fetched per-selected-project via
+        // `useProjectEstimatedExpense`. See refreshAll.ts for the
+        // mirrored auto-refresh step.
+        label: "Tahmini Gider Toplamı",
+        refetch: async () => {
+          const client = getDataverseClient();
+          const projids = readAllScopedProjids();
+          // Fetch BOTH FK views (plan-detail + header) and keep whichever
+          // is fuller per project — see reconcileEstimatedExpense in
+          // refreshAll.ts. MUST stay in sync with that step.
+          const [planRes, headerRes] = await Promise.all([
+            listAllByInChunked<Record<string, unknown>>(
+              client,
+              ENTITY_SETS.expense,
+              "mserp_tryplanprojectid",
+              projids,
+              { $select: EXPENSE_COLUMNS.join(","), $count: true }
+            ),
+            listAllByInChunked<Record<string, unknown>>(
+              client,
+              ENTITY_SETS.expense,
+              "mserp_etgtryprojid",
+              projids,
+              { $select: EXPENSE_COLUMNS.join(","), $count: true }
+            ),
+          ]);
+          const rows = reconcileEstimatedExpense(planRes.value, headerRes.value);
+          writeCache(ESTIMATED_EXPENSE_AGGREGATE_CACHE, {
+            fetchedAt: new Date().toISOString(),
+            value: rows,
+            totalCount: rows.length,
+          });
+        },
+      },
+      {
+        // Build the exclusion list of sales orders flagged
+        // "Finansman" on their header so the next steps (sales
+        // aggregate, monthly sales, per-project invoice fetch) can
+        // chain a `not In(...)` clause and drop those invoice rows
+        // server-side. Label leads with "Hariç" so the user reads
+        // it as "we're EXCLUDING financing", not "we're fetching
+        // financing".
+        label: "Gerçekleşen Satış",
+        refetch: async () => {
+          const client = getDataverseClient();
+          // Discovery + targeted filter via `fetchFinancingOrderIds`:
+          //   1. groupby → distinct option-set codes (~5-10 row)
+          //   2. eq <Finansman code> → just the financing salesids
+          // No full-table pull, no client-side filter on huge payload.
+          const ids = await fetchFinancingOrderIds(
+            client,
+            ENTITY_SETS.salesTable,
+            "mserp_salesid"
+          );
+          writeCache(FINANCING_SALES_IDS_CACHE, {
+            fetchedAt: new Date().toISOString(),
+            value: ids,
+          });
+        },
+      },
+      {
+        label: "Gerçekleşen Satınalma",
+        refetch: async () => {
+          const client = getDataverseClient();
+          const ids = await fetchFinancingOrderIds(
+            client,
+            ENTITY_SETS.purchTable,
+            "mserp_purchid"
+          );
+          writeCache(FINANCING_PURCH_IDS_CACHE, {
+            fetchedAt: new Date().toISOString(),
+            value: ids,
+          });
+        },
+      },
+      // "Gerçekleşen Gider" intentionally OUT of the bulk refresh.
+      // Granular distribution lines per project — the tenant-wide
+      // payload pushed the localStorage cache over its quota when
+      // bundled with lines / ship / expense / sales / etc, causing
+      // those caches to be evicted by the older "smart eviction"
+      // implementation. Now fetched per-project on demand by the
+      // `actualExpense` useEntityRows hook above (effect refetches
+      // whenever `selectedProjId` changes).
+      // NOTE: "Satınalma Faturaları" + "Tahmini Bütçe" both REMOVED
+      // from the bulk refresh chain. Per-selected-project on-demand
+      // hooks now handle these:
+      //   - `useProjectPurchases(projectNo)` — Veri Yönetimi
+      //     "Satınalma Faturaları" tab + BudgetSalesCard "Alım" side
+      //   - `useSegmentBudget(segment)` — Veri Yönetimi
+      //     "Tahmini Bütçe (Segment)" tab
+      // Master caches retired to keep localStorage under quota once
+      // sub-project union scope started multiplying cache size.
+      {
+        // Per-project invoiced sales totals (segmented by currency).
+        // Chunked $apply pipeline — each chunk groups its slice of
+        // projids; chunks don't overlap so the row arrays just
+        // concatenate. Intercompany rows excluded.
+        label: "Satış Toplamları",
+        refetch: async () => {
+          // Financing-order rows can't be excluded server-side (F&O
+          // rejects `not In(...)`, no salesid → header navigation).
+          // We include `mserp_salesid` in the groupby key so the
+          // response carries one row per (projid, currency, salesid),
+          // strip financing salesids client-side, then re-aggregate
+          // on (projid, currency) to match the cache shape downstream
+          // consumers expect.
+          //
+          // Union scope: parent + sub-projects so a sub-project's
+          // realised sales total lands in the same per-project cache
+          // keyed by either parent or sub-project FK.
+          const client = getDataverseClient();
+          const projids = readAllScopedProjids();
+          const result = await applyByInChunked<Record<string, unknown>>(
+            client,
+            "mserp_tryaicustinvoicetransentities",
+            "mserp_etgtryprojid",
+            projids,
+            (inClause) =>
+              `filter((${inClause}) and (${NON_INTERCOMPANY_FILTER}))/groupby((mserp_etgtryprojid,mserp_currencycode,mserp_salesid),aggregate(mserp_lineamount with sum as total,mserp_qty with sum as qty,$count as cnt))`
+          );
+          const financingSet = getFinancingSalesIdSet();
+          const rolled = new Map<
+            string,
+            {
+              projid: string;
+              currency: string;
+              total: number;
+              qty: number;
+              cnt: number;
+            }
+          >();
+          for (const row of result.value) {
+            const salesid = String(row.mserp_salesid ?? "");
+            if (financingSet.has(salesid)) continue;
+            const projid = String(row.mserp_etgtryprojid ?? "");
+            const currency = String(row.mserp_currencycode ?? "");
+            if (!projid) continue;
+            const key = `${projid}::${currency}`;
+            const total = Number(row.total) || 0;
+            const qty = Number(row.qty) || 0;
+            const cnt = Number(row.cnt) || 0;
+            const existing = rolled.get(key);
+            if (existing) {
+              existing.total += total;
+              existing.qty += qty;
+              existing.cnt += cnt;
+            } else {
+              rolled.set(key, { projid, currency, total, qty, cnt });
+            }
+          }
+          const reAggregated: Record<string, unknown>[] = [];
+          for (const r of rolled.values()) {
+            reAggregated.push({
+              mserp_etgtryprojid: r.projid,
+              mserp_currencycode: r.currency,
+              total: r.total,
+              qty: r.qty,
+              cnt: r.cnt,
+            });
+          }
+          writeCache("salesAggregateByProject", {
+            fetchedAt: new Date().toISOString(),
+            value: reAggregated,
+          });
+        },
+      },
+      {
+        // Realized PURCHASE aggregate — exact mirror of "Satış
+        // Toplamları" on the vendor-invoice entity. MUST stay in sync
+        // with the identical step in `refreshAll.ts` (both refresh
+        // paths have to populate `purchaseAggregateByProject`, else the
+        // dashboard's realized P&L drops the Alım side). FK is
+        // `mserp_purchtable_etgtryprojid`; financing-order rows stripped
+        // client-side via `mserp_purchid`.
+        label: "Satınalma Toplamları",
+        refetch: async () => {
+          const client = getDataverseClient();
+          const projids = readAllScopedProjids();
+          const result = await applyByInChunked<Record<string, unknown>>(
+            client,
+            "mserp_tryaivendinvoicetransentities",
+            "mserp_purchtable_etgtryprojid",
+            projids,
+            (inClause) =>
+              `filter((${inClause}) and (${NON_INTERCOMPANY_FILTER}))/groupby((mserp_purchtable_etgtryprojid,mserp_currencycode,mserp_purchid),aggregate(mserp_lineamount with sum as total,$count as cnt))`
+          );
+          const financingSet = getFinancingPurchIdSet();
+          const rolled = new Map<
+            string,
+            { projid: string; currency: string; total: number; cnt: number }
+          >();
+          for (const row of result.value) {
+            const purchid = String(row.mserp_purchid ?? "");
+            if (financingSet.has(purchid)) continue;
+            const projid = String(row.mserp_purchtable_etgtryprojid ?? "");
+            const currency = String(row.mserp_currencycode ?? "");
+            if (!projid) continue;
+            const key = `${projid}::${currency}`;
+            const total = Number(row.total) || 0;
+            const cnt = Number(row.cnt) || 0;
+            const existing = rolled.get(key);
+            if (existing) {
+              existing.total += total;
+              existing.cnt += cnt;
+            } else {
+              rolled.set(key, { projid, currency, total, cnt });
+            }
+          }
+          const reAggregated: Record<string, unknown>[] = [];
+          for (const r of rolled.values()) {
+            reAggregated.push({
+              mserp_purchtable_etgtryprojid: r.projid,
+              mserp_currencycode: r.currency,
+              total: r.total,
+              cnt: r.cnt,
+            });
+          }
+          writeCache("purchaseAggregateByProject", {
+            fetchedAt: new Date().toISOString(),
+            value: reAggregated,
+          });
+        },
+      },
+      {
+        // Segment × month budget for the E.M Bakış realized-vs-projected
+        // table. MUST stay in sync with refreshAll.ts. Small entity
+        // pulled raw + folded to per-(segment, month) net P&L.
+        label: "Bütçe Toplamları",
+        refetch: async () => {
+          const client = getDataverseClient();
+          const result = await client.listAll<Record<string, unknown>>(
+            "mserp_tryaiprojectbudgetlineentities",
+            { $select: BUDGET_COLUMNS.join(","), $count: true }
+          );
+          writeCache(SEGMENT_BUDGET_BY_MONTH_CACHE, {
+            fetchedAt: new Date().toISOString(),
+            value: aggregateSegmentBudgetByMonth(result.value),
+          });
+        },
+      },
+      // NOTE: "Proje × Ay Satış" REMOVED — see refreshAll.ts for
+      // rationale. Cache was never read by any consumer; step took
+      // 60-90s after sub-project elevation. If we ever need monthly
+      // trends, add a server-side groupby aggregate instead of pulling
+      // raw rows.
+      // NOTE: "Gerçekleşen Gider Toplamları" intentionally OUT of the
+      // bulk refresh — see refreshAll.ts for rationale. P&L Cost page
+      // lazy-loads it on mount.
+    ];
+  }, [projects.refetch]);
+
+  // Apply unified filter (period + categorical) on the domain Project
+  // list, derive the allowed projectNo set, then narrow the raw rows
+  // by `mserp_projid` membership. Sort at the end.
+  const allowedProjectNos = React.useMemo(() => {
+    const filtered = applyProjectFilter(domainProjects, projectFilters);
+    return new Set(filtered.map((p) => p.projectNo));
+  }, [domainProjects, projectFilters]);
+
+  // Inspector-specific projid allow-list: extends `allowedProjectNos`
+  // (composer-elevated set — sub-project IDs when a parent was hidden)
+  // with the PARENT projids of any sub-project that passed the filter.
+  //
+  // Why: Vessel Projects + Dashboard work with the composer's elevated
+  // shape (parent hidden, voyage-leg sub-projects shown). Veri Yönetimi
+  // is a raw-row inspector — the user expects to see the parent row in
+  // the projects table even if it has elevated sub-projects. Without
+  // this widening, `projects.rows.filter(r => allowedProjectNos.has(r.mserp_projid))`
+  // silently drops every parent of an elevated sub-project (e.g.
+  // ORGANIK01 is in the projects cache but composer elevated its
+  // sub-projects to first-class entries, so `mserp_projid="ORGANIK01"`
+  // isn't in `allowedProjectNos`).
+  const allowedParentProjectNos = React.useMemo(() => {
+    const result = new Set(allowedProjectNos);
+    for (const sub of subProjects.rows) {
+      const subId = String(sub.mserp_subprojectid ?? "");
+      if (subId && allowedProjectNos.has(subId)) {
+        const parentId = String(sub.mserp_projid ?? "");
+        if (parentId) result.add(parentId);
+      }
+    }
+    return result;
+  }, [allowedProjectNos, subProjects.rows]);
+
+  const visibleProjects = React.useMemo(() => {
+    let filtered = projects.rows.filter((r) =>
+      allowedParentProjectNos.has(String(r.mserp_projid ?? ""))
+    );
+    if (searchQuery.trim()) filtered = filtered.filter(matchesSearch);
+    return sortRows(filtered, projectSort);
+  }, [
+    projects.rows,
+    allowedParentProjectNos,
+    projectSort,
+    searchQuery,
+    matchesSearch,
+  ]);
+
+  // `selectedProject` + `selectedSegment` lifted to the data-fetching
+  // section above so the budget on-demand hook can key on segment.
+  // This block remains for `selectedVisibleIndex` only (depends on
+  // `visibleProjects` which is declared just before this).
+  const selectedVisibleIndex = React.useMemo(() => {
+    if (!selectedProjId) return null;
+    const i = visibleProjects.findIndex(
+      (r) => r.mserp_projid === selectedProjId
+    );
+    return i >= 0 ? i : null;
+  }, [visibleProjects, selectedProjId]);
+
+  /* Filter children to selected project. */
+  const childLines = React.useMemo(
+    () =>
+      selectedProjId
+        ? lines.rows.filter((r) => r["mserp_projid"] === selectedProjId)
+        : [],
+    [lines.rows, selectedProjId]
+  );
+  const childShip = React.useMemo(
+    () => {
+      if (!selectedProjId) return [];
+      let rows = ship.rows.filter(
+        (r) => r["mserp_tryshipprojid"] === selectedProjId
+      );
+      // Search applies to the ship-plan child too — user explicitly
+      // asked for projects + gemi planı text search in one pass.
+      if (searchQuery.trim()) rows = rows.filter(matchesSearch);
+      return rows;
+    },
+    [ship.rows, selectedProjId, searchQuery, matchesSearch]
+  );
+  const childExpense = React.useMemo(
+    () =>
+      selectedProjId
+        ? expense.rows.filter(
+            // FK is `mserp_etgtryprojid` on the new
+            // `mserp_tryaiotherexpenseentities` entity.
+            (r) => r["mserp_etgtryprojid"] === selectedProjId
+          )
+        : [],
+    [expense.rows, selectedProjId]
+  );
+  // Expense-line rows are already server-side scoped to the
+  // selected project (via the three-step chain in
+  // `useProjectExpenseLines` — inventdimb → dist → expense-line),
+  // so no client-side filter is needed — a redundant filter on
+  // `mserp_etgtryprojid` would always return 0 rows because the
+  // expense-line entity doesn't carry that FK.
+  const childActualExpense = actualExpense.rows;
+  // Realised purchase rows for the selected project — FK is the
+  // flattened parent-table column `mserp_purchtable_etgtryprojid`.
+  const childPurchase = React.useMemo(
+    () =>
+      selectedProjId
+        ? purchase.rows.filter(
+            (r) => r["mserp_purchtable_etgtryprojid"] === selectedProjId
+          )
+        : [],
+    [purchase.rows, selectedProjId]
+  );
+  // Sales rows for the selected project — joined via mserp_etgtryprojid
+  // (custom Tiryaki field on the sales line carrying the project ID).
+  // Financing-order rows (mserp_salesid in cached financing set) are
+  // stripped here CLIENT-SIDE because F&O rejects `not In(...)` filters
+  // server-side. Set is rebuilt on every memo run; cheap (~300 IDs).
+  const childSales = React.useMemo(() => {
+    if (!selectedProjId) return [];
+    const projectRows = sales.rows.filter(
+      (r) => r["mserp_etgtryprojid"] === selectedProjId
+    );
+    const financingSet = getFinancingSalesIdSet();
+    return financingSet.size > 0
+      ? projectRows.filter(
+          (r) => !financingSet.has(String(r["mserp_salesid"] ?? ""))
+        )
+      : projectRows;
+  }, [sales.rows, selectedProjId]);
+
+  // Alt-proje rows narrowed to the visible (advanced-filtered)
+  // projects so the "Alt Projeler" tab respects the same chip
+  // selection the "Projeler" tab uses. Search query also applies
+  // — substring match across every field via `matchesSearch`.
+  //
+  // Filter on `allowedParentProjectNos` (which carries raw parent
+  // projids) instead of `allowedProjectNos` (composer-elevated set).
+  // Same reason as `visibleProjects` above: a parent like ORGANIK01
+  // sits in the projects cache but composer hid it behind its elevated
+  // sub-projects. Sub-project rows' FK is `mserp_projid` (the parent),
+  // so we need the parent's projid in the allow set for them to pass.
+  const scopedSubProjects = React.useMemo(() => {
+    let rows = subProjects.rows.filter((r) =>
+      allowedParentProjectNos.has(String(r["mserp_projid"] ?? ""))
+    );
+    if (searchQuery.trim()) rows = rows.filter(matchesSearch);
+    return rows;
+  }, [subProjects.rows, allowedParentProjectNos, searchQuery, matchesSearch]);
+
+  // Alt-proje detay satırları — selected sub-project'e göre
+  // filtrelenir. Hiç seçim yoksa empty döner (kullanıcı üstten
+  // bir alt-proje seçmeli — same pattern as Projeler child tabs).
+  const childSubProjectDetails = React.useMemo(() => {
+    if (!selectedSubProjectId) return [];
+    return subProjectDetails.rows.filter(
+      (r) => r["mserp_subprojectid"] === selectedSubProjectId
+    );
+  }, [subProjectDetails.rows, selectedSubProjectId]);
+
+  // Index of the selected sub-project row inside scopedSubProjects
+  // (for the master table's `selectedIndex` highlight prop).
+  const selectedSubProjectIndex = React.useMemo(() => {
+    if (!selectedSubProjectId) return undefined;
+    const idx = scopedSubProjects.findIndex(
+      (r) => r["mserp_subprojectid"] === selectedSubProjectId
+    );
+    return idx >= 0 ? idx : undefined;
+  }, [scopedSubProjects, selectedSubProjectId]);
+
+  // Budget rows filtered to selected project's segment (when applicable).
+  // Computed at page level so the tab badge can show the filtered count.
+  const filteredBudgetRows = React.useMemo(() => {
+    if (!selectedProjId || !selectedSegment || selectedSegment.length === 0) {
+      return budget.rows;
+    }
+    return budget.rows.filter((r) => r.mserp_segment === selectedSegment);
+  }, [budget.rows, selectedProjId, selectedSegment]);
+
+  // Top tabs — counts reflect active filter (visible projects +
+  // filtered budget + scoped sub-projects).
+  const topTabs: TabItem[] = [
+    {
+      key: "projects",
+      label: t("dm.tab.projects"),
+      count: visibleProjects.length || projects.rows.length || undefined,
+    },
+    {
+      key: "sub-projects",
+      label: t("dm.tab.subProjects"),
+      count: scopedSubProjects.length || subProjects.rows.length || undefined,
+    },
+    {
+      key: "budget",
+      label: t("dm.tab.budget"),
+      count: filteredBudgetRows.length || undefined,
+    },
+  ];
+
+  // Bottom panel tabs (only shown when "projects" top tab + project selected)
+  const childTabs: TabItem[] = [
+    { key: "lines", label: t("dm.tab.lines"), count: childLines.length },
+    { key: "ship", label: t("dm.tab.ship"), count: childShip.length },
+    {
+      key: "expense",
+      label: t("dm.tab.expense"),
+      count: childExpense.length,
+    },
+    {
+      key: "actualExpense",
+      label: t("dm.tab.actualExpense"),
+      count: childActualExpense.length,
+    },
+    {
+      key: "sales",
+      label: t("dm.tab.sales"),
+      count: childSales.length,
+    },
+    {
+      key: "purchase",
+      label: t("dm.tab.purchase"),
+      count: childPurchase.length,
+    },
+  ];
+
+  // Sub-project child tabs — mirrors `childTabs` minus "lines" (sub-
+  // projects don't own a line catalogue) and with "details" added at
+  // the front for the sub-project's own itinerary rows.
+  const subChildTabs: TabItem[] = [
+    {
+      key: "details",
+      label: t("dm.tab.subProjectDetails"),
+      count: childSubProjectDetails.length,
+    },
+    { key: "ship", label: t("dm.tab.ship"), count: childShip.length },
+    {
+      key: "expense",
+      label: t("dm.tab.expense"),
+      count: childExpense.length,
+    },
+    {
+      key: "actualExpense",
+      label: t("dm.tab.actualExpense"),
+      count: childActualExpense.length,
+    },
+    {
+      key: "sales",
+      label: t("dm.tab.sales"),
+      count: childSales.length,
+    },
+    {
+      key: "purchase",
+      label: t("dm.tab.purchase"),
+      count: childPurchase.length,
+    },
+  ];
+
+  return (
+    <ScrollArea className="h-full">
+      <div className="space-y-3 pb-3">
+        {/* ── Top tabs (Projeler / Tahmini Bütçe) + page actions on the right ── */}
+        <GlassPanel tone="default" className="rounded-2xl">
+          <div className="px-3 py-2 flex items-center gap-3 flex-wrap">
+            <div className="min-w-0 flex-1">
+              <TabStrip
+                tabs={topTabs}
+                activeKey={topTab}
+                onChange={(k) => setTopTab(k as TopTabKey)}
+              />
+            </div>
+            {/* Search + filter every tab — both inputs feed shared state
+                (`searchQuery`, `projectFilters`) that downstream memos
+                consume per-tab:
+                  - "Projeler"   → projects.rows  (via visibleProjects)
+                  - "Alt Projeler" → subProjects.rows (via scopedSubProjects)
+                  - "Tahmini Bütçe (Segment)" → budget.rows filtered by the
+                    selected project's segment (passes search through
+                    `matchesSearch` if applied).
+                Counts surface differently per tab so the AdvancedFilter
+                badge mirrors what the user is looking at. */}
+            <DataInspectorSearch
+              value={searchQuery}
+              onChange={setSearchQuery}
+            />
+            <AdvancedFilter
+              projects={domainProjects}
+              filters={projectFilters}
+              onChange={setProjectFilters}
+              shipPlanDefault={true}
+              periodDefault="all"
+              resultCount={
+                topTab === "sub-projects"
+                  ? scopedSubProjects.length
+                  : topTab === "budget"
+                    ? filteredBudgetRows.length
+                    : visibleProjects.length
+              }
+              totalCount={
+                topTab === "sub-projects"
+                  ? subProjects.rows.length
+                  : topTab === "budget"
+                    ? budget.rows.length
+                    : projects.rows.length
+              }
+              collapsible
+            />
+            <ExcelExportButton sheets={buildExcelSheets} />
+            <RefreshAllButton steps={refreshSteps} />
+          </div>
+        </GlassPanel>
+
+        {/* ── Top body: master table ── */}
+        {topTab === "projects" && (
+          <GlassPanel tone="default" className="rounded-2xl overflow-hidden">
+            <CacheBanner
+              fetchedAt={projects.fetchedAt}
+              isFetching={projects.isFetching}
+              loaded={projects.loaded}
+              count={visibleProjects.length}
+              totalCount={
+                projects.rows.length !== visibleProjects.length
+                  ? projects.rows.length
+                  : projects.totalCount
+              }
+              error={projects.error}
+            />
+            {/* Search + Advanced Filter live in the Dataverse Inspector header
+             *  now (alongside Güncelle), so no toolbar row needed here. */}
+            {/* All-columns sortable table — horizontal scroll for wide schemas.
+             *  Compact height so bottom child panel gets more breathing room. */}
+            <EntityRowsTable
+              rows={visibleProjects}
+              // Explicit columns (not just priority) — only these are shown.
+              // mserp_isorganic and everything after is hidden + not fetched.
+              columns={[...PROJECT_COLUMNS]}
+              onRowClick={(row) => {
+                const id = row.mserp_projid as string | undefined;
+                // Toggle off if clicking the already-selected row
+                setSelectedProjId((prev) => (prev === id ? null : id ?? null));
+              }}
+              selectedIndex={selectedVisibleIndex}
+              sort={projectSort}
+              onSortChange={setProjectSort}
+              emptyText={
+                projects.rows.length === 0
+                  ? t("dm.empty.notFetched")
+                  : t("dm.empty.noProjectMatch")
+              }
+              maxHeight="34vh"
+            />
+          </GlassPanel>
+        )}
+        {topTab === "sub-projects" && (
+          <>
+            <GlassPanel tone="default" className="rounded-2xl overflow-hidden">
+              <CacheBanner
+                fetchedAt={subProjects.fetchedAt}
+                isFetching={subProjects.isFetching}
+                loaded={subProjects.loaded}
+                count={scopedSubProjects.length}
+                totalCount={
+                  subProjects.rows.length !== scopedSubProjects.length
+                    ? subProjects.rows.length
+                    : subProjects.totalCount
+                }
+                error={subProjects.error}
+              />
+              <EntityRowsTable
+                rows={scopedSubProjects}
+                columns={[...SUB_PROJECT_COLUMNS]}
+                onRowClick={(row) => {
+                  const id = row.mserp_subprojectid as string | undefined;
+                  // Set BOTH selection slots to the sub-project ID:
+                  //  • `selectedSubProjectId` drives the master-table
+                  //    highlight + the "Alt Proje Satırları" tab
+                  //    (filtered by `mserp_subprojectid` FK).
+                  //  • `selectedProjId` reuses the existing per-project
+                  //    hooks (`sales`, `actualExpense`) and the cached
+                  //    child filters (childShip / childExpense /
+                  //    childPurchase) which all join through FKs that
+                  //    accept either a parent projid OR a sub-projid
+                  //    transparently — the F&O custom layer writes both
+                  //    forms into the same FK columns.
+                  setSelectedSubProjectId((prev) =>
+                    prev === id ? null : id ?? null
+                  );
+                  setSelectedProjId((prev) =>
+                    prev === id ? null : id ?? null
+                  );
+                }}
+                selectedIndex={selectedSubProjectIndex}
+                emptyText={
+                  subProjects.rows.length === 0
+                    ? t("dm.empty.notFetched")
+                    : t("dm.empty.noSubProjectMatch")
+                }
+                maxHeight="34vh"
+              />
+            </GlassPanel>
+            {/* Child panel — full tab strip matching Projeler MINUS
+                "lines" (sub-projects don't own a line catalogue) PLUS
+                "details" (alt-proje detay satırları). Every other tab
+                reads through the same per-project hooks + cached
+                memoized filters; the `selectedSubProjectId` value also
+                lands in `selectedProjId` (see the row-click handler
+                above) so the existing FKs (`mserp_tryshipprojid`,
+                `mserp_etgtryprojid`, `mserp_purchtable_etgtryprojid`)
+                resolve transparently. */}
+            <GlassPanel tone="default" className="rounded-2xl overflow-hidden">
+              <div className="px-3 py-2 border-b border-foreground/[0.04]">
+                <TabStrip
+                  tabs={subChildTabs}
+                  activeKey={subChildTab}
+                  onChange={(k) => setSubChildTab(k as SubChildTabKey)}
+                />
+              </div>
+              {subChildTab === "details" && (
+                <>
+                  <CacheBanner
+                    fetchedAt={subProjectDetails.fetchedAt}
+                    isFetching={subProjectDetails.isFetching}
+                    loaded={subProjectDetails.loaded}
+                    count={childSubProjectDetails.length}
+                    totalCount={subProjectDetails.totalCount}
+                    error={subProjectDetails.error}
+                  />
+                  <EntityRowsTable
+                    rows={childSubProjectDetails}
+                    columns={[...SUB_PROJECT_DETAIL_COLUMNS]}
+                    emptyText={
+                      !selectedSubProjectId
+                        ? t("dm.empty.selectSubProject")
+                        : subProjectDetails.rows.length === 0
+                          ? t("dm.empty.notFetched")
+                          : t("dm.empty.sub.details")
+                    }
+                    maxHeight="40vh"
+                  />
+                </>
+              )}
+              {subChildTab === "ship" && (
+                <EntityRowsTable
+                  rows={childShip}
+                  priorityColumns={SHIP_DISPLAY_COLUMNS}
+                  emptyText={
+                    selectedSubProjectId
+                      ? t("dm.empty.sub.ship")
+                      : t("dm.empty.selectSubProject")
+                  }
+                  maxHeight="40vh"
+                />
+              )}
+              {subChildTab === "expense" && (
+                <EntityRowsTable
+                  rows={childExpense}
+                  columns={[...EXPENSE_COLUMNS]}
+                  emptyText={
+                    selectedSubProjectId
+                      ? t("dm.empty.sub.expense")
+                      : t("dm.empty.selectSubProject")
+                  }
+                  maxHeight="40vh"
+                />
+              )}
+              {subChildTab === "actualExpense" && (
+                <EntityRowsTable
+                  rows={childActualExpense}
+                  columns={[...EXPENSE_LINE_COLUMNS, "mserp_refexpenseid"]}
+                  emptyText={
+                    selectedSubProjectId
+                      ? actualExpense.error
+                        ? `${t("dm.banner.error")} ${actualExpense.error}`
+                        : actualExpense.isFetching
+                          ? t("dm.loading")
+                          : t("dm.empty.sub.actualExpense")
+                      : t("dm.empty.selectSubProject")
+                  }
+                  maxHeight="40vh"
+                />
+              )}
+              {subChildTab === "sales" && (
+                <EntityRowsTable
+                  rows={childSales}
+                  columns={[...SALES_COLUMNS]}
+                  emptyText={
+                    selectedSubProjectId
+                      ? sales.rows.length === 0
+                        ? t("dm.empty.notFetchedShort")
+                        : t("dm.empty.sub.sales")
+                      : t("dm.empty.selectSubProject")
+                  }
+                  maxHeight="40vh"
+                />
+              )}
+              {subChildTab === "purchase" && (
+                <EntityRowsTable
+                  rows={childPurchase}
+                  columns={[...PURCHASE_COLUMNS]}
+                  emptyText={
+                    selectedSubProjectId
+                      ? purchase.rows.length === 0
+                        ? t("dm.empty.notFetched")
+                        : t("dm.empty.sub.purchase")
+                      : t("dm.empty.selectSubProject")
+                  }
+                  maxHeight="40vh"
+                />
+              )}
+            </GlassPanel>
+          </>
+        )}
+        {topTab === "budget" && (
+          <BudgetsMaster
+            query={budget}
+            filteredRows={filteredBudgetRows}
+            filterSegment={selectedSegment}
+            selectedProjectName={
+              selectedProject?.["mserp_projname"] as string | undefined
+            }
+            selectedProjId={selectedProjId}
+            onClearFilter={() => setSelectedProjId(null)}
+          />
+        )}
+
+        {/* ── Bottom panel: single full-width, 3 tabs (Lines / Ship / Expense) ── */}
+        {topTab === "projects" && (
+          <GlassPanel tone="default" className="rounded-2xl overflow-hidden">
+            <div className="px-3 py-2 border-b border-foreground/[0.04]">
+              <TabStrip
+                tabs={childTabs}
+                activeKey={childTab}
+                onChange={(k) => setChildTab(k as ChildTabKey)}
+              />
+            </div>
+            <SelectedProjectInfo selectedProject={selectedProject} />
+            {childTab === "lines" && (
+              <EntityRowsTable
+                rows={childLines}
+                // Explicit columns (not priorityColumns) → cached rows with
+                // legacy fields (linenum, overdelivery, inventdimid, …) are
+                // filtered out on render, even before the next "Güncelle".
+                columns={[...PROJECT_LINE_COLUMNS]}
+                emptyText={
+                  selectedProjId
+                    ? t("dm.empty.proj.lines")
+                    : t("dm.empty.selectProject")
+                }
+                maxHeight="55vh"
+              />
+            )}
+            {childTab === "ship" && (
+              <EntityRowsTable
+                rows={childShip}
+                priorityColumns={SHIP_DISPLAY_COLUMNS}
+                emptyText={
+                  selectedProjId
+                    ? t("dm.empty.proj.ship")
+                    : t("dm.empty.selectProject")
+                }
+                maxHeight="55vh"
+              />
+            )}
+            {childTab === "expense" && (
+              <EntityRowsTable
+                rows={childExpense}
+                // Explicit columns → hide cached fob/cif/export/import/…
+                // fields immediately, even before re-fetching.
+                columns={[...EXPENSE_COLUMNS]}
+                emptyText={
+                  selectedProjId
+                    ? t("dm.empty.proj.expense")
+                    : t("dm.empty.selectProject")
+                }
+                maxHeight="55vh"
+              />
+            )}
+            {childTab === "actualExpense" && (
+              <EntityRowsTable
+                rows={childActualExpense}
+                // Three-step chain: inventdimb → dist → expense-line
+                // (rows come from the expense-line entity — auth.
+                // amounts + descriptions). `mserp_refexpenseid` is
+                // appended as a virtual column populated by the
+                // hook's refmap enrichment so the realised side can
+                // show the same textual class (`OPEX`, `FREIGHT`,
+                // …) the forecast table already shows.
+                columns={[...EXPENSE_LINE_COLUMNS, "mserp_refexpenseid"]}
+                emptyText={
+                  selectedProjId
+                    ? actualExpense.error
+                      ? `${t("dm.banner.error")} ${actualExpense.error}`
+                      : actualExpense.isFetching
+                        ? t("dm.loading")
+                        : t("dm.empty.proj.actualExpense")
+                    : t("dm.empty.selectProject")
+                }
+                maxHeight="55vh"
+              />
+            )}
+            {childTab === "sales" && (
+              <EntityRowsTable
+                rows={childSales}
+                columns={[...SALES_COLUMNS]}
+                emptyText={
+                  selectedProjId
+                    ? sales.rows.length === 0
+                      ? t("dm.empty.notFetchedShort")
+                      : t("dm.empty.proj.sales")
+                    : t("dm.empty.selectProject")
+                }
+                maxHeight="55vh"
+              />
+            )}
+            {childTab === "purchase" && (
+              <EntityRowsTable
+                rows={childPurchase}
+                // Explicit columns — only the 12 confirmed fields render.
+                columns={[...PURCHASE_COLUMNS]}
+                emptyText={
+                  selectedProjId
+                    ? purchase.rows.length === 0
+                      ? t("dm.empty.notFetched")
+                      : t("dm.empty.proj.purchase")
+                    : t("dm.empty.selectProject")
+                }
+                maxHeight="55vh"
+              />
+            )}
+          </GlassPanel>
+        )}
+      </div>
+    </ScrollArea>
+  );
+}
+
+/* ─────────── Sub-views ─────────── */
+
+function BudgetsMaster({
+  query,
+  filteredRows,
+  filterSegment,
+  selectedProjectName,
+  selectedProjId,
+  onClearFilter,
+}: {
+  /** Shape-compatible subset of the segment-budget on-demand hook
+   *  (`useSegmentBudget`) — only the fields the cache banner reads.
+   *  Loosely typed so a future hook refactor doesn't ripple here. */
+  query: {
+    rows: Record<string, unknown>[];
+    isFetching: boolean;
+    fetchedAt: string | null;
+    error: string | null;
+    totalCount?: number;
+  };
+  /** Already-filtered rows from page (matches the tab-badge count). */
+  filteredRows: Record<string, unknown>[];
+  /** Selected project's segment — non-empty when filter is active. */
+  filterSegment: string | null;
+  selectedProjectName?: string | null;
+  selectedProjId: string | null;
+  onClearFilter: () => void;
+}) {
+  const { t } = useLocale();
+  // Distinguish: filter active (segment non-empty) vs. project picked but segment blank
+  const projectSelected = !!selectedProjId;
+  const filterActive = projectSelected && !!filterSegment && filterSegment.length > 0;
+
+  // Default sort: mserp_year desc (newest budget periods first)
+  const [budgetSort, setBudgetSort] = React.useState<SortState | null>({
+    field: "mserp_year",
+    direction: "desc",
+  });
+  const sortedRows = React.useMemo(
+    () => sortRows(filteredRows, budgetSort),
+    [filteredRows, budgetSort]
+  );
+
+  return (
+    <GlassPanel tone="default" className="rounded-2xl overflow-hidden">
+      <CacheBanner
+        fetchedAt={query.fetchedAt}
+        isFetching={query.isFetching}
+        // useSegmentBudget doesn't surface a row-count-during-load
+        // counter (the entity is small enough that the toast just shows
+        // "Yükleniyor…"); pass null and CacheBanner will collapse the
+        // loaded-N badge.
+        loaded={null}
+        count={filteredRows.length}
+        totalCount={
+          query.rows.length !== filteredRows.length
+            ? query.rows.length
+            : query.totalCount
+        }
+        error={query.error ? new Error(query.error) : null}
+      />
+      {projectSelected && (
+        <div className="px-4 py-2 bg-foreground/[0.025] border-b border-foreground/[0.04] flex items-center gap-2 text-[11px] flex-wrap">
+          {filterActive ? (
+            <>
+              <span className="text-muted-foreground">
+                {t("dm.budget.segmentFilter")}
+              </span>
+              <code className="font-mono font-semibold text-foreground">
+                {filterSegment}
+              </code>
+            </>
+          ) : (
+            <>
+              <span className="text-warning font-medium">
+                {t("dm.budget.segmentEmpty")}
+              </span>
+            </>
+          )}
+          {selectedProjectName && (
+            <span className="text-muted-foreground truncate min-w-0">
+              · {selectedProjectName}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={onClearFilter}
+            className="ml-auto h-6 px-2 rounded-md text-[10.5px] font-medium text-muted-foreground hover:text-foreground hover:bg-foreground/[0.06] transition-colors shrink-0"
+          >
+            {t("dm.budget.clearSelection")}
+          </button>
+        </div>
+      )}
+      <EntityRowsTable
+        rows={sortedRows}
+        // Explicit columns → hide cached itemid/accountnum/namealias/custname/
+        // primaryfield/entityid fields right away, even before re-fetching.
+        columns={[...BUDGET_COLUMNS]}
+        sort={budgetSort}
+        onSortChange={setBudgetSort}
+        emptyText={
+          query.rows.length === 0
+            ? t("dm.empty.notFetched")
+            : filterActive
+            ? t("dm.budget.emptyForSegment").replace(
+                "{segment}",
+                String(filterSegment)
+              )
+            : t("dm.empty.default")
+        }
+        maxHeight="60vh"
+      />
+    </GlassPanel>
+  );
+}
+
+function CacheBanner({
+  fetchedAt,
+  isFetching,
+  loaded,
+  count,
+  totalCount,
+  error,
+}: {
+  fetchedAt: string | null;
+  isFetching: boolean;
+  loaded: number | null;
+  count: number;
+  totalCount?: number;
+  error: Error | null;
+}) {
+  const { t } = useLocale();
+  if (error) {
+    return (
+      <div className="px-4 py-2.5 border-b border-destructive/25 bg-destructive/[0.08] text-destructive text-[11.5px]">
+        {t("dm.banner.error")} {error.message}
+      </div>
+    );
+  }
+  if (!fetchedAt && !isFetching) return null;
+  const ago = fetchedAt ? humanAgo(new Date(fetchedAt), t) : null;
+  return (
+    <div className="px-4 py-2 border-b border-foreground/[0.04] flex items-center gap-2 text-[10.5px] text-muted-foreground">
+      <span
+        className={cn(
+          "size-1.5 rounded-full",
+          isFetching ? "bg-warning animate-pulse" : "bg-success"
+        )}
+      />
+      {isFetching ? (
+        loaded !== null ? (
+          <>{t("dm.banner.loadingWithCount")} <span className="tabular-nums font-semibold text-foreground">{loaded.toLocaleString("tr-TR")}</span> {t("dm.banner.records")}</>
+        ) : (
+          t("dm.banner.connecting")
+        )
+      ) : (
+        <>
+          <span>{t("dm.banner.lastUpdate")} <span className="font-semibold text-foreground">{ago}</span></span>
+          <span>·</span>
+          <span>
+            <span className="font-semibold text-foreground tabular-nums">
+              {count.toLocaleString("tr-TR")}
+            </span>
+            {totalCount !== undefined && totalCount > count && (
+              <> / {totalCount.toLocaleString("tr-TR")}</>
+            )}
+            {" "}{t("dm.banner.records")}
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
+function SelectedProjectInfo({
+  selectedProject,
+}: {
+  selectedProject: Record<string, unknown> | null;
+}) {
+  const { t } = useLocale();
+  if (!selectedProject) return null;
+  return (
+    <div className="px-4 py-1.5 bg-foreground/[0.025] border-b border-foreground/[0.04] text-[10.5px] flex items-center gap-2 flex-wrap">
+      <span className="text-muted-foreground">{t("dm.selected.filter")}</span>
+      <code className="font-mono font-semibold text-foreground">
+        {String(selectedProject["mserp_projid"] ?? "—")}
+      </code>
+      <span className="text-muted-foreground truncate flex-1 min-w-0">
+        {String(selectedProject["mserp_projname"] ?? "")}
+      </span>
+    </div>
+  );
+}
+
+function humanAgo(d: Date, t: (key: string) => string): string {
+  const diffMs = Date.now() - d.getTime();
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 60) return t("dm.ago.now");
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} ${t("dm.ago.minutes")}`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} ${t("dm.ago.hours")}`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day} ${t("dm.ago.days")}`;
+  return d.toLocaleDateString("tr-TR");
+}
+
+/**
+ * Free-text search input for the Veri Yönetimi top bar — sits to
+ * the LEFT of the AdvancedFilter trigger and filters BOTH the
+ * projects master table AND the ship-plan child rows by matching
+ * the query against every column value (case-insensitive
+ * substring). Composes with the AdvancedFilter chip-based narrowing
+ * (filter narrows by dimension; search narrows by substring).
+ *
+ * Style mirrors the ProjectList search pill — rounded-full, accent
+ * search icon on the left, X-clear on the right, soft drop shadow
+ * + inset highlight for the glassy disc look. Capped at 280px so
+ * the toolbar stays compact alongside the filter pill +
+ * RefreshAllButton.
+ */
+function DataInspectorSearch({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const { t } = useLocale();
+  const accent = useBrandAccent();
+  return (
+    <div className="relative w-full max-w-[280px] shrink-0 min-w-[180px]">
+      <HugeiconsIcon
+        icon={Search01Icon}
+        size={15}
+        strokeWidth={2.25}
+        className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none z-[1]"
+        style={{ color: accent.solid }}
+      />
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={t("dm.search.placeholder")}
+        aria-label={t("dm.search.aria")}
+        className={cn(
+          "w-full h-9 pl-9 pr-7 rounded-full text-[13px] outline-none",
+          "bg-[color-mix(in_oklab,var(--card)_85%,transparent)] backdrop-blur-xl backdrop-saturate-150",
+          "ring-1 ring-foreground/15 hover:ring-foreground/30 focus:ring-2 focus:ring-ring",
+          "text-foreground placeholder:text-muted-foreground/70 transition-shadow"
+        )}
+        style={{
+          boxShadow:
+            "0 4px 12px -4px color-mix(in oklab, var(--foreground) 18%, transparent), inset 0 1px 0 0 var(--spec-highlight)",
+        }}
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          aria-label={t("dm.search.clear")}
+          className="absolute right-2 top-1/2 -translate-y-1/2 size-5 grid place-items-center rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/[0.06] z-[1]"
+        >
+          <HugeiconsIcon icon={Cancel01Icon} size={11} strokeWidth={2.5} />
+        </button>
+      )}
+    </div>
+  );
+}

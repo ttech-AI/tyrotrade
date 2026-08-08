@@ -1,0 +1,35 @@
+{
+  // TypeScript runs ALONGSIDE the app's original JavaScript, it does not
+  // replace it: `allowJs` keeps every existing .jsx file valid while the
+  // pages ported from tyrofreight keep their .tsx/.ts types intact.
+  //
+  // Vite/esbuild strips types at transpile time and never type-checks, so a
+  // type error can NEVER break `npm run build`. Type checking is opt-in via
+  // `npm run typecheck` (noEmit) — that keeps the ported code honest without
+  // making the deploy hostage to it.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "resolveJsonModule": true,
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+    "types": ["vite/client", "geojson"]
+  },
+  "include": ["src"]
+}

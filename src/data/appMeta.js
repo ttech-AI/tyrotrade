@@ -31,4 +31,12 @@ export const localStorageRegistry = [
     labelKey: "settings.general.storage.config",
     descriptionKey: "settings.general.storage.configDescription",
   },
+  {
+    // IndexedDB, not localStorage: the freight pages mirror whole Dataverse
+    // entity sets here (see src/freight/lib/storage/entityCache.ts), which is
+    // far past what localStorage can hold.
+    key: "tyrotrade-freight-cache",
+    labelKey: "settings.general.storage.freight",
+    descriptionKey: "settings.general.storage.freightDescription",
+  },
 ]

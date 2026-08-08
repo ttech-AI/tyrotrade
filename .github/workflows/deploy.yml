@@ -40,6 +40,13 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          # Vite inlines VITE_* at build time and .env is not committed, so the
+          # freight pages' two endpoints have to be declared here. Neither is a
+          # secret: the Dataverse URL is an org hostname guarded by AAD, and the
+          # AIS proxy is a public read-only worker.
+          VITE_FREIGHT_DATAVERSE_URL: https://operations-tiryaki.crm4.dynamics.com
+          VITE_VESSEL_WORKER_URL: https://noisy-smoke-b37a.pinarkrtnloglu.workers.dev
 
       - name: Copy index.html as 404 for SPA fallback
         run: cp dist/index.html dist/404.html

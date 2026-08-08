@@ -74,6 +74,18 @@ export const dataverseRequest = {
   scopes: [`${DATAVERSE_URL}/user_impersonation`],
 }
 
+// Second Dataverse resource: the D365 F&O environment behind the freight
+// pages (projects, voyages, expenses — the mserp_* virtual entities). It is a
+// DIFFERENT environment from DATAVERSE_URL above, so it needs its own token;
+// same tenant and account, so it costs no extra sign-in. Deliberately NOT
+// added to loginRequest — see the comment there about admin-consent scopes
+// walling off sign-in; the freight client asks for it silently on first use.
+export const FREIGHT_DATAVERSE_URL =
+  import.meta.env.VITE_FREIGHT_DATAVERSE_URL || "https://operations-tiryaki.crm4.dynamics.com"
+export const freightRequest = {
+  scopes: [`${FREIGHT_DATAVERSE_URL}/user_impersonation`],
+}
+
 export const isMsalConfigured = Boolean(CLIENT_ID)
 
 // sessionStorage flag used ONLY when MSAL isn't configured (mock / dev login).

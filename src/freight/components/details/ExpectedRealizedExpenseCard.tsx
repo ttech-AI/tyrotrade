@@ -1,0 +1,515 @@
+import * as React from "react";
+import { motion, useReducedMotion } from "motion/react";
+import {
+  TrendingDown,
+  TrendingUp,
+  Minus,
+  Loader2,
+  ChevronRight,
+} from "@/freight/icons";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { BalanceScaleIcon } from "@hugeicons/core-free-icons";
+import { cn } from "@/lib/utils";
+import { GlassPanel } from "@/freight/components/glass/GlassPanel";
+import { AccentIconBadge, TONE_EXPENSE } from "./AccentIconBadge";
+import {
+  formatCompactCurrency,
+  formatCurrency,
+  formatNumber,
+} from "@/freight/lib/format";
+import { selectEstimateTotal } from "@/freight/lib/selectors/project";
+import { useProjectExpenseLines } from "@/freight/hooks/useProjectExpenseLines";
+import { ExpenseComparisonSheet } from "./ExpenseComparisonSheet";
+import { useLocale } from "@/hooks/useLocale";
+import type { Project } from "@/freight/lib/dataverse/entities";
+
+interface Props {
+  project: Project;
+}
+
+/**
+ * Adaptive money format for the comparison bars / variance pill.
+ * Thousands are shown in FULL (e.g. "$9.000", "$786.000") — the compact
+ * "Bin" abbreviation ("9 B") reads as confusing at this scale. Only at
+ * 1M+ — where the full string would overflow the value slot — do we fall
+ * back to the compact form ("$1,2 Mn").
+ */
+function fmtMoney(usd: number): string {
+  return Math.abs(usd) < 1_000_000
+    ? formatCurrency(usd, "USD", { maximumFractionDigits: 0 })
+    : formatCompactCurrency(usd, "USD");
+}
+
+/**
+ * Tahmini × Gerçekleşen Gider — premium comparison card on the Vessel
+ * Projects right rail, directly under `CommoditySalesCard` ("Taşınan
+ * Ürün"). Two horizontal bars (realized vs expected, shared scale) on
+ * the left + a radial ratio donut (realized ÷ expected %) on the right,
+ * with a tone-coloured variance pill below.
+ *
+ *   Expected  ← `selectEstimateTotal(project)` — already USD per the
+ *               F&O entity model (`mserp_expamountusdd`).
+ *   Realized  ← Σ `mserp_tryaifrtexpenselinedistlineentities` rows for
+ *               the project, each converted to USD at its
+ *               `mserp_datefinancial` via the historical FX table
+ *               (matches the dashboard P&L rollups).
+ *
+ * Expense semantics — LOWER is better:
+ *   realized < expected (ratio < 100%) → under budget (emerald)
+ *   realized > expected (ratio > 100%) → over budget  (rose)
+ *   on target / unknown                → slate
+ */
+export function ExpectedRealizedExpenseCard({ project }: Props) {
+  const { t } = useLocale();
+  const { locale: lang } = useLocale();
+  const reduceMotion = useReducedMotion();
+  const expenseLineQuery = useProjectExpenseLines(project.projectNo);
+  const isFetching = expenseLineQuery.isFetching;
+  // Detail sheet — the whole card is the trigger; clicking opens the
+  // per-kalem breakdown (estimate × realized) that PRODUCES these
+  // totals, so the panel and the card can never disagree.
+  const [detailOpen, setDetailOpen] = React.useState(false);
+
+  const expectedUsd = selectEstimateTotal(project);
+
+  // Realized expense — SAME source + math as BudgetSalesCard's
+  // "Gerçekleşen Gider": the 3-step `useProjectExpenseLines` chain,
+  // summing the signed `mserp_amountcur_usd` (+ Vendor cost, − Customer
+  // reflection; tax / FX-adjustment codes already excluded inside the
+  // hook). Guarantees this card's realized total matches the Realized
+  // P&L breakdown exactly — the earlier `useProjectActualExpense`
+  // (freight dist-line) source double-counted into the millions.
+  const realized = React.useMemo(() => {
+    let usdTotal = 0;
+    let rowCount = 0;
+    for (const r of expenseLineQuery.rows) {
+      const raw = r["mserp_amountcur_usd"];
+      if (raw === undefined || raw === null || !Number.isFinite(Number(raw)))
+        continue;
+      const amount = Number(raw);
+      if (amount === 0) continue;
+      usdTotal += amount;
+      rowCount++;
+    }
+    return { usdTotal, rowCount };
+  }, [expenseLineQuery.rows]);
+
+  const hasExpected = expectedUsd > 0;
+  const hasRealized = realized.rowCount > 0;
+  const variance = realized.usdTotal - expectedUsd;
+  /** Realized ÷ expected, as a percentage. Null when either side is
+   *  missing (no meaningful ratio). The donut centre shows this. */
+  const ratioPct = hasExpected ? (realized.usdTotal / expectedUsd) * 100 : null;
+  const variancePct =
+    hasExpected && hasRealized ? (variance / expectedUsd) * 100 : null;
+
+  /* Shared bar scale — the larger side fills the track, the other is
+   * proportional. Guard against /0 so empty projects don't NaN. */
+  const scaleMax = Math.max(expectedUsd, realized.usdTotal, 1);
+  const realizedW = hasRealized ? (realized.usdTotal / scaleMax) * 100 : 0;
+  const expectedW = hasExpected ? (expectedUsd / scaleMax) * 100 : 0;
+
+  const tone = pickTone(hasExpected, hasRealized, variance, t);
+  const VarIcon = tone.Icon;
+
+  return (
+    <>
+    <GlassPanel
+      tone="default"
+      role="button"
+      tabIndex={0}
+      title={t("proj.expense.cardTrigger")}
+      onClick={() => setDetailOpen(true)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setDetailOpen(true);
+        }
+      }}
+      className="rounded-2xl group cursor-pointer transition-transform duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+    >
+      <div className="p-4">
+        {/* Header — same iconography pattern as the sibling cards */}
+        <div className="flex items-start gap-2.5 mb-3.5">
+          <AccentIconBadge size="sm" tone={TONE_EXPENSE}>
+            <HugeiconsIcon icon={BalanceScaleIcon} size={16} strokeWidth={2} />
+          </AccentIconBadge>
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              {t("proj.expense.eyebrow")}
+            </div>
+            <div className="text-[13px] font-semibold leading-snug">
+              {t("proj.expense.title")}
+            </div>
+          </div>
+          {/* Click affordance — kalem detayı paneli */}
+          <ChevronRight
+            aria-hidden
+            className="size-4 shrink-0 mt-1 text-muted-foreground/40 group-hover:text-muted-foreground group-hover:translate-x-0.5 transition-all"
+            strokeWidth={2.25}
+          />
+        </div>
+
+        {/* Data region — blurred + frosted "Güncelleniyor" overlay while
+            the realized-expense fetch is in flight (project switch). The
+            expected side updates instantly from the project prop, but
+            realized lags ~2-3s; without this the stale realized value
+            (and the variance / donut derived from it) would sit visible
+            then snap. Header above stays crisp so the card stays
+            identifiable mid-transition. */}
+        <div className="relative">
+          <div
+            className={cn(
+              "transition-[filter,opacity] duration-300 ease-out",
+              isFetching &&
+                "blur-[2.5px] opacity-50 pointer-events-none select-none"
+            )}
+            aria-busy={isFetching || undefined}
+          >
+            {/* Bars (left) + ratio donut (right) */}
+            <div className="flex items-center gap-4">
+          <div className="flex-1 min-w-0 space-y-3">
+            <BarRow
+              label={t("proj.expense.realized")}
+              lang={lang}
+              widthPct={realizedW}
+              fill={tone.solid}
+              value={
+                hasRealized
+                  ? fmtMoney(realized.usdTotal)
+                  : isFetching
+                    ? "…"
+                    : "$0"
+              }
+              valueTone={tone.text}
+              reduceMotion={!!reduceMotion}
+              tooltip={
+                hasRealized ? formatCurrency(realized.usdTotal, "USD") : undefined
+              }
+            />
+            <BarRow
+              label={t("proj.expense.planned")}
+              lang={lang}
+              widthPct={expectedW}
+              fill="color-mix(in oklab, var(--pl-neutral) 55%, transparent)"
+              value={hasExpected ? fmtMoney(expectedUsd) : "—"}
+              valueTone="var(--pl-neutral)"
+              reduceMotion={!!reduceMotion}
+              tooltip={
+                hasExpected ? formatCurrency(expectedUsd, "USD") : undefined
+              }
+            />
+          </div>
+
+          <RatioDonut
+            pct={ratioPct}
+            color={tone.solid}
+            textColor={tone.text}
+            title={
+              ratioPct != null
+                ? t("proj.expense.ratioTitle").replace(
+                    "{pct}",
+                    formatNumber(ratioPct, 1)
+                  )
+                : undefined
+            }
+          />
+        </div>
+
+        {/* Variance pill — tone reflects expense direction */}
+        <div
+          className="mt-3.5 flex items-center justify-between gap-2 px-3 py-2 rounded-xl"
+          style={{
+            backgroundColor: tone.bg,
+            boxShadow: `inset 0 0 0 1px ${tone.ring}`,
+            color: tone.text,
+          }}
+          title={
+            hasExpected && hasRealized
+              ? t("proj.expense.varianceTitle")
+                  .replace("{est}", formatCurrency(expectedUsd, "USD"))
+                  .replace("{real}", formatCurrency(realized.usdTotal, "USD"))
+                  .replace(
+                    "{delta}",
+                    `${variance >= 0 ? "+" : ""}${formatCurrency(variance, "USD")}`
+                  )
+              : undefined
+          }
+        >
+          <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider">
+            <VarIcon className="size-3.5" strokeWidth={2.5} />
+            {tone.label}
+          </span>
+          {hasExpected && hasRealized && (
+            <span className="text-[13px] font-bold tabular-nums">
+              {variance >= 0 ? "+" : "−"}
+              {fmtMoney(Math.abs(variance))}
+              {variancePct != null && (
+                <span className="text-[11.5px] font-semibold opacity-80 ml-1.5">
+                  ({variance >= 0 ? "+" : "−"}
+                  {formatNumber(Math.abs(variancePct), 1)}%)
+                </span>
+              )}
+            </span>
+          )}
+        </div>
+
+        {realized.rowCount > 0 && (
+          <div className="text-[10px] text-muted-foreground mt-2 italic">
+            {realized.rowCount} {t("proj.expense.recordsSuffix")}
+          </div>
+        )}
+          </div>
+
+          {/* Frosted "updating" pill — fades in over the blurred numbers
+              while the realized fetch runs, fades out when it lands. A
+              calm, single focal point instead of numbers visibly flipping. */}
+          <div
+            className={cn(
+              "absolute inset-0 grid place-items-center transition-opacity duration-300 pointer-events-none",
+              isFetching ? "opacity-100" : "opacity-0"
+            )}
+          >
+            {/* Floating overlay above the card body → --popover, not --card. */}
+            <span
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-popover/75 backdrop-blur-md ring-1 ring-foreground/10 text-[11px] font-medium text-muted-foreground"
+              style={{
+                boxShadow:
+                  "0 4px 14px -6px color-mix(in oklab, var(--foreground) 25%, transparent)",
+              }}
+            >
+              <Loader2
+                className="size-3.5 animate-spin"
+                style={{ color: tone.solid }}
+              />
+              {t("proj.expense.updating")}
+            </span>
+          </div>
+        </div>
+      </div>
+    </GlassPanel>
+
+    {/* Kalem-detayı paneli — kartın (role=button) DIŞINDA durur. React
+        portal olayları DOM'a değil React ağacına köpürür: panel kartın
+        içindeyken X / boşluk tıklaması kapanma + kartın onClick'iyle
+        yeniden açılmayı AYNI anda tetikleyip paneli kilitliyordu.
+        Toplamlar kartla aynı kaynaklardan geçirilir. */}
+    <ExpenseComparisonSheet
+      open={detailOpen}
+      onOpenChange={setDetailOpen}
+      project={project}
+      realizedRows={expenseLineQuery.rows}
+      expectedUsd={expectedUsd}
+      realizedUsd={realized.usdTotal}
+    />
+    </>
+  );
+}
+
+/* ─────────── Tone ─────────── */
+
+interface ExpTone {
+  solid: string;
+  text: string;
+  bg: string;
+  ring: string;
+  Icon: typeof Minus;
+  label: string;
+}
+
+function pickTone(
+  hasExpected: boolean,
+  hasRealized: boolean,
+  variance: number,
+  t: (key: string) => string
+): ExpTone {
+  // Variance signs MONEY (under/over budget), so the three tones read from
+  // the P&L tokens, not --success / --destructive.
+  const slate: ExpTone = {
+    solid: "var(--pl-neutral)",
+    text: "var(--pl-neutral)",
+    bg: "color-mix(in oklab, var(--pl-neutral) 12%, transparent)",
+    ring: "color-mix(in oklab, var(--pl-neutral) 30%, transparent)",
+    Icon: Minus,
+    label: !hasRealized
+      ? hasExpected
+        ? t("proj.expense.noRealizedYet")
+        : t("proj.expense.noData")
+      : t("proj.expense.noEstimate"),
+  };
+  if (!hasExpected || !hasRealized) return slate;
+  if (variance < 0)
+    return {
+      solid: "var(--pl-pos)",
+      text: "var(--pl-pos)",
+      bg: "color-mix(in oklab, var(--pl-pos) 12%, transparent)",
+      ring: "color-mix(in oklab, var(--pl-pos) 30%, transparent)",
+      Icon: TrendingDown,
+      label: t("proj.expense.underBudget"),
+    };
+  if (variance > 0)
+    return {
+      solid: "var(--pl-neg)",
+      text: "var(--pl-neg)",
+      bg: "color-mix(in oklab, var(--pl-neg) 12%, transparent)",
+      ring: "color-mix(in oklab, var(--pl-neg) 30%, transparent)",
+      Icon: TrendingUp,
+      label: t("proj.expense.overBudget"),
+    };
+  return { ...slate, Icon: Minus, label: t("proj.expense.onTarget") };
+}
+
+/* ─────────── Bar row ─────────── */
+
+function BarRow({
+  label,
+  lang,
+  widthPct,
+  fill,
+  value,
+  valueTone,
+  tooltip,
+  reduceMotion,
+}: {
+  label: string;
+  /** Active UI language — drives the `lang` attribute so CSS `uppercase`
+   *  casing follows the right locale (tr keeps İ, en keeps I). */
+  lang: string;
+  widthPct: number;
+  fill: string;
+  value: string;
+  valueTone: string;
+  tooltip?: string;
+  reduceMotion: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2.5 min-w-0" title={tooltip}>
+      <span
+        // `lang` follows the active UI locale so CSS `uppercase` casts
+        // the localized label correctly (tr → İ, en → I).
+        lang={lang}
+        className="w-[74px] shrink-0 text-[9.5px] uppercase tracking-wider text-muted-foreground"
+      >
+        {label}
+      </span>
+      <div
+        className="flex-1 h-2.5 rounded-full overflow-hidden"
+        style={{
+          background: "color-mix(in oklab, var(--foreground) 6%, transparent)",
+          boxShadow:
+            "inset 0 1px 1px 0 color-mix(in oklab, var(--foreground) 8%, transparent), inset 0 -1px 0 0 color-mix(in oklab, var(--background) 60%, transparent)",
+        }}
+      >
+        <motion.div
+          className="h-full rounded-full"
+          initial={reduceMotion ? false : { width: 0 }}
+          animate={{ width: `${Math.max(0, Math.min(100, widthPct))}%` }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          style={{
+            background: `linear-gradient(90deg, ${fill} 0%, color-mix(in oklab, ${fill} 80%, var(--background) 20%) 100%)`,
+            boxShadow:
+              "inset 0 1px 0 0 color-mix(in oklab, var(--background) 35%, transparent)",
+          }}
+        />
+      </div>
+      <span
+        className="min-w-[56px] shrink-0 text-right text-[12.5px] font-bold tabular-nums"
+        style={{ color: valueTone }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
+/* ─────────── Ratio donut ─────────── */
+
+/** Compact donut-centre label. Caps at ±999% so a tiny-planned-cost
+ *  blow-up (e.g. 155.000%) can't overflow the ring. */
+function ratioLabel(pct: number | null): string {
+  if (pct == null) return "—";
+  if (Math.abs(pct) >= 1000) return `${pct < 0 ? "−" : ""}%999+`;
+  return `%${Math.round(pct)}`;
+}
+
+/**
+ * Radial ratio donut — realized ÷ expected %. The arc fills over a
+ * 0-150% domain (so 100% sits ~2/3 round and "over budget" reads as a
+ * fuller, redder ring); the centre prints the % (capped via
+ * `ratioLabel`). A 100% tick is not drawn — the colour already says
+ * under/over.
+ */
+function RatioDonut({
+  pct,
+  color,
+  textColor,
+  title,
+}: {
+  pct: number | null;
+  color: string;
+  textColor: string;
+  /** Pre-resolved (localized) hover title from the parent. */
+  title?: string;
+}) {
+  const SIZE = 78;
+  const R = 30;
+  const STROKE = 9;
+  const C = 2 * Math.PI * R;
+  const DOMAIN = 150;
+  const frac = pct == null ? 0 : Math.max(0, Math.min(1, pct / DOMAIN));
+  const dash = frac * C;
+
+  return (
+    <div
+      className="relative shrink-0 grid place-items-center"
+      style={{ width: SIZE, height: SIZE }}
+      title={title}
+    >
+      <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`}>
+        {/* Track. Both strokes go through `style` rather than the SVG
+            presentation attribute: attributes are not CSS declarations, so
+            a var()/color-mix() there would not resolve. */}
+        <circle
+          cx={SIZE / 2}
+          cy={SIZE / 2}
+          r={R}
+          fill="none"
+          style={{
+            stroke: "color-mix(in oklab, var(--foreground) 8%, transparent)",
+          }}
+          strokeWidth={STROKE}
+        />
+        {/* Value arc — starts at 12 o'clock, clockwise */}
+        {pct != null && (
+          <motion.circle
+            cx={SIZE / 2}
+            cy={SIZE / 2}
+            r={R}
+            fill="none"
+            style={{ stroke: color }}
+            strokeWidth={STROKE}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${SIZE / 2} ${SIZE / 2})`}
+            strokeDasharray={`${dash} ${C}`}
+            initial={{ strokeDasharray: `0 ${C}` }}
+            animate={{ strokeDasharray: `${dash} ${C}` }}
+            transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+          />
+        )}
+      </svg>
+      <div className="absolute inset-0 grid place-items-center">
+        <span
+          className="text-[13px] font-bold tabular-nums leading-none px-1 text-center"
+          style={{
+            color:
+              pct != null
+                ? textColor
+                : "color-mix(in oklab, var(--pl-neutral) 70%, transparent)",
+          }}
+        >
+          {ratioLabel(pct)}
+        </span>
+      </div>
+    </div>
+  );
+}

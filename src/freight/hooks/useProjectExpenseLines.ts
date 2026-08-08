@@ -1,0 +1,768 @@
+import * as React from "react";
+import { getDataverseClient } from "@/freight/lib/dataverse";
+import { EXPENSE_LINE_COLUMNS } from "@/freight/lib/dataverse/columnOrder";
+import {
+  KEY_PREFIX,
+  CACHE_UPDATED_EVENT,
+  type CacheUpdatedDetail,
+} from "@/freight/lib/storage/entityCache";
+import { fetchExtraCostExpenseRows } from "@/freight/lib/dataverse/extraCostExpense";
+
+/** Inventory-dimension entity — maps a project number (carried in
+ *  `mserp_inventdimension2`) to the set of `mserp_inventdimid` keys
+ *  that the distribution lines are stamped with. The distribution
+ *  entity has no `mserp_etgtryprojid` we can rely on; the project
+ *  link goes through this dim table. */
+const INVENTDIMB_ENTITY = "mserp_inventdimbientities";
+
+/** Distribution-line entity — used purely as a "is this expense
+ *  linked to this project?" filter via `mserp_inventdimid`. Its own
+ *  column data isn't shown anywhere; we only read `mserp_expensenum`
+ *  from each row to drive the final lookup against the authoritative
+ *  entity. */
+const DIST_ENTITY = "mserp_tryaifrtexpenselinedistlineentities";
+
+/** Authoritative expense-line entity carrying the correct amounts
+ *  and descriptions. Joined to the distribution entity via
+ *  `mserp_expensenum`. */
+const EXPENSE_ENTITY = "mserp_tryaiexpenselineentities";
+
+/** Expense HEADER entity — one row per `mserp_expensenum` carrying
+ *  the row's currency + USD exchange rate + account type. Three
+ *  things the LINE entity DOESN'T expose:
+ *    - `mserp_currencycode`     — line currency (drives FX conversion)
+ *    - `mserp_exchratesecond`   — USD exchange rate at txn date
+ *    - `mserp_accounttype`      — Vendor (200000003), Customer
+ *                                  (200000001 → reflection), or
+ *                                  General accounting (200000000)
+ *  Without the FX context non-USD entries silently inflate the
+ *  USD sum. Without the account-type context "reflection" vouchers
+ *  (TYRO billing the customer to recover a vendor cost) get
+ *  double-counted on the realised side — same expenseid shows up
+ *  twice with the same positive amount instead of netting to zero.
+ *  We fetch headers in parallel chunks once we have the expensenum
+ *  set and build a `expensenum → { currency, rate, accountType }`
+ *  map. */
+const EXPENSE_TABLE_ENTITY = "mserp_tryaiexpensetableentities";
+
+/** F&O `mserp_accounttype` option-set values seen on expense table
+ *  headers (4 distinct values live in the tenant):
+ *    - 200000003 Vendor            — real cost we incurred (+)
+ *    - 200000000 General accounting — GL / manual cost journal (+)
+ *    - 200000002 Bank              — bank-side cost (+)
+ *    - 200000001 Customer          — reflection voucher (we billed the
+ *                                     customer to recover a cost) (−)
+ *  Power BI's realised expense counts ALL of these: every non-Customer
+ *  type is a cost (+), only Customer reflections subtract. (Verified
+ *  vs Power BI on PRJ000002000 + PRJ000002026 — the earlier "only
+ *  Vendor/Customer, drop the rest" rule wrongly dropped the General-
+ *  accounting 720089 lines Power BI includes.) `isReturned` flips the
+ *  sign on either side. */
+const ACCOUNT_TYPE_CUSTOMER = 200000001;
+/** Cost-side account types → +1. Anything here (and not Customer) is a
+ *  real incurred cost. Unknown / null types still drop (can't sign). */
+const COST_ACCOUNT_TYPES = new Set<number>([
+  200000003, // Vendor
+  200000000, // General accounting
+  200000002, // Bank
+]);
+
+/** F&O `mserp_expenseid` codes excluded from realised operational
+ *  P&L. The enrichment step drops any expense line whose code
+ *  matches one of these. Names alongside each code document what
+ *  the label looked like when the entry was added — the lookup
+ *  itself is strictly numeric, so a label rename in F&O won't
+ *  re-admit the row.
+ *
+ *  Excluded set — pass-through TAXES / treasury transfers + the futures-
+ *  broker commission family. Power BI's realised-expense report leaves ALL
+ *  of these out:
+ *    - "730030" — ITHALAT BULK KDV (vergi)
+ *    - "731016" — ITHALAT - DAMGA VERGISI (vergi)
+ *    - "790051" — ITHALAT - HAZINE FIYAT FARKI (hazine transferi)
+ *    - "790052" — IHRACAT - HAZINE FIYAT FARKI (hazine transferi)
+ *    - "712207" — ULUSLARARASI BORSA KOMİSYON (CBOT / borsa komisyonu)
+ *    - "712502" — ULUSLARARASI BORSA KOMİSYON GİDERİ (712207 family)
+ *
+ *  NOTE: 710017 (FIYAT FARKLARI) and 710041 (SATIS FIYAT FARKLARI) are NOT
+ *  excluded — Power BI's realised report DOES count them, with the normal
+ *  account-type sign (Customer −, cost-side +, isReturned flips) + FX.
+ *  Verified against a live Power BI screenshot on PRJ000002004 (1.160.392 to
+ *  the dollar). The earlier "PBI drops price differences" belief was wrong:
+ *  it zeroed a +1.012.384 price-diff (710041) while still counting its
+ *  matching 720089 "MASRAF YANSITMA" reflection (−1.012.384) — an asymmetric
+ *  wash that understated 2004 by that whole amount. Recalibrated totals:
+ *  2000=56.355, 2026=254.506, 2291=846.076, 2106=−247.643. Extend this set as
+ *  new tax / pass-through codes surface; the same constant lives in
+ *  `actualExpenseRollup.ts` so the per-project drill-down and the Trade Cost
+ *  aggregate stay in sync. */
+const EXCLUDED_EXPENSE_IDS = new Set<string>([
+  "730030",
+  "731016",
+  "790051",
+  "790052",
+  "712207",
+  // "712502" — ULUSLARARASI BORSA KOMİSYON GİDERİ (CBOT / futures broker
+  // commission). Power BI leaves it out of realised expense (PRJ000002106
+  // shows 712502 = 0). Same financial-commission family as 712207.
+  "712502",
+]);
+
+/** Voucher-level exclusions replicated from the Power BI report's own
+ *  "ExpenseNum is not …" filter — hand-picked vouchers PBI's realised
+ *  measures never count. Found live: TMESMSN000216 is a 980.087 USD
+ *  broker-commission voucher on PRJ000002060 that flipped its realised
+ *  P&L sign (−369k vs PBI +617k) until excluded. Keep in sync with
+ *  `actualExpenseRollup.ts`.
+ *
+ *  NOTE: DMESMSN002503 ("ABIGAIL FREIGHT INCOME" on PRJ000002005, a 720089
+ *  Customer line, raw +177.737 → signed −177.737) was REMOVED here. It sits
+ *  in PBI's DETAIL-table ExpenseNum filter (so the detail breakdown hides it,
+ *  totalling 2.728.967), but PBI's "Realized Project" SUMMARY measure DOES
+ *  net it in (Realized Expense 2.551.230 / Realized P&L 1.694.150 for 2005).
+ *  Excluding it made this card/dashboard show 1.516.413 — matching PBI's
+ *  detail table but NOT the summary the QA compares against (nor the MCP,
+ *  which never excluded it). Re-including it aligns card + MCP + PBI summary. */
+const EXCLUDED_EXPENSE_NUMS = new Set<string>([
+  "TMESMSN000216",
+  "TMESMSN000217",
+  "TMESMSN000218",
+  "TMESMSN000219",
+  "DMESMSN002207",
+  "DMESMSN002696",
+  "DMESMSN002697",
+  "AFZEMSN001374",
+  // Two standalone "SATIŞ FİYAT FARKLARI" (710041) lines on PRJ000002395
+  // (+528,356 / +161,610) with no offsetting 720089 reflection — PBI's
+  // ExpenseNum filter drops them. Counting them overstated 2395 realised
+  // expense by 689,966 (P&L 374,912 vs PBI 1,064,878). Verified single-project.
+  "DTRKMSN043271",
+  "DTRKMSN045008",
+]);
+
+/** Fixing / booking projects (e.g. `FFIX001145`) are out-of-`PROJECTS_FILTER`-
+ *  scope projects a cost is originally booked to before being distributed to
+ *  the real voyage project. Their projectnum is a redirect — the distribution
+ *  decides the true owner — so a line stamped with one is NOT treated as
+ *  belonging to that booking project (it falls through to the distribution
+ *  check). A NON-fixing foreign projectnum, by contrast, names the line's real
+ *  owner (split-voucher case) and the line is dropped here. */
+function isFixingProject(projectNo: string): boolean {
+  return projectNo.startsWith("FFIX");
+}
+
+/** Reference-map entity — per project, carries
+ *  `(mserp_tryexpensetype, mserp_refexpenseid)` pairs that translate
+ *  the numeric `mserp_expenseid` values surfaced on the realised
+ *  expense-line entity (e.g. `730026`, `710041`) into the textual
+ *  label used on the forecast side (e.g. `OPEX`, `FREIGHT`,
+ *  `İTHALAT BULK - NAVLUN`). Without this lookup the forecast and
+ *  realised expense rows are impossible to reconcile by class.
+ *  Filtered per project so the map stays small. */
+const EXPENSE_REFMAP_ENTITY = "mserp_tryaiotherexpenseprojectlineentities";
+
+/** Same chunk size as the global IN filter helpers — keeps each
+ *  request URL safely under proxy/CDN limits. Used for both the
+ *  inventdimid → distribution lookup and the expensenum → expense
+ *  lookup. */
+const IN_CHUNK_SIZE = 50;
+
+/** F&O `mserp_posted` → tri-state. It's a NoYes OPTION-SET (not a
+ *  boolean): No = 200000000 (draft / not posted), Yes = 200000001
+ *  (posted to ledger). We also accept the `@FormattedValue` annotation
+ *  ("Evet"/"Hayır" or "Yes"/"No") and boolean / 1 / 0 fallbacks.
+ *  Returns true / false when unambiguous, null when missing/unknown.
+ *  Callers drop ONLY an explicit `false` (a draft); null never drops —
+ *  so a schema/parse hiccup can't silently zero realised expense. */
+function parsePosted(raw: unknown, formatted?: unknown): boolean | null {
+  // Prefer the human-readable @FormattedValue when present.
+  const f = String(formatted ?? "")
+    .trim()
+    .toLowerCase();
+  if (f === "yes" || f === "evet") return true;
+  if (f === "no" || f === "hayır" || f === "hayir") return false;
+  // Raw: NoYes option-set codes + boolean / numeric / string fallbacks.
+  if (raw === true || raw === 1 || raw === "1" || raw === 200000001)
+    return true;
+  if (raw === false || raw === 0 || raw === "0" || raw === 200000000)
+    return false;
+  const s = String(raw ?? "")
+    .trim()
+    .toLowerCase();
+  if (s === "yes" || s === "evet" || s === "true" || s === "200000001")
+    return true;
+  if (
+    s === "no" ||
+    s === "hayır" ||
+    s === "hayir" ||
+    s === "false" ||
+    s === "200000000"
+  )
+    return false;
+  return null;
+}
+
+/** F&O `mserp_isreturned` (header) → boolean. NoYes OPTION-SET: Yes =
+ *  200000001 (returned), No = 200000000. A "returned" line FLIPS the
+ *  Vendor/Customer sign — a returned Vendor cost reduces realised (−),
+ *  a returned Customer reflection adds back (+). Anything that isn't an
+ *  explicit Yes is treated as not-returned (false), so a missing value
+ *  defaults to the normal Vendor+/Customer− direction. Verified against
+ *  Power BI on PRJ000002000 (total reconciled to the cent). */
+function isReturnedYes(raw: unknown, formatted?: unknown): boolean {
+  const f = String(formatted ?? "")
+    .trim()
+    .toLowerCase();
+  if (f === "yes" || f === "evet") return true;
+  if (f === "no" || f === "hayır" || f === "hayir") return false;
+  return raw === true || raw === 1 || raw === "1" || raw === 200000001;
+}
+
+/* ─────────── Per-project in-memory LRU cache ───────────
+ *
+ * The realised-expense chain is 3 sequential network phases
+ * (inventdimid → dist → expense-line), ~2-5 s per project on the
+ * enterprise proxy. Selecting a project you've already opened this
+ * session shouldn't pay that again, so the enriched result is memoised
+ * by projectNo — revisits are instant (no network). Bounded LRU so a
+ * long Thursday review session doesn't grow memory unbounded.
+ *
+ * Invalidation: a full "Verileri Güncelle" rewrites the projects master
+ * cache (`mserp_etgtryprojecttableentities`). That's the one entitySet a
+ * refresh touches but ordinary project navigation never does (the
+ * per-project estimate / invoice / purchase hooks write their OWN keys).
+ * On that signal the whole cache is dropped so realised totals can't go
+ * stale after the user re-pulls data. */
+const PROJECTS_MASTER_ENTITY = "mserp_etgtryprojecttableentities";
+const MAX_CACHE_ENTRIES = 60;
+
+interface CachedExpenseResult {
+  rows: Record<string, unknown>[];
+  fetchedAt: string;
+}
+
+const expenseLineCache = new Map<string, CachedExpenseResult>();
+
+function cacheGet(projectNo: string): CachedExpenseResult | undefined {
+  const hit = expenseLineCache.get(projectNo);
+  if (hit) {
+    // LRU touch — move to the most-recently-used end.
+    expenseLineCache.delete(projectNo);
+    expenseLineCache.set(projectNo, hit);
+  }
+  return hit;
+}
+
+function cacheSet(projectNo: string, entry: CachedExpenseResult): void {
+  expenseLineCache.delete(projectNo);
+  expenseLineCache.set(projectNo, entry);
+  while (expenseLineCache.size > MAX_CACHE_ENTRIES) {
+    const oldest = expenseLineCache.keys().next().value;
+    if (oldest === undefined) break;
+    expenseLineCache.delete(oldest);
+  }
+}
+
+if (typeof window !== "undefined") {
+  // Same-tab full refresh — drop everything (realised data re-pulled).
+  window.addEventListener(CACHE_UPDATED_EVENT, (e) => {
+    const detail = (e as CustomEvent<CacheUpdatedDetail>).detail;
+    if (detail?.entitySet === PROJECTS_MASTER_ENTITY) expenseLineCache.clear();
+  });
+  // Cross-tab full refresh.
+  window.addEventListener("storage", (e) => {
+    if (e.key === `${KEY_PREFIX}${PROJECTS_MASTER_ENTITY}`) expenseLineCache.clear();
+  });
+}
+
+/* ─────────── Shared fetch (hook + hover prefetch) ─────────── */
+
+/** Runs the full 3-phase realised-expense chain for one project, writes
+ *  the enriched result into `expenseLineCache`, and returns it. Runs to
+ *  completion (no per-await cancellation) — both the hook and hover
+ *  prefetch call it, and a finished run is always worth caching even if
+ *  the user navigated away mid-flight. See the hook JSDoc below for the
+ *  step-by-step description of the chain. */
+async function runExpenseChain(
+  projectNo: string
+): Promise<Record<string, unknown>[]> {
+  const client = getDataverseClient();
+
+  // Step 0 / R / P + extra-cost (yan masraf) in parallel. Extra-cost is the
+  // realised source for projects the freight chain misses (e.g. Organik); its
+  // rows are appended to the freight-chain rows below. See extraCostExpense.ts
+  // — it replaced the old hardcoded sunriseTrOverrides hack.
+  const [dimSettled, refMapSettled, projNumSettled, extraCostSettled] =
+    await Promise.allSettled([
+      client.listAll<Record<string, unknown>>(INVENTDIMB_ENTITY, {
+        $filter: `mserp_inventdimension2 eq '${projectNo}'`,
+        $select: "mserp_inventdimid",
+      }),
+      client.listAll<Record<string, unknown>>(EXPENSE_REFMAP_ENTITY, {
+        $filter: `mserp_etgtryprojid eq '${projectNo}'`,
+        $select: "mserp_tryexpensetype,mserp_refexpenseid",
+      }),
+      client.listAll<Record<string, unknown>>(EXPENSE_ENTITY, {
+        $filter: `mserp_projectnum eq '${projectNo}'`,
+        $select: "mserp_expensenum",
+      }),
+      fetchExtraCostExpenseRows(client, projectNo),
+    ]);
+
+  // Extra-cost rows (best-effort, already USD via mserp_amountcur_usd). Empty
+  // on failure so a yan-masraf hiccup never zeroes freight-chain realised.
+  const extraCostRows =
+    extraCostSettled.status === "fulfilled" ? extraCostSettled.value : [];
+  if (extraCostSettled.status === "rejected") {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[useProjectExpenseLines] extra-cost fetch failed for ${projectNo}:`,
+      extraCostSettled.reason
+    );
+  }
+
+  // Step 0 is required — bail if it failed.
+  if (dimSettled.status === "rejected") throw dimSettled.reason;
+  const dimResult = dimSettled.value;
+
+  // Step P expensenums (best-effort).
+  const projNumExpensenums: string[] = [];
+  if (projNumSettled.status === "fulfilled") {
+    for (const r of projNumSettled.value.value) {
+      const n = String(r.mserp_expensenum ?? "").trim();
+      if (n) projNumExpensenums.push(n);
+    }
+  } else {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[useProjectExpenseLines] projectnum-direct fetch failed for ${projectNo} — using inventdimid chain only:`,
+      projNumSettled.reason
+    );
+  }
+
+  // Step R is best-effort.
+  const refMap = new Map<string, string>();
+  if (refMapSettled.status === "fulfilled") {
+    for (const r of refMapSettled.value.value) {
+      const k = String(r.mserp_tryexpensetype ?? "").trim();
+      const v = String(r.mserp_refexpenseid ?? "").trim();
+      if (k && v && !refMap.has(k)) refMap.set(k, v);
+    }
+  } else {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[useProjectExpenseLines] refmap fetch failed for ${projectNo} — proceeding without expense-class labels:`,
+      refMapSettled.reason
+    );
+  }
+
+  const inventDimIds = [
+    ...new Set(
+      dimResult.value
+        .map((r) => String(r.mserp_inventdimid ?? "").trim())
+        .filter((s): s is string => s.length > 0)
+    ),
+  ];
+
+  // Step 1: dist rows for those inventdimids → expensenums AND the
+  // (expensenum, expenseid) pairs actually distributed to THIS project
+  // (chunked IN). Pulling `mserp_expenseid` too is what lets us reject a
+  // line that merely SHARES a voucher with a distributed line but whose
+  // own code was distributed to a DIFFERENT project — the "leaked sibling
+  // line" bug: a Ledger-account 720089 line riding in on a voucher whose
+  // Item-distributed 730034 line is the only part that belongs here
+  // (diagnosed vs Power BI on PRJ000002291).
+  const distExpensenums: string[] = [];
+  const distPairSet = new Set<string>();
+  for (let i = 0; i < inventDimIds.length; i += IN_CHUNK_SIZE) {
+    const chunk = inventDimIds.slice(i, i + IN_CHUNK_SIZE);
+    const inFilter = `Microsoft.Dynamics.CRM.In(PropertyName='mserp_inventdimid',PropertyValues=[${chunk
+      .map((id) => `'${id}'`)
+      .join(",")}])`;
+    const distResult = await client.listAll<Record<string, unknown>>(
+      DIST_ENTITY,
+      { $filter: inFilter, $select: "mserp_expensenum,mserp_expenseid" }
+    );
+    for (const r of distResult.value) {
+      const n = String(r.mserp_expensenum ?? "").trim();
+      if (!n) continue;
+      distExpensenums.push(n);
+      const code = String(r.mserp_expenseid ?? "").trim();
+      if (code) distPairSet.add(`${n}|${code}`);
+    }
+  }
+
+  const expensenums = [...new Set([...distExpensenums, ...projNumExpensenums])];
+
+  if (expensenums.length === 0) {
+    // Freight chain found nothing — but extra-cost may still carry realised
+    // rows (the Organik case, where realised lives entirely in yan masraf).
+    cacheSet(projectNo, {
+      rows: extraCostRows,
+      fetchedAt: new Date().toISOString(),
+    });
+    return extraCostRows;
+  }
+
+  // Step 2 + 2b in parallel: line rows + header rows.
+  const linePromises: Promise<{ value: Record<string, unknown>[] }>[] = [];
+  const headerPromises: Promise<{ value: Record<string, unknown>[] }>[] = [];
+  for (let i = 0; i < expensenums.length; i += IN_CHUNK_SIZE) {
+    const chunk = expensenums.slice(i, i + IN_CHUNK_SIZE);
+    const inFilter = `Microsoft.Dynamics.CRM.In(PropertyName='mserp_expensenum',PropertyValues=[${chunk
+      .map((n) => `'${n}'`)
+      .join(",")}])`;
+    linePromises.push(
+      client.listAll<Record<string, unknown>>(EXPENSE_ENTITY, {
+        $filter: inFilter,
+        $select: EXPENSE_LINE_COLUMNS.join(","),
+        $count: true,
+      })
+    );
+    headerPromises.push(
+      client.listAll<Record<string, unknown>>(EXPENSE_TABLE_ENTITY, {
+        $filter: inFilter,
+        $select:
+          "mserp_expensenum,mserp_currencycode,mserp_exchratesecond,mserp_accounttype,mserp_posted,mserp_isreturned",
+      })
+    );
+  }
+  const [lineSettled, headerSettled] = await Promise.all([
+    Promise.all(linePromises),
+    Promise.allSettled(headerPromises),
+  ]);
+
+  const all: Record<string, unknown>[] = [];
+  for (const r of lineSettled) all.push(...r.value);
+
+  // Build expensenum → { currency, rate, accountType, posted } map.
+  const headerByExpensenum = new Map<
+    string,
+    {
+      currency: string;
+      rate: number;
+      accountType: number | null;
+      posted: boolean | null;
+      isReturned: boolean;
+    }
+  >();
+  for (const settled of headerSettled) {
+    if (settled.status !== "fulfilled") continue;
+    for (const h of settled.value.value) {
+      const num = String(h.mserp_expensenum ?? "").trim();
+      const cur = String(h.mserp_currencycode ?? "").trim().toUpperCase();
+      const rate = Number(h.mserp_exchratesecond);
+      const at = Number(h.mserp_accounttype);
+      if (!num) continue;
+      headerByExpensenum.set(num, {
+        currency: cur || "USD",
+        rate: Number.isFinite(rate) ? rate : 1,
+        accountType: Number.isFinite(at) ? at : null,
+        posted: parsePosted(
+          h.mserp_posted,
+          h["mserp_posted@OData.Community.Display.V1.FormattedValue"]
+        ),
+        isReturned: isReturnedYes(
+          h.mserp_isreturned,
+          h["mserp_isreturned@OData.Community.Display.V1.FormattedValue"]
+        ),
+      });
+    }
+  }
+  const headerFailureCount = headerSettled.filter(
+    (s) => s.status === "rejected"
+  ).length;
+  if (headerFailureCount > 0) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[useProjectExpenseLines] expense-table header fetch failed for ${headerFailureCount}/${headerSettled.length} chunks of ${projectNo} — lines in those chunks will be dropped (no way to confirm accounttype / FX rate).`
+    );
+  }
+
+  // Enrichment (exclusion → foreign-projectnum → dim cross-check →
+  // posted → sign-flip → FX). See inline comments for each gate.
+  const enriched: Record<string, unknown>[] = [];
+  let droppedExcludedCount = 0;
+  let droppedNoHeaderCount = 0;
+  let droppedUnknownAccountTypeCount = 0;
+  let droppedForeignProjectCount = 0;
+  let droppedDraftCount = 0;
+  let droppedDimMismatchCount = 0;
+  for (const r of all) {
+    const code = String(r.mserp_expenseid ?? "").trim();
+    if (code && EXCLUDED_EXPENSE_IDS.has(code)) {
+      droppedExcludedCount += 1;
+      continue;
+    }
+    const linePid = String(r.mserp_projectnum ?? "").trim();
+    const expensenum = String(r.mserp_expensenum ?? "").trim();
+    // PBI's hand-picked voucher exclusions (report-level ExpenseNum filter).
+    if (EXCLUDED_EXPENSE_NUMS.has(expensenum)) {
+      droppedExcludedCount += 1;
+      continue;
+    }
+    // A non-empty projectnum naming a DIFFERENT, REAL project means the line
+    // belongs to THAT project — a voucher split per-project carries one line
+    // per owner (e.g. AFZEMSN001056 has a PRJ…2106 line AND a PRJ…2335 line,
+    // each stamped to its own project). Drop it here. The exception is a
+    // fixing/booking project (FFIX…): its projectnum is a redirect, so the
+    // line falls through to the distribution check below.
+    if (linePid && linePid !== projectNo && !isFixingProject(linePid)) {
+      droppedForeignProjectCount += 1;
+      continue;
+    }
+    // Belonging: a distributed (expensenum, expenseid) PAIR attributes the line
+    // to this project regardless of its stamp/dimension — that's how a cost
+    // booked under a fixing project (FFIX…, out of scope) reaches the real
+    // voyage project, exactly as Power BI does (PRJ000002026 NAVLUN). The PAIR
+    // (not just the expensenum) also stops a shared-voucher sibling carrying a
+    // different, non-distributed code from leaking in (PRJ000002291's stray
+    // 720089). Otherwise the project MUST appear in the financial-dimension
+    // string — the `mserp_projectnum` stamp ALONE is not trusted, EVEN when it
+    // equals this project: PRJ000002464 carries twelve 720089 "DİĞER İŞLEMLER"
+    // financing lines stamped to the project but dimensioned elsewhere
+    // (TFZ|<vessel>, MUHASEBE…), which inflated realised expense by $8.45M.
+    // Requiring the dimension match drops exactly those, while distributed
+    // costs and correctly-dimensioned lines are untouched (verified:
+    // PRJ000002000/2026/2291 unchanged, PRJ000002464 → $240,580).
+    const pairDistributed =
+      !!expensenum && !!code && distPairSet.has(`${expensenum}|${code}`);
+    if (!pairDistributed) {
+      const ddv = String(r.mserp_defaultdimensiondisplayvalue ?? "");
+      if (!ddv.includes(projectNo)) {
+        droppedDimMismatchCount += 1;
+        continue;
+      }
+    }
+    const header = expensenum ? headerByExpensenum.get(expensenum) : undefined;
+    if (!header) {
+      droppedNoHeaderCount += 1;
+      continue;
+    }
+    // Posted-only.
+    if (header.posted === false) {
+      droppedDraftCount += 1;
+      continue;
+    }
+    const base =
+      header.accountType === ACCOUNT_TYPE_CUSTOMER
+        ? -1
+        : header.accountType !== null &&
+            COST_ACCOUNT_TYPES.has(header.accountType)
+          ? +1
+          : 0;
+    if (base === 0) {
+      droppedUnknownAccountTypeCount += 1;
+      continue;
+    }
+    // isReturned flips the Vendor/Customer base sign: a returned Vendor
+    // cost reduces realised (−), a returned Customer reflection adds
+    // back (+). Matches Power BI (verified on PRJ000002000).
+    const sign = header.isReturned ? -base : base;
+
+    const out: Record<string, unknown> = { ...r };
+    const ref = code ? refMap.get(code) : undefined;
+    if (ref) out.mserp_refexpenseid = ref;
+
+    const amount = Number(r.mserp_amountcur);
+    if (Number.isFinite(amount)) {
+      const usd = header.currency === "USD" ? amount : amount * header.rate;
+      out.mserp_amountcur_usd = sign * usd;
+      out.mserp_currencycode = header.currency;
+      out.mserp_exchratesecond = header.rate;
+      out.mserp_accounttype = header.accountType;
+    }
+    enriched.push(out);
+  }
+  const droppedTotal =
+    droppedExcludedCount +
+    droppedNoHeaderCount +
+    droppedUnknownAccountTypeCount +
+    droppedForeignProjectCount +
+    droppedDraftCount +
+    droppedDimMismatchCount;
+  if (droppedTotal > 0) {
+    // eslint-disable-next-line no-console
+    console.info(
+      `[useProjectExpenseLines] ${projectNo}: kept ${enriched.length}/${all.length} lines (dropped ${droppedExcludedCount} excluded-id, ${droppedNoHeaderCount} no-header, ${droppedUnknownAccountTypeCount} unknown-accounttype, ${droppedForeignProjectCount} foreign-projectnum, ${droppedDraftCount} draft, ${droppedDimMismatchCount} dim-mismatch).`
+    );
+  }
+
+  // Freight-chain realised ∪ extra-cost realised (union — see spec).
+  const combined = [...enriched, ...extraCostRows];
+  cacheSet(projectNo, { rows: combined, fetchedAt: new Date().toISOString() });
+  return combined;
+}
+
+/** In-flight dedup — hover prefetch + the hook's own fetch share ONE
+ *  promise per projectNo, so a hover-then-click never double-fetches. */
+const inFlight = new Map<string, Promise<Record<string, unknown>[]>>();
+
+function fetchExpenseLines(
+  projectNo: string
+): Promise<Record<string, unknown>[]> {
+  const cached = cacheGet(projectNo);
+  if (cached) return Promise.resolve(cached.rows);
+  const running = inFlight.get(projectNo);
+  if (running) return running;
+  const p = runExpenseChain(projectNo);
+  inFlight.set(projectNo, p);
+  // Free the slot on settle (success caches; failure lets a retry run).
+  p.then(
+    () => inFlight.delete(projectNo),
+    () => inFlight.delete(projectNo)
+  );
+  return p;
+}
+
+/**
+ * 🔒 Read-only — warm the realised-expense cache for a project WITHOUT
+ * mounting the hook. Call on hover (with a small intent delay) so the
+ * ~2-5 s chain is already done — or in flight — by the time the user
+ * clicks. Fire-and-forget; errors are swallowed (a failed prefetch just
+ * means the click pays the normal fetch). No-op when already cached or
+ * in flight.
+ */
+export function prefetchProjectExpenseLines(
+  projectNo: string | null | undefined
+): void {
+  if (!projectNo) return;
+  if (cacheGet(projectNo) || inFlight.has(projectNo)) return;
+  void fetchExpenseLines(projectNo).catch(() => {
+    /* best-effort cache warm */
+  });
+}
+
+export interface UseProjectExpenseLinesReturn {
+  /** Authoritative expense-line rows for the current project. */
+  rows: Record<string, unknown>[];
+  /** True while ANY of the three async steps is in flight. */
+  isFetching: boolean;
+  /** ISO timestamp of the most recent successful chain completion. */
+  fetchedAt: string | null;
+  /** Last error message, when the chain failed. */
+  error: string | null;
+}
+
+/**
+ * 🔒 Read-only — fetch realised-expense LINES for one project via a
+ * chain of three sequential steps + one parallel reference-map step:
+ *
+ *   0. List inventory-dimension rows from `mserp_inventdimbientities`
+ *      filtered by `mserp_inventdimension2 eq '<projectNo>'`. Pull
+ *      only `mserp_inventdimid`. This step exists because the
+ *      distribution entity (Step 1) is not directly indexed by
+ *      project number — the project link lives in the inventdim
+ *      table.
+ *   R. (PARALLEL to Step 0) List rows from
+ *      `mserp_tryaiotherexpenseprojectlineentities` filtered by
+ *      `mserp_etgtryprojid eq '<projectNo>'`. Build a
+ *      `mserp_tryexpensetype → mserp_refexpenseid` map. This is
+ *      best-effort: failure here just leaves enriched rows without
+ *      the textual class label, the rest of the chain proceeds.
+ *   1. De-duplicate the inventdimids, then list distribution rows
+ *      from `mserp_tryaifrtexpenselinedistlineentities` using a
+ *      chunked `In(mserp_inventdimid, …)` filter. Pull only
+ *      `mserp_expensenum`.
+ *   2. De-duplicate the expense numbers, then fetch the matching
+ *      rows from `mserp_tryaiexpenselineentities` using a chunked
+ *      `In(mserp_expensenum, …)` filter so the URL stays under
+ *      proxy limits even when a project touches hundreds of expense
+ *      vouchers.
+ *   2b. (PARALLEL to Step 2) Fetch the expense HEADER rows from
+ *       `mserp_tryaiexpensetableentities` for the same expensenum
+ *       chunks. Header carries `mserp_currencycode`,
+ *       `mserp_exchratesecond` (USD exchange rate at the txn
+ *       date), and `mserp_accounttype` (Vendor / Customer /
+ *       General accounting). Build a
+ *       `expensenum → { currency, rate, accountType }` map.
+ *   3. Enrich each Step-2 row by setting `mserp_refexpenseid` from
+ *      Step-R's map keyed on the row's `mserp_expenseid`, AND
+ *      attaching a derived `mserp_amountcur_usd` field. The value
+ *      is signed:
+ *        - Vendor header   → +amount (real cost, adds to total)
+ *        - Customer header → −amount (reflection, subtracts)
+ *        - else            → line is dropped entirely
+ *      Amount itself is FX-converted via `mserp_exchratesecond`
+ *      when the row's currency isn't USD. Lines whose
+ *      `mserp_expenseid` is in `EXCLUDED_EXPENSE_IDS` (tax /
+ *      pass-through / FX-adjustment codes — see the constant for
+ *      the full list with their human-readable labels) are
+ *      filtered out before the sign step. Consumers
+ *      should sum `mserp_amountcur_usd` for USD totals; the
+ *      original `mserp_amountcur` is preserved for the raw
+ *      inspector view.
+ *
+ * Returns the enriched step-2 rows. The inventdimb + distribution +
+ * refmap entities act as filter / lookup intermediaries only — their
+ * raw rows aren't surfaced anywhere.
+ *
+ * Results are memoised in a bounded per-project in-memory LRU cache
+ * (see the cache block above): the first visit pays the ~2-5 s chain,
+ * any revisit this session is instant with no network. The cache is
+ * dropped wholesale when a full data refresh rewrites the projects
+ * master cache, so realised totals never go stale.
+ */
+export function useProjectExpenseLines(
+  projectNo: string | null | undefined
+): UseProjectExpenseLinesReturn {
+  const [rows, setRows] = React.useState<Record<string, unknown>[]>([]);
+  const [isFetching, setIsFetching] = React.useState(false);
+  const [fetchedAt, setFetchedAt] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!projectNo) {
+      setRows([]);
+      setError(null);
+      return;
+    }
+    // Cache hit → instant, skip the whole 3-phase chain.
+    const cached = cacheGet(projectNo);
+    if (cached) {
+      setRows(cached.rows);
+      setFetchedAt(cached.fetchedAt);
+      setError(null);
+      setIsFetching(false);
+      return;
+    }
+    let cancelled = false;
+    setIsFetching(true);
+    setError(null);
+    // Delegates to the shared fetcher — if a hover prefetch is already in
+    // flight for this project we await the SAME promise instead of firing
+    // a second chain. On resolve the result is already in the cache.
+    fetchExpenseLines(projectNo)
+      .then((resultRows) => {
+        if (cancelled) return;
+        setRows(resultRows);
+        setFetchedAt(
+          cacheGet(projectNo)?.fetchedAt ?? new Date().toISOString()
+        );
+        setError(null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : String(err);
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[useProjectExpenseLines] fetch failed for ${projectNo}:`,
+          err
+        );
+        setError(message);
+      })
+      .finally(() => {
+        if (!cancelled) setIsFetching(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectNo]);
+
+  return {
+    rows,
+    isFetching,
+    fetchedAt,
+    error,
+  };
+}

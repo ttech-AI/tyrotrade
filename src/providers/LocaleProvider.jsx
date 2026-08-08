@@ -36,10 +36,29 @@ export function LocaleProvider({ children }) {
     document.documentElement.setAttribute("dir", "ltr")
   }, [locale])
 
+  /**
+   * t(key, fallbackOrVars?, vars?)
+   *
+   * Falls through to ENGLISH before giving up, so a key that only exists in
+   * en/tr renders readable text under ru/ar instead of the raw key string
+   * (the freight pages add several hundred keys and the ru/ar files trail).
+   *
+   * `vars` interpolates {name} placeholders — the ported freight strings use
+   * them heavily, and doing it here keeps `.replace()` chains out of the call
+   * sites.
+   */
   const t = useCallback(
-    (key, fallback) => {
+    (key, fallbackOrVars, maybeVars) => {
+      const varsGiven = typeof fallbackOrVars === "object" && fallbackOrVars !== null
+      const fallback = varsGiven ? undefined : fallbackOrVars
+      const vars = varsGiven ? fallbackOrVars : maybeVars
+
       const dict = DICTIONARIES[locale] ?? DICTIONARIES[DEFAULT]
-      return dict[key] ?? fallback ?? key
+      const value = dict[key] ?? DICTIONARIES.en[key] ?? fallback ?? key
+      if (!vars) return value
+      return String(value).replace(/\{(\w+)\}/g, (m, name) =>
+        vars[name] != null ? String(vars[name]) : m,
+      )
     },
     [locale],
   )

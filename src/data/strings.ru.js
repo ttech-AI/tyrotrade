@@ -462,4 +462,15 @@ export const strings = {
   "settings.general.toast.refreshed": "Данные обновлены",
   "settings.general.toast.cleared": "{key} очищено",
   "settings.general.toast.clearedAll": "Все локальные данные очищены, страница обновляется…",
+
+  // ── Freight pages (Vessel Ops / E.M Overview / Data Management) ─────────
+  // Ported verbatim from tyrofreight's translations.ts. RU and AR are not
+  // translated: this vocabulary is D365 F&O + shipping jargon (sefer, alt
+  // proje, tahmini gider) where machine translation reads as nonsense, so
+  // they intentionally fall through to English via LocaleProvider's t().
+  "nav.vessels": "Рейсы",
+  "nav.emOverview": "Обзор E.M",
+  "nav.data": "Управление данными",
+  "settings.general.storage.freight": "Кэш данных рейсов",
+  "settings.general.storage.freightDescription": "Записи Dataverse для страниц рейсов и данных (IndexedDB).",
 }
