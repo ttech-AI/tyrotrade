@@ -6,6 +6,7 @@ import "@fontsource/kanit/700.css"
 import "./index.css"
 import App from "./App.jsx"
 import { msalInstance, ensureMsalInitialized } from "@/lib/msal"
+import { applyDefaultsMigration } from "@/lib/defaultsMigration"
 import { onNotificationAction } from "@/lib/notify/browserNotify"
 import { requestOpenChat } from "@/lib/chatBus"
 import { ThemeProvider } from "@/providers/ThemeProvider"
@@ -36,6 +37,11 @@ function isMsalRenewalFrame() {
 // landed us with (clears the URL hash + sets the active account) BEFORE React
 // mounts. App's auth gate then sees the authenticated state on first render.
 if (!isMsalRenewalFrame()) {
+  // BEFORE anything reads localStorage: one-time wipe of stale persisted
+  // defaults (old locale/palette) so the 2026-08 default change actually
+  // reaches browsers that visited earlier. See the module for the rationale.
+  applyDefaultsMigration()
+
   // Answer-notification buttons. A service-worker notification has no default
   // click behaviour: notify-sw.js focuses this tab and posts the chosen action
   // here, and this turns it into the same in-app "open the chat" signal the

@@ -60,9 +60,14 @@ Komutlar: `npm run dev` (5173) · `npm run build` · `npm run lint`. Test yok.
   favicon/pwa SVG'leri, manifest `theme_color`, index.html theme-color (light)
   ve LoginPage `BRAND_COLORS`/`BRAND_GRADIENT` sabitleri bu setten. Uygulama
   içi logo/`text-brand` palet CSS token'larını kullanır, otomatik uyar.
-  Login'deki pastel orb bilinçli olarak palet dışıdır (index.css'teki
-  `--voiceorb-*` spec yorumuna bak). Renk seti değişirse `public/*.svg` +
+  Login orb'u da palet uyumludur: `--voiceorb-*` değişkenlerinin
+  ocean-breeze-v2 override'ı index.css'te (Peach Sorbet / Pastel Lavender
+  pastel spec'te kalır). Renk seti değişirse `public/*.svg` +
   `apple-touch-icon.png` + manifest/meta + `BRAND_*` birlikte güncellenmeli.
+- Varsayılan değişikliği geçmiş ziyaretçilere ulaşsın diye
+  `src/lib/defaultsMigration.js` tek seferlik kayıtlı locale/palette siler
+  (`tyrotrade-defaults-v` sürümü). İleride varsayılan değiştirirsen VERSION'ı
+  artır.
 - Storage anahtarları `tyrotrade-*` önekli (tyro ile localhost'ta çakışmasın diye).
   Yeni anahtar eklerken aynı öneki kullan ve `src/data/appMeta.js` +
   `GeneralTab.jsx` storage registry'sini güncelle.

@@ -383,14 +383,21 @@
 }
 
 /* PastelVoiceOrb renk değişkenleri */
-/* Ocean Breeze v2, Peach Sorbet ve Pastel Lavender'da spec pastel renkleri korunur (default :root). */
-/* Diğer paletlerde orb, palet renklerine adapte olur. */
+/* Peach Sorbet ve Pastel Lavender'da spec pastel renkleri korunur (default :root). */
+/* Diğer paletlerde (varsayılan Ocean Breeze v2 dahil) orb, palet renklerine adapte olur. */
 :root {
     --voiceorb-c1: 255, 131, 93;   /* warm peach / coral */
     --voiceorb-c2: 196, 111, 236;  /* lavender wave */
     --voiceorb-c3: 175, 79, 232;   /* deep violet */
     --voiceorb-c4: 244, 142, 132;  /* warm salmon */
     --voiceorb-c5: 250, 220, 236;  /* soft pink */
+}
+:root[data-palette="ocean-breeze-v2"] {
+    --voiceorb-c1: 0, 180, 216;    /* dominant cyan  (#00b4d8) */
+    --voiceorb-c2: 72, 202, 228;   /* wave           (#48cae4) */
+    --voiceorb-c3: 0, 119, 182;    /* deep blue      (#0077b6) */
+    --voiceorb-c4: 144, 224, 239;  /* light mist     (#90e0ef) */
+    --voiceorb-c5: 202, 240, 248;  /* soft highlight (#caf0f8) */
 }
 :root[data-palette="sunset-gradient"] {
     --voiceorb-c1: 255, 123, 0;
