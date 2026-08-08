@@ -272,7 +272,7 @@ function Section({ title, subtitle, children, first = false }) {
 
 export function AppLauncher({ onOpenChat, onNewChat }) {
   const { t, locale } = useLocale()
-  const { agents, aiApps, businessApps } = useConfig()
+  const { agents, businessApps } = useConfig()
 
   const agentSubtitle =
     locale === "tr" ? "Sohbet başlat ve sorularını sor" : "Start a chat and ask your questions"
@@ -310,24 +310,6 @@ export function AppLauncher({ onOpenChat, onNewChat }) {
                   : onOpenChat?.(agent.id)
               }
               index={i}
-            />
-          ))}
-        </Section>
-
-        <Section title={t("launcher.aiApps.title")} subtitle={t("launcher.aiApps.subtitle")}>
-          {aiApps.map((app, i) => (
-            <LauncherCard
-              key={app.id}
-              iconName={app.iconName}
-              logo={app.logo}
-              title={app.name}
-              subtitle={app.description}
-              onClick={() => {
-                const safe = safeExternalUrl(app.url)
-                if (safe !== "#") window.open(safe, "_blank", "noopener,noreferrer")
-              }}
-              index={i}
-              accent="ai"
             />
           ))}
         </Section>

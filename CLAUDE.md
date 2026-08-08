@@ -12,6 +12,11 @@ kullanılıyor. Kural:
 
 - **Aynı kalanlar**: Home (`/dashboard`, AppLauncher) ve Chat (`/chat`) sayfaları,
   layout kabuğu (Header, Sidebar), tema/palet/dil altyapısı, login sayfası.
+  İstisna: **AI Solutions/AI Çözümler bölümü kaldırıldı** — hem launcher'dan
+  (`AppLauncher`) hem sidebar'dan (`NavApps`). Veri katmanı duruyor:
+  ConfigProvider hâlâ `aiApps` veriyor ve /settings'teki AI Ürünler sekmesi
+  onları yönetiyor; sadece bu iki yüzey göstermiyor. Bölümü geri istersen
+  `launcher.aiApps.*` string'leri ve `nav.appsAI` yerinde duruyor.
 - **Değişecekler**: `/analytics`, `/settings`, `/help` şu an tyro'dan gelen
   ÖRNEK/placeholder sayfalardır. tyroTrade'e özel sayfalar bunların yerine
   eklenecek — yeni sayfa yazarken bu üçünü şablon olarak kullan.
